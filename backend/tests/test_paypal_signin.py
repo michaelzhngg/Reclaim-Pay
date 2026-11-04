@@ -414,3 +414,40 @@ def test_default_mock_payer_is_the_seeded_demo_employee(monkeypatch):
 
     monkeypatch.delenv("DEMO_PAYER_ID_1", raising=False)
     assert _payer_id(ACCOUNTS["SWE123"])[0] == Settings.model_fields["PAYPAL_MOCK_SIGNIN_PAYER_ID"].default
+
+
+def _link_failures(db):
+    return db.exec(select(AgentAction).where(AgentAction.action_type == "PAYEE_LINK_FAILED")).all()
+
+
+def _connect_callback(client, user, code="c"):
+    state = make_state(user.user_id, settings.SECRET_KEY, datetime.now(timezone.utc))
+    return client.get("/api/v1/paypal/callback", params={"code": code, "state": state}, follow_redirects=False)
+
+
+def test_link_to_a_payer_owned_by_someone_else_logs_the_reason(client, pg_db, monkeypatch):
+    _person(pg_db, payer="TAKEN")
+    newcomer = _person(pg_db, payer=None)
+    _use_paypal(monkeypatch, payer="TAKEN")
+    res = _connect_callback(client, newcomer)
+    assert res.headers["location"].endswith("paypal=error")
+    assert [a.payload["reason"] for a in _link_failures(pg_db)] == ["payer_already_linked"]
+
+
+def test_paypal_error_during_link_logs_status_and_debug_id(client, pg_db, monkeypatch):
+    user = _person(pg_db, payer=None)
+
+    class Failing(FakePayPal):
+        async def exchange_auth_code(self, code):
+            raise PayPalError(401, "invalid_client", "dbg123")
+
+    monkeypatch.setattr(paypal_api, "get_paypal_client", lambda: Failing(PayPalUser("X", "x@test.local", True)))
+    _connect_callback(client, user)
+    [entry] = _link_failures(pg_db)
+    assert entry.payload == {"reason": "paypal_error", "status": 401, "error": "invalid_client", "debug_id": "dbg123"}
+
+
+def test_bad_state_at_link_writes_nothing(client, pg_db, monkeypatch):
+    _use_paypal(monkeypatch)
+    client.get("/api/v1/paypal/callback", params={"code": "c", "state": "garbage"}, follow_redirects=False)
+    assert _link_failures(pg_db) == []
