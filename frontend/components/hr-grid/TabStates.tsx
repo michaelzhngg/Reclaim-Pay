@@ -38,7 +38,7 @@ export function TabError({ message, onRetry }: { message: string; onRetry: () =>
 
 export function TabEmpty({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="rounded-card border border-line bg-surface px-6 py-14 text-center">
+    <div className="rounded-card shadow-ambient bg-surface px-6 py-14 text-center">
       <Inbox className="w-8 h-8 mx-auto text-ink-muted" aria-hidden="true" />
       <p className="font-display font-semibold text-lg text-ink mt-3">{title}</p>
       <p className="text-sm text-ink-muted mt-1">{children}</p>

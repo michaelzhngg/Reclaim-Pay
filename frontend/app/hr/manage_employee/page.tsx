@@ -147,7 +147,7 @@ function EmployeeModal({
             </button>
             <button
               type="submit"
-              className="flex-2 min-h-[44px] px-10 bg-accent text-on-accent rounded-control font-body font-semibold text-sm hover:bg-accent-hover transition-colors cursor-pointer"
+              className="flex-2 min-h-[44px] px-10 bg-accent text-on-accent rounded-full font-body font-semibold text-sm hover:bg-accent-hover transition-colors cursor-pointer"
             >
               {isEdit ? "Save Changes" : "Add Employee"}
             </button>
@@ -220,7 +220,7 @@ export default function ManageEmployeePage() {
           <button
             type="button"
             onClick={handleCreate}
-            className="flex items-center justify-center gap-2 rounded-control min-h-[44px] px-5 bg-accent text-on-accent font-body text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
+            className="flex items-center justify-center gap-2 rounded-full min-h-[44px] px-5 bg-accent text-on-accent font-body text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
             Add Employee
@@ -250,7 +250,7 @@ export default function ManageEmployeePage() {
         </div>
 
         {/* Employee Table */}
-        <div className="bg-surface border border-line rounded-card overflow-hidden">
+        <div className="bg-surface shadow-ambient rounded-card overflow-hidden">
           {/* Desktop Table */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse">

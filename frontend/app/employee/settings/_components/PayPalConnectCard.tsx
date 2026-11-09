@@ -91,7 +91,7 @@ export default function PayPalConnectCard() {
   return (
     <section
       aria-labelledby="paypal-heading"
-      className="bg-surface border border-line rounded-card overflow-hidden"
+      className="bg-surface shadow-ambient rounded-card overflow-hidden"
     >
       <div className="p-5 md:p-6 border-b border-line">
         <h2 id="paypal-heading" className="font-display font-semibold text-lg text-ink mb-1">
@@ -152,7 +152,7 @@ export default function PayPalConnectCard() {
                 type="button"
                 onClick={handleConnect}
                 disabled={connecting}
-                className="min-h-11 flex items-center justify-center gap-2 bg-accent text-on-accent px-5 rounded-control font-semibold text-sm hover:bg-accent-hover transition-colors disabled:opacity-60 disabled:cursor-wait focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="min-h-11 flex items-center justify-center gap-2 bg-accent text-on-accent px-5 rounded-full font-semibold text-sm hover:bg-accent-hover transition-colors disabled:opacity-60 disabled:cursor-wait focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
                 {connecting && <Loader2 className="w-4 h-4 motion-safe:animate-spin" aria-hidden="true" />}
                 {connecting ? "Opening PayPal…" : "Connect PayPal"}

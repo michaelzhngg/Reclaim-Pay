@@ -26,7 +26,7 @@ export default function SupportLegacyContent() {
           <div className="md:col-span-1 space-y-4">
             <h2 className="font-display font-semibold text-lg text-ink">Quick Resources</h2>
 
-            <ul className="bg-surface border border-line rounded-card divide-y divide-line overflow-hidden">
+            <ul className="bg-surface shadow-ambient rounded-card divide-y divide-line overflow-hidden">
               {[
                 { title: "Claim Policy Guide", desc: "Understand what can be reimbursed." },
                 { title: "Uploading Receipts", desc: "Best practices for OCR extraction." },
@@ -48,7 +48,7 @@ export default function SupportLegacyContent() {
               ))}
             </ul>
 
-            <div className="p-4 sm:p-5 rounded-card border border-line bg-surface">
+            <div className="p-4 sm:p-5 rounded-card shadow-ambient bg-surface">
               <h3 className="font-display font-semibold text-base text-ink mb-1 flex items-center gap-2">
                 <Phone className="w-4 h-4 text-ink-muted" aria-hidden="true" />
                 Urgent Escalations
@@ -65,7 +65,7 @@ export default function SupportLegacyContent() {
           </div>
 
           <div className="md:col-span-2">
-            <section className="bg-surface border border-line rounded-card overflow-hidden h-full flex flex-col">
+            <section className="bg-surface shadow-ambient rounded-card overflow-hidden h-full flex flex-col">
               <div className="px-4 sm:px-6 py-4 border-b border-line">
                 <h2 className="font-display font-semibold text-lg text-ink">Submit a Ticket</h2>
                 <p className="font-body text-sm text-ink-muted mt-0.5">Send a direct message to support staff.</p>
@@ -110,7 +110,7 @@ export default function SupportLegacyContent() {
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="w-full flex items-center justify-center gap-2 min-h-[48px] bg-accent text-on-accent px-5 rounded-control font-semibold text-sm hover:bg-accent-hover transition-colors cursor-pointer"
+                    className="w-full flex items-center justify-center gap-2 min-h-[48px] bg-accent text-on-accent px-5 rounded-full font-semibold text-sm hover:bg-accent-hover transition-colors cursor-pointer"
                   >
                     <Send className="w-4 h-4" aria-hidden="true" />
                     Submit Request

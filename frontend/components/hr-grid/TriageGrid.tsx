@@ -65,7 +65,7 @@ function TriageCard({
   onToggle: () => void;
 }) {
   return (
-    <li className="flex items-stretch gap-1 bg-surface rounded-card border border-line">
+    <li className="flex items-stretch gap-1 bg-surface rounded-card shadow-ambient">
       {selectable && (
         <label className="flex items-start justify-center pt-4 pl-3 min-w-[44px] cursor-pointer has-disabled:cursor-not-allowed">
           <input

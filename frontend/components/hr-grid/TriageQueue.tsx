@@ -171,7 +171,7 @@ export default function TriageQueue({ rows, isLoading, error, selfId, onRetry, o
               type="button"
               onClick={openSheet}
               disabled={selectedRows.length === 0}
-              className="w-full lg:w-auto min-h-[44px] px-4 rounded-control bg-accent text-on-accent text-sm font-semibold tabular-nums hover:bg-accent-hover disabled:bg-line disabled:text-ink-muted disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 cursor-pointer"
+              className="w-full lg:w-auto min-h-[44px] px-4 rounded-full bg-accent text-on-accent text-sm font-semibold tabular-nums hover:bg-accent-hover disabled:bg-line disabled:text-ink-muted disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 cursor-pointer"
             >
               {approveButtonLabel(selectedRows)}
             </button>
@@ -203,7 +203,7 @@ export default function TriageQueue({ rows, isLoading, error, selfId, onRetry, o
         )}
 
         {!isLoading && !error && visible.length === 0 && (
-          <div className="rounded-card border border-line bg-surface px-6 py-14 text-center">
+          <div className="rounded-card shadow-ambient bg-surface px-6 py-14 text-center">
             <Inbox className="w-8 h-8 mx-auto text-ink-muted" aria-hidden="true" />
             <p className="font-display font-semibold text-lg text-ink mt-3">{emptyCopy(tab)}</p>
             {tab === "all" && (

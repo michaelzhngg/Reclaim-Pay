@@ -100,7 +100,7 @@ export default function DraftsPage() {
 
       {/* Empty state */}
       {!loading && drafts.length === 0 && (
-        <div className="bg-surface rounded-card border border-line flex flex-col items-start py-8 px-6 max-w-xl">
+        <div className="bg-surface rounded-card shadow-ambient flex flex-col items-start py-8 px-6 max-w-xl">
           <h3 className="text-base font-semibold text-ink font-display mb-1.5">
             No drafts yet
           </h3>
@@ -110,7 +110,7 @@ export default function DraftsPage() {
           <button
             type="button"
             onClick={() => router.push("/employee/claims")}
-            className="inline-flex items-center min-h-[44px] px-5 rounded-control bg-accent text-on-accent text-sm font-semibold font-body hover:bg-accent-hover transition-colors"
+            className="inline-flex items-center min-h-[44px] px-5 rounded-full bg-accent text-on-accent text-sm font-semibold font-body hover:bg-accent-hover transition-colors"
           >
             Upload New Claim
           </button>
@@ -124,7 +124,7 @@ export default function DraftsPage() {
 
       {/* Draft list */}
       {!loading && filteredDrafts.length > 0 && (
-        <ul className="bg-surface rounded-card border border-line divide-y divide-line">
+        <ul className="bg-surface rounded-card shadow-ambient divide-y divide-line">
           {filteredDrafts.map((draft) => {
             const isDeleting = deletingId === draft.draft_id;
             const hasFailed = draft.failed_receipt_count > 0;

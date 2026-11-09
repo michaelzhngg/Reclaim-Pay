@@ -86,7 +86,7 @@ function LineStatusBadge({ s }: { s: LineItem["lineStatus"] }) {
 // Shows only notes HR wrote for the employee. AI text never reaches this view.
 function HRNoteBanner({ note }: { note: string }) {
   return (
-    <div className="p-4 rounded-card bg-surface border border-line">
+    <div className="p-4 rounded-card bg-surface shadow-ambient">
       <p className="font-body font-semibold text-sm text-ink mb-1">
         Note from HR
       </p>
@@ -566,7 +566,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
           <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
 
             {/* ① CONDITIONAL HEADER ─────────────────────────────────────── */}
-            <div className="bg-surface border border-line rounded-card p-5">
+            <div className="bg-surface shadow-ambient rounded-card p-5">
 
               {/* PENDING: show requested only, no approved field */}
               {isPending && (
@@ -575,7 +575,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                     <p className="font-body text-sm text-ink-muted mb-1">
                       Amount submitted
                     </p>
-                    <span className="font-mono font-medium text-3xl text-ink">
+                    <span className="font-headline tabular-nums tracking-[-0.02em] font-medium text-3xl text-ink">
                       {claim.amount}
                     </span>
                   </div>
@@ -590,7 +590,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                     <p className="font-body text-sm text-ink-muted mb-1">
                       Amount requested
                     </p>
-                    <span className="font-mono font-medium text-3xl text-ink">
+                    <span className="font-headline tabular-nums tracking-[-0.02em] font-medium text-3xl text-ink">
                       {claim.amount}
                     </span>
                   </div>
@@ -598,7 +598,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                     <p className="font-body text-sm text-ink-muted mb-1">
                       Total approved
                     </p>
-                    <span className="font-mono font-medium text-3xl text-danger">MYR 0.00</span>
+                    <span className="font-headline tabular-nums tracking-[-0.02em] font-medium text-3xl text-danger">MYR 0.00</span>
                     <div className="mt-2"><StatusBadge status={effectiveStatus} /></div>
                   </div>
                 </div>
@@ -612,7 +612,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                       <p className="font-body text-sm text-ink-muted mb-1">
                         Total approved
                       </p>
-                      <span className="font-mono font-medium text-3xl text-ink">
+                      <span className="font-headline tabular-nums tracking-[-0.02em] font-medium text-3xl text-ink">
                         {fmt(totalApproved)}
                       </span>
                     </div>
@@ -636,7 +636,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                     <p className="font-body text-sm text-ink-muted mb-1">
                       Total approved
                     </p>
-                    <span className="font-mono font-medium text-3xl text-ink">
+                    <span className="font-headline tabular-nums tracking-[-0.02em] font-medium text-3xl text-ink">
                       {fmt(totalApproved)}
                     </span>
                   </div>
@@ -688,7 +688,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                 </span>
               </h4>
 
-              <div className="rounded-card border border-line bg-surface overflow-hidden">
+              <div className="rounded-card shadow-ambient bg-surface overflow-hidden">
                 <div className="divide-y divide-line">
                   {items.map((item, i) => (
                     <LineItemRow key={i} item={item} masterRejected={masterRejected} masterPending={isPending} />
@@ -732,7 +732,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                   <span className="flex items-center justify-center w-6 h-6 rounded-full bg-paper shrink-0 z-10">
                     <CheckCircle2 className="w-5 h-5 text-ink" aria-hidden="true" />
                   </span>
-                  <div className="w-full min-w-0 p-3 rounded-card bg-surface border border-line">
+                  <div className="w-full min-w-0 p-3 rounded-card bg-surface shadow-ambient">
                     <div className="flex flex-wrap items-center justify-between gap-x-3 mb-1">
                       <span className="font-semibold text-sm text-ink">Submitted</span>
                       <time className="font-mono text-xs text-ink-muted">{claim.date}</time>
@@ -748,7 +748,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                       ? <Clock className="w-5 h-5 text-ink-muted" aria-hidden="true" />
                       : <CheckCircle2 className="w-5 h-5 text-ink" aria-hidden="true" />}
                   </span>
-                  <div className="w-full min-w-0 p-3 rounded-card bg-surface border border-line">
+                  <div className="w-full min-w-0 p-3 rounded-card bg-surface shadow-ambient">
                     <div className="flex flex-wrap items-center justify-between gap-x-3 mb-1">
                       <span className="font-semibold text-sm text-ink">AI Validation</span>
                       {!isPending && (
@@ -773,7 +773,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                         ? <AlertTriangle className="w-5 h-5 text-warning" aria-hidden="true" />
                         : <CheckCircle2 className="w-5 h-5 text-ink" aria-hidden="true" />}
                     </span>
-                    <div className="w-full min-w-0 p-3 rounded-card bg-surface border border-line">
+                    <div className="w-full min-w-0 p-3 rounded-card bg-surface shadow-ambient">
                       <div className="flex flex-wrap items-center justify-between gap-x-3 mb-1">
                         <span className="font-semibold text-sm text-ink">
                           {masterRejected ? "HR Rejected" : isPartial ? "HR Partially Approved" : "HR Approved"}
@@ -797,7 +797,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                     <span className="flex items-center justify-center w-6 h-6 rounded-full bg-paper shrink-0 z-10">
                       <CheckCircle2 className="w-5 h-5 text-success" aria-hidden="true" />
                     </span>
-                    <div className="w-full min-w-0 p-3 rounded-card bg-surface border border-line">
+                    <div className="w-full min-w-0 p-3 rounded-card bg-surface shadow-ambient">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-semibold text-sm text-success">Paid</span>
                       </div>
@@ -811,7 +811,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
             {/* ⑤ DOCUMENT ACTIONS: official form only ─────────────────────── */}
             <div>
               <h4 className="font-display font-semibold text-sm text-ink mb-3">Documents</h4>
-              <div className="bg-surface border border-line rounded-card p-4">
+              <div className="bg-surface shadow-ambient rounded-card p-4">
                 <div className="flex items-center gap-3 mb-3">
                   <FileText className="w-5 h-5 text-ink-muted shrink-0" aria-hidden="true" />
                   <div className="min-w-0 flex-1">
@@ -827,7 +827,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                     id={`view-form-${claim.id}`}
                     type="button"
                     onClick={openFormModal}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-4 min-h-[44px] rounded-control bg-accent text-on-accent font-body font-semibold text-sm hover:bg-accent-hover transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-4 min-h-[44px] rounded-full bg-accent text-on-accent font-body font-semibold text-sm hover:bg-accent-hover transition-colors"
                   >
                     <ExternalLink className="w-4 h-4" aria-hidden="true" />
                     View official claim form

@@ -21,7 +21,7 @@ export default function MvpFeatureRestricted({
   return (
     <main className="min-h-dvh pb-24 md:pb-12 bg-paper">
       <div className="w-full max-w-4xl mx-auto px-4 md:px-6 pt-8 md:pt-10">
-        <section className="bg-surface border border-line rounded-card p-6 md:p-8">
+        <section className="bg-surface shadow-ambient rounded-card p-6 md:p-8">
           <span className="inline-flex items-center rounded-full bg-surface-muted text-ink-muted px-3 py-1 text-xs font-medium">
             {badge}
           </span>
@@ -38,7 +38,7 @@ export default function MvpFeatureRestricted({
             </div>
           </div>
 
-          <div className="mt-8 rounded-card border border-line bg-surface-muted p-4">
+          <div className="mt-8 rounded-card shadow-ambient bg-surface-muted p-4">
             <p className="font-body text-sm text-ink">
               This screen is intentionally simplified for MVP production. The previous full UI is preserved in code and can be restored later.
             </p>
@@ -47,7 +47,7 @@ export default function MvpFeatureRestricted({
           <div className="mt-8">
             <Link
               href={backHref}
-              className="inline-flex items-center gap-2 min-h-[44px] rounded-control bg-accent text-on-accent px-4 text-sm font-semibold hover:bg-accent-hover transition-colors"
+              className="inline-flex items-center gap-2 min-h-[44px] rounded-full bg-accent text-on-accent px-4 text-sm font-semibold hover:bg-accent-hover transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               {backLabel}

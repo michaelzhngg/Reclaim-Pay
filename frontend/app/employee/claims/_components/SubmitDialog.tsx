@@ -40,7 +40,7 @@ const TITLE_ID: Record<Exclude<SubmitPhase, "closed">, string> = {
 const secondaryBtn =
   "inline-flex min-h-11 items-center justify-center rounded-control border border-line-strong bg-surface px-5 text-sm font-semibold text-ink hover:bg-surface-muted transition-colors";
 const primaryBtn =
-  "inline-flex min-h-11 items-center justify-center rounded-control bg-accent px-5 text-sm font-semibold text-on-accent hover:bg-accent-hover transition-colors";
+  "inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-5 text-sm font-semibold text-on-accent hover:bg-accent-hover transition-colors";
 
 /**
  * One dialog for the whole submit: it opens on Submit, shows the agent's checks
@@ -109,7 +109,7 @@ export function SubmitDialog({
             )}
 
             {showLeaveNotice && (
-              <div role="status" className="flex flex-col gap-3 rounded-card border border-line bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div role="status" className="flex flex-col gap-3 rounded-card shadow-ambient bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="font-body text-sm text-ink">You can leave this page, we&apos;ll notify you.</p>
                 <button type="button" onClick={onLeave} className={`${secondaryBtn} shrink-0`}>
                   Go to Dashboard

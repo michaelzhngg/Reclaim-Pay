@@ -13,7 +13,7 @@ export default function FastTrackCard({ info }: { info: TrustInfo }) {
   return (
     <section
       aria-labelledby="fast-track-heading"
-      className="rounded-card border border-line bg-surface p-4 md:p-5"
+      className="rounded-card shadow-ambient bg-surface p-4 md:p-5"
     >
       <div className="flex items-baseline justify-between gap-3">
         <h3 id="fast-track-heading" className="font-display text-base font-semibold text-ink">
@@ -30,7 +30,7 @@ export default function FastTrackCard({ info }: { info: TrustInfo }) {
       {/* The sentence above carries the meaning; the bar repeats it visually. */}
       {!limited && !top && (
         <div aria-hidden className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
-          <div className="h-full rounded-full bg-ink" style={{ width: `${pct}%` }} />
+          <div className="h-full rounded-full bg-linear-to-r from-primary to-paypal-sky" style={{ width: `${pct}%` }} />
         </div>
       )}
     </section>

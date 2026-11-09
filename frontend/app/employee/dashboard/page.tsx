@@ -110,7 +110,7 @@ export default function EmployeeDashboardPage() {
         /* ── First run: one clear next step instead of zero cards ── */
         <section
           aria-labelledby="empty-claims-heading"
-          className="bg-surface border border-line rounded-card p-6 md:p-8 flex flex-col items-start gap-4 max-w-xl"
+          className="bg-surface shadow-ambient rounded-card p-6 md:p-8 flex flex-col items-start gap-4 max-w-xl"
         >
           <h3 id="empty-claims-heading" className="font-display text-xl font-semibold text-ink">
             No claims yet
@@ -120,7 +120,7 @@ export default function EmployeeDashboardPage() {
           </p>
           <Link
             href="/employee/claims"
-            className="inline-flex min-h-11 items-center gap-2 rounded-control bg-accent px-5 py-2.5 font-body text-sm font-semibold text-on-accent hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-5 py-2.5 font-body text-sm font-semibold text-on-accent hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <Upload className="h-4 w-4" aria-hidden />
             Upload your first receipt

@@ -63,7 +63,7 @@ export function CopyBatchId({ value }: { value: string | null }) {
 
 function LedgerCard({ row }: { row: PayoutLedgerRow }) {
   return (
-    <li className="bg-surface rounded-card border border-line p-4">
+    <li className="bg-surface rounded-card shadow-ambient p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-semibold text-sm text-ink truncate">{row.employee_name}</p>

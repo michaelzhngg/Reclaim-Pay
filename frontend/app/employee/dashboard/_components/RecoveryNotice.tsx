@@ -157,7 +157,7 @@ export default function RecoveryNotice({ recovery: initial, linked = false }: { 
             <button
               type="submit"
               disabled={sending}
-              className={`inline-flex min-h-11 items-center rounded-control bg-accent px-4 py-2 font-body text-sm font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-60 ${focusRing}`}
+              className={`inline-flex min-h-11 items-center rounded-full bg-accent px-4 py-2 font-body text-sm font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-60 ${focusRing}`}
             >
               {sending ? "Sending…" : "Send dispute"}
             </button>

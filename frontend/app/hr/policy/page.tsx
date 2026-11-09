@@ -16,7 +16,7 @@ const SAVE_STEPS = [
 export function HrProcessingScreen({ currentStep, onBack }: { currentStep: number, onBack: () => void }) {
   return (
     <div className="w-full max-w-xl mx-auto flex flex-col justify-center my-8 sm:my-12">
-      <div className="rounded-card border border-line bg-surface p-5 sm:p-8" role="status" aria-live="polite">
+      <div className="rounded-card shadow-ambient bg-surface p-5 sm:p-8" role="status" aria-live="polite">
         <div className="flex items-center gap-3 mb-8">
           <Settings className="w-5 h-5 text-ink-muted shrink-0 motion-safe:animate-spin [animation-duration:3s]" strokeWidth={2} aria-hidden="true" />
           <div>
@@ -329,7 +329,7 @@ export default function PolicyStudio() {
       </button>
 
       {statusDropdownOpen && (
-        <div className="absolute bottom-full mb-2 left-0 w-full bg-surface border border-line rounded-card shadow-overlay py-1 z-50">
+        <div className="absolute bottom-full mb-2 left-0 w-full bg-surface shadow-ambient rounded-card shadow-overlay py-1 z-50">
           {(["Active", "Impending", "Expired"] as PolicyStatus[]).map((s) => (
             <button
               key={s}
@@ -566,7 +566,7 @@ export default function PolicyStudio() {
 
               {/* Form Details (Only shown here in Edit View) */}
               {!isNew && (
-                <div className="bg-surface rounded-card p-4 sm:p-6 border border-line shrink-0">
+                <div className="bg-surface rounded-card p-4 sm:p-6 shadow-ambient shrink-0">
                   <h3 className="font-display text-lg font-bold text-ink mb-5">Policy Details</h3>
                   <div className="flex flex-col gap-5">
                     <div className="flex flex-col gap-1.5">
@@ -649,7 +649,7 @@ export default function PolicyStudio() {
                 />
 
                 {mainPolicyFile ? (
-                  <div className="flex flex-col gap-4 border border-line rounded-card overflow-hidden bg-surface">
+                  <div className="flex flex-col gap-4 shadow-ambient rounded-card overflow-hidden bg-surface">
                     {mainPolicyFile.type === "application/pdf" && previewUrl ? (
                       <iframe
                         src={previewUrl}
@@ -678,7 +678,7 @@ export default function PolicyStudio() {
                     </div>
                   </div>
                 ) : !isNew && !existingMainPolicyDeleted ? (
-                  <div className="flex flex-col gap-4 border border-line rounded-card overflow-hidden bg-surface">
+                  <div className="flex flex-col gap-4 shadow-ambient rounded-card overflow-hidden bg-surface">
                     {/* PDF Viewer for existing file */}
                     <div className="w-full h-[400px] border-b border-line bg-surface flex flex-col items-center justify-center p-8 text-center relative overflow-hidden group">
                       <FileText className="text-ink-muted mb-4" size={56} strokeWidth={1} aria-hidden="true" />
@@ -834,7 +834,7 @@ export default function PolicyStudio() {
 
               {/* Form Details (Only shown here in New/Upload View) */}
               {isNew && (
-                <div className="bg-surface rounded-card p-4 sm:p-6 border border-line shrink-0">
+                <div className="bg-surface rounded-card p-4 sm:p-6 shadow-ambient shrink-0">
                   <h3 className="font-display text-lg font-bold text-ink mb-5">Policy Details</h3>
                   <div className="flex flex-col gap-5">
                     <div className="flex flex-col gap-1.5">
@@ -882,7 +882,7 @@ export default function PolicyStudio() {
 
               {/* AI Overview Summary (Beautified) */}
               {!isNew && (
-                <div className="bg-surface rounded-card border border-line overflow-hidden flex flex-col shrink-0">
+                <div className="bg-surface rounded-card shadow-ambient overflow-hidden flex flex-col shrink-0">
                   <div className="px-5 py-4 border-b border-line">
                     <h3 className="font-display font-semibold text-base text-ink">AI Policy Insights</h3>
                     <p className="text-xs text-ink-muted mt-0.5">Generated from the policy document. Check before you rely on it.</p>
@@ -899,7 +899,7 @@ export default function PolicyStudio() {
                             </p>
                           )}
                           {bullets.length > 0 && (
-                            <div className="rounded-card p-4 border border-line">
+                            <div className="rounded-card p-4 shadow-ambient">
                               <h4 className="text-sm font-semibold text-ink mb-3">Key Takeaways</h4>
                               <PremiumBulletList items={bullets} />
                             </div>
@@ -923,7 +923,7 @@ export default function PolicyStudio() {
                           {editConditions && Object.entries(editConditions).length > 0 ? (
                             <>
                               {Object.entries(editConditions).slice(0, 3).map(([category, details]: [string, any]) => (
-                                <div key={category} className="rounded-card p-4 border border-line">
+                                <div key={category} className="rounded-card p-4 shadow-ambient">
                                   <h5 className="font-body font-semibold text-sm text-ink mb-3">
                                     {category}
                                   </h5>
@@ -955,7 +955,7 @@ export default function PolicyStudio() {
 
               {/* Auto-Approval Budgets Card */}
               {!isNew && Object.keys(categoryBudgets).length > 0 && (
-                <div className="bg-surface rounded-card border border-line overflow-hidden flex flex-col shrink-0">
+                <div className="bg-surface rounded-card shadow-ambient overflow-hidden flex flex-col shrink-0">
                   <div className="px-5 py-4 border-b border-line">
                     <div>
                       <h3 className="font-display font-semibold text-base text-ink">Auto-Approval Budgets</h3>
@@ -1037,7 +1037,7 @@ export default function PolicyStudio() {
                 <span className="font-body text-sm text-ink-muted hidden sm:block">Policy Status:</span>
                 <StatusDropdown />
               </div>
-              <button type="button" onClick={handleSave} className="bg-accent text-on-accent rounded-control min-h-[44px] px-6 sm:px-8 font-body font-semibold hover:bg-accent-hover transition-colors cursor-pointer">
+              <button type="button" onClick={handleSave} className="bg-accent text-on-accent rounded-full min-h-[44px] px-6 sm:px-8 font-body font-semibold hover:bg-accent-hover transition-colors cursor-pointer">
                 {isNew ? "Create Policy" : "Save Changes"}
               </button>
             </div>
@@ -1071,7 +1071,7 @@ export default function PolicyStudio() {
                 <button
                   type="button"
                   onClick={() => setEditingPolicy("new")}
-                  className="flex items-center justify-center gap-2 rounded-control min-h-[44px] px-5 bg-accent text-on-accent font-body text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
+                  className="flex items-center justify-center gap-2 rounded-full min-h-[44px] px-5 bg-accent text-on-accent font-body text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
                 >
                   <Plus size={18} aria-hidden="true" />
                   <span>Create New Policy</span>
@@ -1079,7 +1079,7 @@ export default function PolicyStudio() {
               </div>
 
               {/* Main content */}
-              <div className="bg-surface border border-line rounded-card p-4 sm:p-6 flex flex-col gap-5 overflow-hidden">
+              <div className="bg-surface shadow-ambient rounded-card p-4 sm:p-6 flex flex-col gap-5 overflow-hidden">
                 {/* Toolbar Section */}
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                   {/* Search */}
@@ -1496,7 +1496,7 @@ function ConditionsModal({
 
         <div className="flex-1 overflow-y-auto p-5 sm:p-8 flex flex-col gap-6">
           {Object.entries(localConditions).map(([category, details]) => (
-            <div key={category} className="rounded-card p-4 sm:p-5 border border-line">
+            <div key={category} className="rounded-card p-4 sm:p-5 shadow-ambient">
               <div className="flex items-center justify-between gap-2 mb-4">
                 <h4 className="font-display font-semibold text-lg text-ink">
                   {category}
@@ -1558,7 +1558,7 @@ function ConditionsModal({
           ))}
 
           {/* Auto-Approval Budgets Section */}
-          <div className="rounded-card p-4 sm:p-5 border border-line">
+          <div className="rounded-card p-4 sm:p-5 shadow-ambient">
             <div className="flex items-center gap-3 mb-4">
               <div>
                 <h4 className="font-display font-semibold text-base text-ink">Auto-Approval Budgets</h4>
@@ -1618,7 +1618,7 @@ function ConditionsModal({
                 <button
                   type="button"
                   onClick={handleAddNewCategory}
-                  className="min-h-[44px] px-5 bg-ink text-paper text-sm font-semibold rounded-control hover:bg-ink/85 transition-colors cursor-pointer"
+                  className="min-h-[44px] px-5 bg-ink text-paper text-sm font-semibold rounded-full hover:bg-ink/85 transition-colors cursor-pointer"
                 >
                   Add
                 </button>
@@ -1657,7 +1657,7 @@ function ConditionsModal({
             onClick={handleSaveBudgets}
             disabled={isSaving}
             type="button"
-            className="min-h-[44px] px-6 bg-accent text-on-accent rounded-control font-body font-semibold hover:bg-accent-hover transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="min-h-[44px] px-6 bg-accent text-on-accent rounded-full font-body font-semibold hover:bg-accent-hover transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isSaving ? (
               <>
@@ -1771,7 +1771,7 @@ function ViewAllModal({
         </div>
 
         <div className="px-6 py-4 border-t border-line shrink-0 flex items-center justify-end bg-paper">
-          <button type="button" onClick={onClose} className="min-h-[44px] px-6 rounded-control bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer">
+          <button type="button" onClick={onClose} className="min-h-[44px] px-6 rounded-full bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer">
             Done
           </button>
         </div>

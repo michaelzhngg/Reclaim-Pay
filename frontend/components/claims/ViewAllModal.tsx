@@ -151,7 +151,7 @@ export function ViewAllModal({
               id="filter-toggle-btn"
               onClick={() => setFilterOpen((o) => !o)}
               aria-expanded={filterOpen}
-              className={`relative flex items-center gap-2 px-4 min-h-[44px] rounded-control text-sm
+              className={`relative flex items-center gap-2 px-4 min-h-[44px] rounded-full text-sm
                           font-semibold font-body transition-colors
                           shrink-0 ring-1 cursor-pointer ${
                             filterOpen || activeCount > 0

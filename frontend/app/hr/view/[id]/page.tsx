@@ -47,7 +47,7 @@ function contextFieldsOf(bundle: ClaimBundle) {
 
 function Card({ title, children, right }: { title: React.ReactNode; children: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <div className="bg-surface border border-line rounded-card overflow-hidden">
+    <div className="bg-surface shadow-ambient rounded-card overflow-hidden">
       <div className="px-4 sm:px-6 py-3 min-h-[56px] border-b border-line flex items-center justify-between gap-3">
         <h3 className="font-display font-semibold text-base text-ink">{title}</h3>
         {right}
@@ -354,7 +354,7 @@ export default function ViewPage() {
   if (!bundle) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
       <p className="text-ink-muted">This claim couldn&apos;t be loaded. It may not exist: <code className="font-mono">{id}</code></p>
-      <button type="button" onClick={() => router.push("/hr/dashboard")} className="min-h-[44px] px-5 rounded-control bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer">Back to Dashboard</button>
+      <button type="button" onClick={() => router.push("/hr/dashboard")} className="min-h-[44px] px-5 rounded-full bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer">Back to Dashboard</button>
     </div>
   );
 
@@ -546,7 +546,7 @@ export default function ViewPage() {
         <div className="flex flex-col gap-6 lg:sticky lg:top-6 lg:h-fit">
 
           {/* Approval Summary */}
-          <div className="bg-surface rounded-card border border-line overflow-hidden">
+          <div className="bg-surface rounded-card shadow-ambient overflow-hidden">
             <div className="px-4 sm:px-6 py-3 min-h-[56px] border-b border-line flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-success" strokeWidth={2.25} aria-hidden="true" />
               <h3 className="font-display font-semibold text-base text-ink">Check summary</h3>
@@ -564,7 +564,7 @@ export default function ViewPage() {
               </div>
               <div className="border-t border-line pt-4">
                 <p className="text-xs text-ink-muted mb-1">AI suggested total</p>
-                <p className="text-2xl font-mono font-medium text-success">{fmt(bundle.totals.net_approved)}</p>
+                <p className="text-2xl font-headline tabular-nums tracking-[-0.02em] font-medium text-success">{fmt(bundle.totals.net_approved)}</p>
               </div>
             </div>
           </div>
@@ -623,7 +623,7 @@ export default function ViewPage() {
               </div>
 
               <button id="submit-hr-decision" type="button" onClick={submit} disabled={!hrDecision || submitting}
-                className={`w-full min-h-[48px] rounded-control text-sm font-semibold font-body transition-colors flex items-center justify-center gap-2 ${
+                className={`w-full min-h-[48px] rounded-full text-sm font-semibold font-body transition-colors flex items-center justify-center gap-2 ${
                   hrDecision === "confirm" ? "bg-accent text-on-accent hover:bg-accent-hover cursor-pointer"
                   : hrDecision === "flag" ? "bg-warning text-on-accent hover:bg-warning/90 cursor-pointer"
                   : "bg-surface-muted text-ink-muted cursor-not-allowed"}`}>

@@ -59,7 +59,7 @@ export default function HistoryFilterBar({
               type="button"
               aria-pressed={isActive}
               onClick={() => onStatusChange(status)}
-              className={`whitespace-nowrap px-4 min-h-[44px] rounded-control text-sm font-semibold transition-colors cursor-pointer border snap-start ${
+              className={`whitespace-nowrap px-4 min-h-[44px] rounded-full text-sm font-semibold transition-colors cursor-pointer border snap-start ${
                 isActive
                   ? "bg-ink text-on-accent border-ink"
                   : "bg-surface text-ink hover:bg-surface-muted border-line"
@@ -90,7 +90,7 @@ export default function HistoryFilterBar({
           </button>
 
           {dateOpen && (
-            <div className="absolute right-0 md:left-0 top-[calc(100%+8px)] w-48 bg-surface border border-line rounded-card shadow-overlay py-1">
+            <div className="absolute right-0 md:left-0 top-[calc(100%+8px)] w-48 bg-surface shadow-ambient rounded-card shadow-overlay py-1">
               {DATE_OPTIONS.map((opt) => (
                 <button
                   key={opt}
@@ -127,7 +127,7 @@ export default function HistoryFilterBar({
           </button>
 
           {categoryOpen && (
-            <div className="absolute right-0 top-[calc(100%+8px)] w-48 bg-surface border border-line rounded-card shadow-overlay py-1">
+            <div className="absolute right-0 top-[calc(100%+8px)] w-48 bg-surface shadow-ambient rounded-card shadow-overlay py-1">
               {CATEGORY_OPTIONS.map((opt) => (
                 <button
                   key={opt.id}

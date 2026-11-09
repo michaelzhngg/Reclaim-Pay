@@ -114,7 +114,7 @@ function DocViewer({ file }: DocViewerProps) {
   const isPDF = file.type === "application/pdf";
 
   return (
-    <div className="flex-1 flex flex-col bg-surface rounded-card border border-line overflow-hidden min-h-[360px]">
+    <div className="flex-1 flex flex-col bg-surface rounded-card shadow-ambient overflow-hidden min-h-[360px]">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-1.5 border-b border-line shrink-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -1234,7 +1234,7 @@ function CaptureReceiptContent() {
                 disabled={!canProcess}
                 aria-describedby={canProcess ? undefined : "process-receipts-hint"}
                 onClick={handleProcessReceipts}
-                className={`flex-1 min-h-11 flex items-center justify-center gap-2 px-6 rounded-control font-semibold text-sm font-body transition-colors duration-150 ${canProcess
+                className={`flex-1 min-h-11 flex items-center justify-center gap-2 px-6 rounded-full font-semibold text-sm font-body transition-colors duration-150 ${canProcess
                   ? "bg-accent text-on-accent hover:bg-accent-hover"
                   : "bg-surface-muted text-ink-muted"
                   }`}
@@ -1304,7 +1304,7 @@ function CaptureReceiptContent() {
                     setLeaveModalStep("name");
                   }
                 }}
-                className="w-full min-h-11 rounded-control bg-accent text-on-accent font-semibold text-sm font-body hover:bg-accent-hover transition-colors"
+                className="w-full min-h-11 rounded-full bg-accent text-on-accent font-semibold text-sm font-body hover:bg-accent-hover transition-colors"
               >
                 Save Draft
               </button>
@@ -1372,7 +1372,7 @@ function CaptureReceiptContent() {
                 type="button"
                 onClick={handleSaveAndLeave}
                 disabled={(!loadedDraftId && !pendingDraftTitle.trim()) || isSavingLeave}
-                className="flex-1 min-h-11 rounded-control font-semibold text-sm font-body transition-colors bg-accent text-on-accent hover:bg-accent-hover disabled:bg-surface-muted disabled:text-ink-muted"
+                className="flex-1 min-h-11 rounded-full font-semibold text-sm font-body transition-colors bg-accent text-on-accent hover:bg-accent-hover disabled:bg-surface-muted disabled:text-ink-muted"
               >
                 {isSavingLeave ? "Saving…" : leaveModalMode === "saving" ? "Save Draft" : "Save & Leave"}
               </button>

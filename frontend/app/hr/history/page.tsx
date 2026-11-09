@@ -141,7 +141,7 @@ export default function HRHistoryPage() {
         </header>
 
         {/* ── Totals: one flat row, numbers in mono ── */}
-        <dl className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-line border border-line rounded-card overflow-hidden mb-6">
+        <dl className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-line shadow-ambient rounded-card overflow-hidden mb-6">
           {[
             { label: "Total resolved", value: kpis.total.toString(), color: "text-ink" },
             { label: "Approved or paid", value: kpis.approved.toString(), color: "text-ink" },
@@ -194,7 +194,7 @@ export default function HRHistoryPage() {
         )}
 
         {/* ── Table / Cards ── */}
-        <div className="bg-surface border border-line rounded-card overflow-hidden">
+        <div className="bg-surface shadow-ambient rounded-card overflow-hidden">
 
           {/* Desktop Table */}
           <div className="hidden md:block overflow-x-auto">

@@ -44,7 +44,7 @@ export default function PayPalStatusChip() {
   return (
     <Link
       href="/employee/settings#paypal"
-      className="inline-flex min-h-11 items-center gap-2 rounded-control bg-accent px-3.5 py-2 text-sm font-body font-semibold text-on-accent hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      className="inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-3.5 py-2 text-sm font-body font-semibold text-on-accent hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
       <Wallet className="h-4 w-4 shrink-0" aria-hidden />
       Connect PayPal to get paid

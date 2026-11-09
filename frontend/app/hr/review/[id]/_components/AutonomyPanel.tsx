@@ -10,7 +10,7 @@ import {
 } from "@/lib/hr/evidence";
 import { SignalEvidence } from "./SignalEvidence";
 
-const SHELL = "bg-surface border border-line rounded-card overflow-hidden";
+const SHELL = "bg-surface shadow-ambient rounded-card overflow-hidden";
 const SUBHEAD = "text-sm font-semibold text-ink mb-2";
 
 /**

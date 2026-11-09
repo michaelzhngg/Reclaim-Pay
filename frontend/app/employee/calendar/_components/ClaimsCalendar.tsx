@@ -89,7 +89,7 @@ export default function ClaimsCalendar({ events }: { events: ClaimCalendarEvent[
         </p>
       </div>
 
-      <div ref={hostRef} className="claims-calendar h-[calc(100dvh-16rem)] min-h-[40rem] min-w-0 overflow-hidden rounded-card border border-line bg-surface">
+      <div ref={hostRef} className="claims-calendar h-[calc(100dvh-16rem)] min-h-[40rem] min-w-0 overflow-hidden rounded-card shadow-ambient bg-surface">
         {width !== null && (
           <BryntumCalendar
             date={openingDate}

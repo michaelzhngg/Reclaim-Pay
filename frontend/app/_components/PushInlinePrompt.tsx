@@ -25,7 +25,7 @@ export default function PushInlinePrompt({ hasSubmittedClaim, className = "" }: 
   return (
     <section
       aria-labelledby={headingId}
-      className={`flex flex-col gap-4 rounded-card border border-line bg-surface p-4 sm:flex-row sm:items-center sm:p-5 ${className}`}
+      className={`flex flex-col gap-4 rounded-card shadow-ambient bg-surface p-4 sm:flex-row sm:items-center sm:p-5 ${className}`}
     >
       <div className="flex min-w-0 flex-1 items-start gap-3">
         <Bell aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-ink-muted" />

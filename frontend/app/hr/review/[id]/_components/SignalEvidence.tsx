@@ -17,7 +17,7 @@ export function SignalEvidence({ id, signal, currency }: { id: string; signal: R
   const headingId = `${id}-heading`;
 
   return (
-    <article aria-labelledby={headingId} className="rounded-card border border-line bg-surface p-4 min-w-0">
+    <article aria-labelledby={headingId} className="rounded-card shadow-ambient bg-surface p-4 min-w-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h5 id={headingId} className="font-body font-semibold text-sm text-ink">
           {signalLabel(signal.code)}

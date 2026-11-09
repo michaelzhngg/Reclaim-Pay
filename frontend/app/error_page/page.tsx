@@ -18,7 +18,7 @@ export default function ErrorPage() {
           <span className="font-display text-lg font-semibold">Reclaim Pay</span>
         </Link>
 
-        <div className="rounded-card border border-line bg-surface p-6 sm:p-8">
+        <div className="rounded-card shadow-ambient bg-surface p-6 sm:p-8">
           <p className="font-mono text-sm text-ink-muted">Error 404</p>
           <h1 className="mt-2 font-display text-2xl sm:text-3xl font-semibold text-ink">
             We can&apos;t find this page
@@ -38,7 +38,7 @@ export default function ErrorPage() {
             </button>
             <Link
               href="/"
-              className="inline-flex min-h-11 items-center justify-center rounded-control bg-accent px-5 text-sm font-semibold text-on-accent transition-colors hover:bg-accent-hover"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-5 text-sm font-semibold text-on-accent transition-colors hover:bg-accent-hover"
             >
               Go to the home page
             </Link>

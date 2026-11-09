@@ -11,7 +11,7 @@ function CalendarLoading() {
   return (
     <div
       role="status"
-      className="flex h-64 items-center justify-center rounded-card border border-line bg-surface font-body text-sm text-ink-muted"
+      className="flex h-64 items-center justify-center rounded-card shadow-ambient bg-surface font-body text-sm text-ink-muted"
     >
       Loading your claims and payouts…
     </div>
@@ -68,12 +68,12 @@ export default function CalendarPage() {
       {state.kind === "loading" && <CalendarLoading />}
 
       {state.kind === "error" && (
-        <div role="alert" className="flex flex-col items-start gap-3 rounded-card border border-line bg-surface p-6">
+        <div role="alert" className="flex flex-col items-start gap-3 rounded-card shadow-ambient bg-surface p-6">
           <p className="font-body text-sm text-ink">We couldn&apos;t load your claims. Check your connection and try again.</p>
           <button
             type="button"
             onClick={retry}
-            className="min-h-11 rounded-control bg-accent px-4 font-body text-sm font-semibold text-on-accent transition-colors hover:bg-accent-hover"
+            className="min-h-11 rounded-full bg-accent px-4 font-body text-sm font-semibold text-on-accent transition-colors hover:bg-accent-hover"
           >
             Try again
           </button>
@@ -81,11 +81,11 @@ export default function CalendarPage() {
       )}
 
       {state.kind === "ready" && events.length === 0 && (
-        <div className="flex flex-col items-start gap-3 rounded-card border border-line bg-surface p-6">
+        <div className="flex flex-col items-start gap-3 rounded-card shadow-ambient bg-surface p-6">
           <p className="font-body text-sm text-ink">No claims yet. Submit a receipt and it shows up here on the day you sent it, then again on the day you&apos;re paid.</p>
           <Link
             href="/employee/claims"
-            className="inline-flex min-h-11 items-center rounded-control bg-accent px-4 font-body text-sm font-semibold text-on-accent transition-colors hover:bg-accent-hover"
+            className="inline-flex min-h-11 items-center rounded-full bg-accent px-4 font-body text-sm font-semibold text-on-accent transition-colors hover:bg-accent-hover"
           >
             Upload a claim
           </Link>

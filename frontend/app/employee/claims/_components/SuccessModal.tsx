@@ -30,7 +30,7 @@ function decisionOf(r: AnalyzeResponse): AutonomyDecision | null {
 const secondaryBtn =
   "flex-1 inline-flex min-h-11 items-center justify-center rounded-control border border-line-strong bg-surface px-5 text-sm font-semibold text-ink hover:bg-surface-muted transition-colors";
 const primaryBtn =
-  "flex-1 inline-flex min-h-11 items-center justify-center rounded-control bg-accent px-5 text-sm font-semibold text-on-accent hover:bg-accent-hover transition-colors";
+  "flex-1 inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-5 text-sm font-semibold text-on-accent hover:bg-accent-hover transition-colors";
 
 /**
  * The result of a submitted claim: tier label, payment steps, the checks one
@@ -89,7 +89,7 @@ export function SuccessContent({
           </div>
 
           {!isHr && (
-            <p className="rounded-card border border-line bg-surface-muted px-4 py-3 text-xs text-ink font-body leading-relaxed">
+            <p className="rounded-card shadow-ambient bg-surface-muted px-4 py-3 text-xs text-ink font-body leading-relaxed">
               Policy compliance check is running in the background. No action needed from you.
             </p>
           )}
@@ -113,7 +113,7 @@ export function SuccessContent({
 
       {/* The checks stay one click away: the outcome is the focus, the trail is there for anyone who asks. */}
       {steps.length > 0 && (
-        <details className="group rounded-card border border-line">
+        <details className="group rounded-card shadow-ambient">
           <summary className="flex min-h-11 list-none items-center justify-between gap-2 rounded-card px-4 font-body text-sm font-semibold text-ink hover:bg-surface-muted [&::-webkit-details-marker]:hidden">
             See what the agent checked
             <ChevronDown className="w-4 h-4 shrink-0 group-open:rotate-180" aria-hidden="true" />

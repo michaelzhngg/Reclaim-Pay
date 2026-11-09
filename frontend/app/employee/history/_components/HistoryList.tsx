@@ -20,7 +20,7 @@ function StatusChip({ status }: { status: HistoryClaim["status"] }) {
 export default function HistoryList({ claims, onSelectClaim }: HistoryListProps) {
   if (claims.length === 0) {
     return (
-      <div className="p-8 md:p-12 text-center bg-surface rounded-card border border-line">
+      <div className="p-8 md:p-12 text-center bg-surface rounded-card shadow-ambient">
         <p className="font-display font-semibold text-lg text-ink mb-1">No claims match these filters</p>
         <p className="font-body text-sm text-ink-muted">Change the status, date or category filter, or clear the search.</p>
       </div>
@@ -30,7 +30,7 @@ export default function HistoryList({ claims, onSelectClaim }: HistoryListProps)
   return (
     <div className="w-full">
       {/* ── Desktop: Full table ───────────────────────── */}
-      <div className="hidden md:block overflow-x-auto bg-surface rounded-card border border-line">
+      <div className="hidden md:block overflow-x-auto bg-surface rounded-card shadow-ambient">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="text-ink-muted font-body text-xs border-b border-line">
@@ -83,7 +83,7 @@ export default function HistoryList({ claims, onSelectClaim }: HistoryListProps)
       </div>
 
       {/* ── Mobile: list ─────────────────────────── */}
-      <ul className="md:hidden bg-surface rounded-card border border-line divide-y divide-line">
+      <ul className="md:hidden bg-surface rounded-card shadow-ambient divide-y divide-line">
         {claims.map((claim) => (
           <li key={claim.id}>
             <button

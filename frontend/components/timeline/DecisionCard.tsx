@@ -23,7 +23,7 @@ export default function DecisionCard({ decision, amount, audience, caption }: De
   const pillTier: AutonomyTier = audience === "employee" && decision.tier === "DUAL_REVIEW" ? "HR_REVIEW" : decision.tier;
 
   return (
-    <div className="w-full text-left rounded-card border border-line bg-surface p-4">
+    <div className="w-full text-left rounded-card shadow-ambient bg-surface p-4">
       {caption && <p className="font-body text-xs text-ink-muted mb-2">{caption}</p>}
       <span className={`inline-block rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${PILL[pillTier]}`}>
         {tierLabel(decision.tier, audience)}

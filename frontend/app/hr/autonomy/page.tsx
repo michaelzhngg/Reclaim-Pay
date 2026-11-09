@@ -185,9 +185,9 @@ function StatusStrip({
 
 function Tile({ label, value, was }: { label: string; value: string | null; was?: string | null }) {
   return (
-    <div className="rounded-card border border-line bg-surface px-4 py-3 min-w-0">
+    <div className="rounded-card shadow-ambient bg-surface px-4 py-3 min-w-0">
       <p className="text-xs font-medium text-ink-muted">{label}</p>
-      <p className="mt-1 font-mono font-medium text-xl sm:text-2xl text-ink truncate">{value ?? "Not set"}</p>
+      <p className="mt-1 font-headline tabular-nums tracking-[-0.02em] font-medium text-xl sm:text-2xl text-ink truncate">{value ?? "Not set"}</p>
       <p className="mt-0.5 text-xs text-ink-muted min-h-[1rem]">{was ? `Saved settings: ${was}` : null}</p>
     </div>
   );
@@ -361,7 +361,7 @@ export default function AutonomyPage() {
           <button
             type="button"
             onClick={() => void loadAll()}
-            className="mt-4 inline-flex items-center gap-2 min-h-[44px] px-4 rounded-control bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent cursor-pointer"
+            className="mt-4 inline-flex items-center gap-2 min-h-[44px] px-4 rounded-full bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent cursor-pointer"
           >
             <RefreshCw className="w-4 h-4" aria-hidden="true" />
             Try again
@@ -427,7 +427,7 @@ export default function AutonomyPage() {
               e.preventDefault();
               if (changes.length && !hasErrors) openDialog("save");
             }}
-            className="rounded-card border border-line bg-surface px-4 py-5 sm:px-5"
+            className="rounded-card shadow-ambient bg-surface px-4 py-5 sm:px-5"
             aria-labelledby="limits-title"
             noValidate
           >
@@ -454,7 +454,7 @@ export default function AutonomyPage() {
                 <button
                   type="submit"
                   disabled={!changes.length || hasErrors}
-                  className="min-h-[44px] px-4 rounded-control bg-ink text-paper text-sm font-semibold hover:bg-ink/85 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent cursor-pointer"
+                  className="min-h-[44px] px-4 rounded-full bg-ink text-paper text-sm font-semibold hover:bg-ink/85 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent cursor-pointer"
                 >
                   Review and save
                 </button>
@@ -464,7 +464,7 @@ export default function AutonomyPage() {
 
           <section
             aria-labelledby="impact-title"
-            className="rounded-card border border-line bg-surface px-4 py-5 sm:px-5 lg:sticky lg:top-4"
+            className="rounded-card shadow-ambient bg-surface px-4 py-5 sm:px-5 lg:sticky lg:top-4"
           >
             <div className="flex items-start justify-between gap-3">
               <div>

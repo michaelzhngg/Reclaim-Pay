@@ -91,7 +91,7 @@ export function ProcessingScreen({
     <div className="w-full max-w-xl mx-auto mt-6 md:mt-12">
       <section
         aria-labelledby="processing-title"
-        className="rounded-card border border-line bg-surface p-6 sm:p-8 flex flex-col gap-6"
+        className="rounded-card shadow-ambient bg-surface p-6 sm:p-8 flex flex-col gap-6"
       >
         <div className="flex flex-col gap-1">
           <h2 id="processing-title" className="font-display text-2xl font-semibold text-ink">

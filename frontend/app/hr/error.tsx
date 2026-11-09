@@ -22,7 +22,7 @@ export default function HRError({
       <button
         type="button"
         onClick={reset}
-        className="min-h-[44px] px-4 bg-accent text-on-accent rounded-control text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
+        className="min-h-[44px] px-4 bg-accent text-on-accent rounded-full text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
       >
         Try again
       </button>

@@ -57,7 +57,7 @@ function contextFieldsOf(bundle: ClaimBundle) {
 
 function Card({ title, children, right }: { title: React.ReactNode; children: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <div className="bg-surface border border-line rounded-card overflow-hidden">
+    <div className="bg-surface shadow-ambient rounded-card overflow-hidden">
       <div className="px-4 sm:px-6 py-3 min-h-[56px] border-b border-line flex items-center justify-between gap-3">
         <h3 className="font-display font-semibold text-base text-ink">{title}</h3>
         {right}
@@ -384,7 +384,7 @@ export default function ReviewPage() {
   if (!bundle) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
       <p className="text-ink-muted">No bundle found for <code className="font-mono">{id}</code></p>
-      <button type="button" onClick={() => router.push("/hr/dashboard")} className="min-h-[44px] px-5 rounded-control bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer">Back to Dashboard</button>
+      <button type="button" onClick={() => router.push("/hr/dashboard")} className="min-h-[44px] px-5 rounded-full bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer">Back to Dashboard</button>
     </div>
   );
 
@@ -616,7 +616,7 @@ export default function ReviewPage() {
             }>
               <div className="p-4 sm:p-6 flex flex-col gap-3">
                 {allFlags.map((f, i) => (
-                  <div key={i} className="rounded-card p-4 border border-line">
+                  <div key={i} className="rounded-card p-4 shadow-ambient">
                     <p className="text-xs font-mono font-medium text-danger mb-1">{f.tag}</p>
                     <p className="text-sm text-ink leading-relaxed">{f.message}</p>
                     <p className="text-xs text-ink-muted mt-1">Receipt: {f.receipt}</p>
@@ -781,7 +781,7 @@ export default function ReviewPage() {
               </div>
 
               <button id="submit-review" type="button" onClick={submit} disabled={!submittable || submitting}
-                className={`w-full min-h-[48px] rounded-control text-sm font-semibold font-body transition-colors flex items-center justify-center gap-2 ${submittable ? "bg-accent text-on-accent hover:bg-accent-hover cursor-pointer" : "bg-surface-muted text-ink-muted cursor-not-allowed"}`}>
+                className={`w-full min-h-[48px] rounded-full text-sm font-semibold font-body transition-colors flex items-center justify-center gap-2 ${submittable ? "bg-accent text-on-accent hover:bg-accent-hover cursor-pointer" : "bg-surface-muted text-ink-muted cursor-not-allowed"}`}>
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
                 {submittable === "approve_full" ? "Submit Full Approval" : submittable === "approve_adjusted" ? "Submit Adjusted Approval" : submittable === "reject" ? "Submit Rejection" : "Select a decision"}
               </button>

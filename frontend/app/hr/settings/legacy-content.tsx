@@ -27,13 +27,13 @@ type TabId = (typeof TABS)[number]["id"];
 const secondaryBtn =
   "shrink-0 inline-flex items-center justify-center min-h-[44px] px-4 text-sm font-semibold text-ink border border-line-strong rounded-control hover:bg-surface-muted transition-colors cursor-pointer";
 const primaryBtn =
-  "inline-flex items-center justify-center gap-2 min-h-[44px] bg-accent text-on-accent px-5 rounded-control font-semibold text-sm hover:bg-accent-hover transition-colors cursor-pointer";
+  "inline-flex items-center justify-center gap-2 min-h-[44px] bg-accent text-on-accent px-5 rounded-full font-semibold text-sm hover:bg-accent-hover transition-colors cursor-pointer";
 const inputCls =
   "w-full min-h-[44px] bg-surface text-ink px-3 rounded-control border border-line-strong focus:border-accent outline-none";
 
 function Section({ title, desc, children, footer }: { title: string; desc: string; children: ReactNode; footer?: ReactNode }) {
   return (
-    <section className="bg-surface border border-line rounded-card overflow-hidden">
+    <section className="bg-surface shadow-ambient rounded-card overflow-hidden">
       <div className="px-4 sm:px-6 py-4 border-b border-line">
         <h2 className="font-display font-semibold text-lg text-ink">{title}</h2>
         <p className="font-body text-sm text-ink-muted mt-0.5">{desc}</p>
@@ -348,7 +348,7 @@ export default function SettingsLegacyContent() {
                   type="button"
                   disabled={isUpdating}
                   onClick={handleConfirmToggle}
-                  className={`flex-1 flex items-center justify-center gap-2 min-h-[44px] px-6 rounded-control text-sm font-semibold text-on-accent transition-colors disabled:opacity-50 cursor-pointer ${
+                  className={`flex-1 flex items-center justify-center gap-2 min-h-[44px] px-6 rounded-full text-sm font-semibold text-on-accent transition-colors disabled:opacity-50 cursor-pointer ${
                     isAutoReimburseEnabled ? "bg-danger hover:bg-danger/90" : "bg-accent hover:bg-accent-hover"
                   }`}
                 >

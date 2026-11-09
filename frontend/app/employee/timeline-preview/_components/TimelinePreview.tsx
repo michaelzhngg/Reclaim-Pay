@@ -55,7 +55,7 @@ function Toggle<T extends string>({
           type="button"
           aria-pressed={value === o.id}
           onClick={() => onChange(o.id)}
-          className={`min-h-11 px-4 rounded-control font-body text-sm font-semibold border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+          className={`min-h-11 px-4 rounded-full font-body text-sm font-semibold border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
             value === o.id
               ? "bg-ink text-on-accent border-ink"
               : "bg-surface text-ink border-line hover:bg-surface-muted"
@@ -106,7 +106,7 @@ export default function TimelinePreview() {
         </button>
       </div>
 
-      <div className="mt-6 rounded-card border border-line bg-surface p-4 sm:p-6">
+      <div className="mt-6 rounded-card shadow-ambient bg-surface p-4 sm:p-6">
         <Replay key={`${scenario}-${audience}-${run}`} scenario={scenario} audience={audience} />
       </div>
     </div>

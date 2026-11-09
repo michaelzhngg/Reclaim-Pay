@@ -51,7 +51,7 @@ export default function ProfileCard() {
     <section
       id="profile"
       aria-labelledby="profile-heading"
-      className="scroll-mt-24 bg-surface border border-line rounded-card overflow-hidden"
+      className="scroll-mt-24 bg-surface shadow-ambient rounded-card overflow-hidden"
     >
       <form onSubmit={onSubmit} noValidate>
         <div className="p-5 md:p-6 border-b border-line">

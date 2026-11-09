@@ -465,7 +465,7 @@ export function VerificationScreen({
       </button>
 
       {/* Section 1: Identity Block */}
-      <div className="shrink-0 bg-surface rounded-card border border-line overflow-hidden">
+      <div className="shrink-0 bg-surface rounded-card shadow-ambient overflow-hidden">
         <button
           type="button"
           onClick={() => setIdentityOpen(o => !o)}
@@ -494,7 +494,7 @@ export function VerificationScreen({
       </div>
 
       {/* Section 2: Claim Context */}
-      <div className="shrink-0 bg-surface rounded-card border border-line p-5 flex flex-col gap-4">
+      <div className="shrink-0 bg-surface rounded-card shadow-ambient p-5 flex flex-col gap-4">
         <div>
           <h3 className="text-sm font-semibold text-ink font-display">Claim context</h3>
           <p className="text-xs text-ink-muted font-body mt-0.5">Trip details for this expense report.</p>
@@ -594,7 +594,7 @@ export function VerificationScreen({
       </div>
 
       {/* Section 4: Summary & Action */}
-      <div className="shrink-0 bg-surface rounded-card border border-line p-5">
+      <div className="shrink-0 bg-surface rounded-card shadow-ambient p-5">
         <div className="flex items-baseline justify-between mb-5">
           <span className="text-sm font-semibold text-ink font-display">Sub-total</span>
           <span className="text-xl font-medium text-ink font-mono">{fmt(subTotal)}</span>
@@ -613,7 +613,7 @@ export function VerificationScreen({
           id="submit-claim-btn"
           disabled={!canSubmit || isSubmitting}
           onClick={onSubmit}
-          className={`w-full min-h-11 rounded-control font-semibold text-sm font-body transition-colors duration-150 flex items-center justify-center gap-2 ${
+          className={`w-full min-h-11 rounded-full font-semibold text-sm font-body transition-colors duration-150 flex items-center justify-center gap-2 ${
             canSubmit && !isSubmitting
               ? "bg-accent text-on-accent hover:bg-accent-hover"
               : "bg-surface-muted text-ink-muted"
@@ -651,7 +651,7 @@ export function VerificationScreen({
   const totalScale  = +(baseScale * previewZoom).toFixed(3);
 
   const previewPanel = (
-    <div className="flex-1 bg-surface-muted rounded-card border border-line flex flex-col overflow-hidden min-h-[500px] lg:min-h-0">
+    <div className="flex-1 bg-surface-muted rounded-card shadow-ambient flex flex-col overflow-hidden min-h-[500px] lg:min-h-0">
       {/* Preview toolbar */}
       <div className="pl-4 pr-1 py-1 border-b border-line bg-surface shrink-0 flex items-center justify-between">
         <p className="text-sm font-semibold text-ink font-body">

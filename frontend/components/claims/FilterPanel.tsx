@@ -132,7 +132,7 @@ export function FilterPanel({
                 onClick={() => toggleCategory(cat)}
                 type="button"
                 aria-pressed={active}
-                className={`shrink-0 px-3 min-h-[44px] rounded-control text-xs font-semibold font-body
+                className={`shrink-0 px-3 min-h-[44px] rounded-full text-xs font-semibold font-body
                             border transition-colors cursor-pointer ${
                               active
                                 ? "bg-ink text-on-accent border-ink"

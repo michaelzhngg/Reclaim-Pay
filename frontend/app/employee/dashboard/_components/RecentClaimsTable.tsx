@@ -39,7 +39,7 @@ export default function RecentClaimsTable({ claims }: { claims: ClaimSummary[] |
   return (
     <section
       aria-labelledby="recent-claims-heading"
-      className="bg-surface border border-line rounded-card"
+      className="bg-surface shadow-ambient rounded-card"
     >
       {/* Section header */}
       <div className="flex justify-between items-center gap-3 pl-4 pr-2 md:pl-6 md:pr-4 py-2 border-b border-line">

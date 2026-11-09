@@ -79,7 +79,7 @@ export function SuccessModal({
         <Link
           ref={actionRef}
           href="/hr/dashboard"
-          className="flex items-center justify-center min-h-[44px] px-5 w-full rounded-control font-semibold text-sm font-body bg-accent text-on-accent hover:bg-accent-hover transition-colors"
+          className="flex items-center justify-center min-h-[44px] px-5 w-full rounded-full font-semibold text-sm font-body bg-accent text-on-accent hover:bg-accent-hover transition-colors"
         >
           Return to Dashboard
         </Link>

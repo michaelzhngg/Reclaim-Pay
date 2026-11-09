@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { Inter_Tight, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext"; // Import AuthProvider
 import ServiceWorkerRegistration from "./_components/ServiceWorkerRegistration";
@@ -12,18 +13,16 @@ const inter = localFont({
   variable: "--font-inter",
 });
 
-const bricolage = localFont({
-  src: "./fonts/bricolage-grotesque-latin-wght-normal.woff2",
-  weight: "200 800",
-  variable: "--font-bricolage",
+const interTight = Inter_Tight({
+  subsets: ["latin"],
+  variable: "--font-inter-tight",
+  display: "swap",
 });
 
-const plexMono = localFont({
-  src: [
-    { path: "./fonts/ibm-plex-mono-latin-400-normal.woff2", weight: "400" },
-    { path: "./fonts/ibm-plex-mono-latin-500-normal.woff2", weight: "500" },
-  ],
-  variable: "--font-plex-mono",
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains",
+  display: "swap",
 });
 
 export const viewport: Viewport = {
@@ -31,7 +30,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-visual",
-  themeColor: "#f7f6f2",
+  themeColor: "#f0f0f0",
 };
 
 const DESCRIPTION =
@@ -79,7 +78,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${bricolage.variable} ${plexMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${interTight.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <ToastProvider>

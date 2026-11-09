@@ -35,7 +35,7 @@ function PayloadDetails({ action }: { action: AgentAction }) {
 
 function LogCard({ action, actorNames }: { action: AgentAction; actorNames: Record<string, string> }) {
   return (
-    <li className="bg-surface rounded-card border border-line p-4">
+    <li className="bg-surface rounded-card shadow-ambient p-4">
       <div className="flex items-start justify-between gap-3">
         <p className="font-semibold text-sm text-ink min-w-0">{actionLabel(action)}</p>
         <p className="text-xs text-ink-muted shrink-0">{formatUpdated(action.created_at)}</p>

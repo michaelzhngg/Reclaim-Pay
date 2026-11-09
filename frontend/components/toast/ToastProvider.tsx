@@ -87,7 +87,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: num
       onMouseLeave={start}
       onFocus={pause}
       onBlur={start}
-      className="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-card border border-line bg-surface py-3 pl-4 pr-1 shadow-overlay"
+      className="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-card shadow-ambient bg-surface py-3 pl-4 pr-1 shadow-overlay"
     >
       <Icon aria-hidden className={`mt-0.5 h-5 w-5 shrink-0 ${className}`} />
       <div className="min-w-0 flex-1">

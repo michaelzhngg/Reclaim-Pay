@@ -17,7 +17,7 @@ export function Skeleton({ className = "" }: { className?: string }) {
 
 export function SkeletonStatCard() {
   return (
-    <div className="bg-surface border border-line rounded-card p-5 flex flex-col gap-3">
+    <div className="bg-surface shadow-ambient rounded-card p-5 flex flex-col gap-3">
       <Skeleton className="h-3 w-24 rounded-control" />
       <Skeleton className="h-8 w-32 rounded-control" />
       <Skeleton className="h-3 w-16 rounded-control" />
@@ -43,7 +43,7 @@ export function SkeletonTableRow({ cols = 5 }: { cols?: number }) {
 
 export function SkeletonListCard() {
   return (
-    <div className="bg-surface p-4 rounded-card border border-line flex items-center gap-3">
+    <div className="bg-surface p-4 rounded-card shadow-ambient flex items-center gap-3">
       <Skeleton className="w-12 h-12 rounded-control shrink-0" />
       <div className="flex-1 flex flex-col gap-2">
         <Skeleton className="h-4 w-40 rounded-control" />
@@ -70,7 +70,7 @@ export function DashboardPageSkeleton() {
         </div>
 
         {/* Totals panel: one lead figure, two quieter rows (matches StatSummary) */}
-        <div className="grid grid-cols-1 md:grid-cols-[3fr_2fr] bg-surface border border-line rounded-card mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-[3fr_2fr] bg-surface shadow-ambient rounded-card mb-8">
           <div className="p-5 md:p-6 flex flex-col gap-3">
             <Skeleton className="h-4 w-32 rounded-control" />
             <Skeleton className="h-10 w-48 rounded-control" />
@@ -82,7 +82,7 @@ export function DashboardPageSkeleton() {
         </div>
 
         {/* Table card */}
-        <div className="bg-surface border border-line rounded-card p-4 md:p-6">
+        <div className="bg-surface shadow-ambient rounded-card p-4 md:p-6">
           <div className="flex justify-between items-center mb-5">
             <Skeleton className="h-6 w-36 rounded-control" />
             <Skeleton className="h-5 w-16 rounded-control" />

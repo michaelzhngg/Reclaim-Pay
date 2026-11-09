@@ -1,35 +1,31 @@
 import type { User } from "@/lib/api/types";
-import ClaimScene from "./ClaimScene";
+import DemoSection from "./DemoSection";
+import FeaturesSection from "./FeaturesSection";
 import Footer from "./Footer";
+import ForWhomSection from "./ForWhomSection";
 import Header from "./Header";
 import Hero from "./Hero";
-import Lanes from "./Lanes";
-import LandingMotion from "./LandingMotion";
-import LiedScene from "./LiedScene";
-import SafetyControls from "./SafetyControls";
-import TryIt from "./TryIt";
-import WhereAiStops from "./WhereAiStops";
+import HowItWorks from "./HowItWorks";
+import Outcomes from "./Outcomes";
+import LazyTriageDemo from "./LazyTriageDemo";
 
-// Server component. Every section renders its finished state in the HTML;
-// LandingMotion adds scroll motion after hydration where it is allowed.
 export default function LandingPage({ user }: { user: User | null }) {
   return (
-    <div className="flex min-h-screen flex-col overflow-x-clip bg-paper text-ink">
+    <div className="flex min-h-screen flex-col bg-white">
       <a href="#main" className="skip-link">
-        Skip to content
+        Skip to Content
       </a>
       <Header user={user} />
       <main id="main" tabIndex={-1} className="flex-1 focus:outline-none">
-        <Hero />
-        <ClaimScene />
-        <LiedScene />
-        <WhereAiStops />
-        <Lanes />
-        <SafetyControls />
-        <TryIt />
+        <Hero user={user} />
+        <Outcomes />
+        <HowItWorks />
+        <LazyTriageDemo />
+        <FeaturesSection />
+        <ForWhomSection />
+        <DemoSection />
       </main>
       <Footer />
-      <LandingMotion />
     </div>
   );
 }

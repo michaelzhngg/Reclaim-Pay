@@ -1,61 +1,84 @@
 import Image from "next/image";
+import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 
-// Only tools the product really uses (UI-REVAMP-HANDOFF, WP4 "Built with").
-const BUILT_WITH = [
-  "PayPal Payouts",
-  "Log in with PayPal",
-  "PayPal Agent Toolkit",
-  "PayPal Server SDK",
-  "Google Gemini",
-  "AG Grid",
-  "AG Charts",
-  "Bryntum",
-  "Postman",
+const PRODUCT_LINKS = [
+  { href: "#how-it-works", label: "How It Works" },
+  { href: "#triage", label: "Triage" },
+  { href: "#features", label: "Features" },
+  { href: "#demo", label: "Demo" },
 ];
 
-const REPO = "https://github.com/michaelzhngg/PayPal";
+const TECH_STACK = [
+  "PayPal Payouts",
+  "Next.js 16",
+  "FastAPI",
+  "LangGraph",
+  "PostgreSQL + pgvector",
+  "AG Grid",
+  "Three.js",
+  "Qwen3.5-Flash",
+  "Gemini 3.1 Flash Lite",
+];
 
 export default function Footer() {
   return (
-    <footer className="border-t border-line">
-      <section aria-labelledby="built-with-heading" className="mx-auto max-w-7xl px-4 py-12 sm:px-8 lg:px-12">
-        <h2 id="built-with-heading" className="font-body text-sm font-semibold text-ink">
-          Built with
-        </h2>
-        <ul className="mt-3 flex flex-wrap gap-x-2 gap-y-1 text-base text-ink-muted">
-          {BUILT_WITH.map((tool, i) => (
-            <li key={tool}>
-              {tool}
-              {i < BUILT_WITH.length - 1 && (
-                <span aria-hidden="true" className="ml-2 text-line-strong">
-                  /
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
+    <footer className="bg-white px-5 pb-10 pt-16 sm:px-8 lg:px-10">
+      <div className="mx-auto max-w-7xl">
+        <div className="grid gap-10 border-t border-on-surface/[0.08] pt-12 md:grid-cols-[2fr_1fr_1.4fr]">
+          <div className="max-w-sm">
+            <div className="flex items-center gap-2">
+              <Image src="/images/logo.svg" alt="" width={26} height={26} className="h-[26px] w-[26px]" />
+              <span className="font-headline text-[19px] font-semibold tracking-[-0.03em] text-on-surface" translate="no">
+                Reclaim <span className="text-paypal-blue">Pay</span>
+              </span>
+            </div>
+            <p className="mt-4 text-[14px] leading-relaxed text-on-surface-variant">
+              AI-reasoned reimbursements, paid via PayPal.
+            </p>
+          </div>
 
-      <div className="border-t border-line">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-sm text-ink-muted sm:px-8 md:flex-row md:items-center md:justify-between lg:px-12">
-          <p className="flex items-center gap-2">
-            <Image src="/images/logo.svg" alt="" width={20} height={20} className="h-5 w-5" />
-            <span>
-              <span className="font-semibold text-ink">Reclaim Pay</span> by Team Bogosort. All payments use the PayPal sandbox.
-            </span>
-          </p>
-          <ul className="flex flex-wrap gap-x-5">
-            <li>
-              <a href={REPO} className="inline-flex min-h-11 items-center text-ink underline underline-offset-4 hover:decoration-2">
-                Source on GitHub
-              </a>
-            </li>
-            <li>
-              <a href={`${REPO}/blob/main/LICENSE`} className="inline-flex min-h-11 items-center text-ink underline underline-offset-4 hover:decoration-2">
-                AGPL-3.0
-              </a>
-            </li>
-          </ul>
+          <nav aria-label="Footer">
+            <h2 className="text-[13px] font-semibold text-on-surface">Product</h2>
+            <ul className="mt-4 space-y-2.5">
+              {PRODUCT_LINKS.map((l) => (
+                <li key={l.href}>
+                  <a href={l.href} className="text-[14px] text-on-surface-variant transition-colors hover:text-on-surface">
+                    {l.label}
+                  </a>
+                </li>
+              ))}
+              <li>
+                <Link href="/login" className="text-[14px] text-on-surface-variant transition-colors hover:text-on-surface">
+                  Sign In
+                </Link>
+              </li>
+            </ul>
+          </nav>
+
+          <div>
+            <h2 className="text-[13px] font-semibold text-on-surface">Built With</h2>
+            <ul className="mt-4 flex flex-wrap gap-x-2 gap-y-1.5">
+              {TECH_STACK.map((t) => (
+                <li key={t} className="text-[13px] text-on-surface-variant after:ml-2 after:text-on-surface/20 after:content-['·'] last:after:content-none" translate="no">
+                  {t}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div className="mt-12 flex flex-col items-center justify-between gap-4 text-[13px] text-on-surface-variant sm:flex-row">
+          <p>© 2026 Reclaim Pay</p>
+          <a
+            href="https://github.com/zsh-sage/reclaim"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 font-medium transition-colors hover:text-on-surface"
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            View on GitHub
+          </a>
         </div>
       </div>
     </footer>

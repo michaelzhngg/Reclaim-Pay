@@ -6,9 +6,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAuth } from "@/context/AuthContext";
-import { Eye, EyeOff, ArrowRight, Users } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Users, ShieldCheck, Mail, Lock, Loader2 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
+import dynamic from "next/dynamic";
 import LoadingOverlay from "@/components/LoadingOverlay";
+import { btn, input as inputRecipe } from "@/components/ui/styles";
+
+const HeroScene = dynamic(() => import("@/components/three/HeroScene"), { ssr: false });
 
 const formSchema = z.object({
   email: z.string().email({ message: "Enter a valid email address." }),
@@ -28,11 +33,7 @@ const PAYPAL_FAILED_MESSAGE =
 const FORGOT_PASSWORD_MESSAGE =
   "Password reset is not available in this demo. Use a demo account above, or ask HR to reset your password.";
 
-const inputClass =
-  "w-full min-h-11 rounded-control border border-line-strong bg-surface px-3.5 py-2.5 text-ink placeholder:text-ink-muted transition-colors hover:border-ink-muted focus:border-accent focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent";
-
-const secondaryButtonClass =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-control border border-line-strong bg-surface px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-surface-muted disabled:opacity-50";
+const inputClass = `${inputRecipe} aria-invalid:shadow-[0_0_0_1px_var(--color-danger),0_0_0_4px_rgb(196_21_63/0.12)]`;
 
 export default function LoginPage() {
   const { login, isLoading } = useAuth();
@@ -128,139 +129,146 @@ export default function LoginPage() {
   return (
     <>
       <LoadingOverlay show={isLoading} />
-      <main className="flex w-full min-h-dvh">
-        {/* Left side, desktop only: what the product does, in plain words. */}
+      <main className="flex min-h-dvh w-full bg-white">
+        {/* Left, desktop only: brand panel with the live payout card. */}
         <section
           aria-labelledby="login-intro"
-          className="hidden lg:flex w-1/2 flex-col justify-between gap-12 border-r border-line bg-surface p-12 xl:p-16"
+          className="mesh-ink relative hidden w-[46%] flex-col justify-between overflow-hidden p-10 text-white lg:flex xl:p-14"
         >
-          <div className="flex items-center gap-2.5">
-            <Image src="/images/logo.svg" alt="" width={32} height={32} className="w-8 h-8 object-contain" priority />
-            <span className="font-display text-xl font-semibold text-ink">Reclaim Pay</span>
+          <div aria-hidden="true" className="dot-grid-light absolute inset-0 [mask-image:radial-gradient(80%_60%_at_30%_0%,black,transparent)]" />
+          <div aria-hidden="true" className="absolute -right-48 top-1/4 h-[640px] w-[640px] rounded-full" style={{ background: "radial-gradient(closest-side, #009cde, transparent)", opacity: 0.3 }} />
+          <div aria-hidden="true" className="absolute -bottom-56 -left-10 h-[600px] w-[600px] rounded-full" style={{ background: "radial-gradient(closest-side, #9e00b4, transparent)", opacity: 0.3 }} />
+
+          <Link href="/" className="relative z-10 flex w-fit items-center gap-2 rounded-full">
+            <Image src="/images/logo.svg" alt="" width={28} height={28} className="h-7 w-7 brightness-0 invert" priority />
+            <span className="font-headline text-[20px] font-semibold tracking-[-0.03em]" translate="no">
+              Reclaim <span className="text-paypal-sky">Pay</span>
+            </span>
+          </Link>
+
+          <div className="relative z-10 h-[340px] xl:h-[400px]">
+            <HeroScene className="h-full w-full" />
           </div>
 
-          <div className="max-w-md">
-            <h1 id="login-intro" className="font-display text-4xl xl:text-5xl font-semibold leading-tight text-ink">
-              Expense claims paid to your PayPal
+          <div className="relative z-10 max-w-md">
+            <h1 id="login-intro" className="font-headline text-[38px] font-medium leading-[1.05] tracking-[-0.04em] xl:text-[46px]">
+              Expense claims, <span className="text-paypal-sky">paid to your PayPal.</span>
             </h1>
-            <p className="mt-4 text-base leading-relaxed text-ink-muted">
-              Upload a receipt and it is checked against your company&apos;s policy. Claims that pass every check
-              are paid to your PayPal in under a minute. Anything unusual goes to HR, and a person decides.
+            <p className="mt-4 text-[15px] leading-relaxed text-white/65">
+              Clean claims are paid in under a minute. Anything unusual goes to HR with the evidence.
             </p>
-
-            <hr className="perforated my-8" />
-
-            <ol className="space-y-4 text-sm text-ink">
-              <li className="flex gap-3">
-                <span className="font-mono text-ink-muted">01</span>
-                <span>Upload a photo or PDF of the receipt.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="font-mono text-ink-muted">02</span>
-                <span>The merchant, date and amount are read and checked against policy.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="font-mono text-ink-muted">03</span>
-                <span>Clean claims are paid out. HR reviews the rest, with the evidence.</span>
-              </li>
-            </ol>
+            <p className="mt-8 text-[12px] text-white/45">Demo build. Every payment uses the PayPal sandbox.</p>
           </div>
-
-          <p className="text-sm text-ink-muted">Demo build. Every payment uses the PayPal sandbox.</p>
         </section>
 
-        {/* Right side: sign in. */}
-        <div className="w-full lg:w-1/2 flex flex-col items-center bg-paper px-4 py-8 sm:px-8 sm:py-12 lg:px-14">
-          <div className="w-full max-w-md my-auto">
-            {/* Brand (phones and tablets) */}
-            <div className="lg:hidden mb-6 flex items-center justify-center gap-2.5">
-              <Image src="/images/logo.svg" alt="" width={28} height={28} className="w-7 h-7 object-contain" />
-              <span className="font-display text-xl font-semibold text-ink">Reclaim Pay</span>
-            </div>
+        {/* Right: sign in. */}
+        <section className="flex min-h-dvh flex-1 flex-col items-center overflow-y-auto bg-marshmallow px-5 py-8 sm:px-8 lg:bg-white">
+          <div className="flex w-full max-w-[420px] items-center justify-between lg:hidden">
+            <Link href="/" className="flex items-center gap-2 rounded-full">
+              <Image src="/images/logo.svg" alt="" width={26} height={26} className="h-[26px] w-[26px]" priority />
+              <span className="font-headline text-[19px] font-semibold tracking-[-0.03em] text-on-surface" translate="no">
+                Reclaim <span className="text-paypal-blue">Pay</span>
+              </span>
+            </Link>
+          </div>
 
-            <div className="rounded-card border border-line bg-surface p-5 sm:p-8">
-              <div className="mb-6">
-                <h2 className="font-display text-2xl sm:text-3xl font-semibold text-ink">Sign in to Reclaim Pay</h2>
-                <p className="mt-2 text-sm text-ink-muted">
-                  Try a demo account, or sign in with your email and password.
-                </p>
-              </div>
+          <div className="my-auto w-full max-w-[420px] py-10">
+            <div className="rounded-[28px] bg-white p-6 shadow-ambient-lg sm:p-8 lg:p-0 lg:shadow-none">
+              <h2 className="font-headline text-[30px] font-semibold tracking-[-0.035em] text-on-surface">
+                Sign in to Reclaim Pay
+              </h2>
+              <p className="mt-1.5 text-[15px] text-on-surface-variant">
+                Try a demo account, or sign in with your email.
+              </p>
 
               {/* Demo sign-in */}
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 mb-6">
+              <div className="mt-7 grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
                   onClick={() => handleDemoLogin("employee")}
                   disabled={isValidating}
-                  className={secondaryButtonClass}
+                  className={`${btn.secondary} w-full px-3`}
                 >
-                  <Users className="w-4 h-4 text-ink-muted" aria-hidden />
-                  Sign in as Employee
+                  <Users className="h-4 w-4 text-primary" aria-hidden="true" />
+                  Employee Demo
                 </button>
                 <button
                   type="button"
                   onClick={() => handleDemoLogin("hr")}
                   disabled={isValidating}
-                  className={secondaryButtonClass}
+                  className={`${btn.secondary} w-full px-3`}
                 >
-                  <Users className="w-4 h-4 text-ink-muted" aria-hidden />
-                  Sign in as HR
+                  <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" />
+                  HR Demo
                 </button>
               </div>
 
-              <div className="mb-6 flex items-center gap-3 text-sm text-ink-muted">
-                <span aria-hidden className="h-px flex-1 bg-line" />
-                or with your email
-                <span aria-hidden className="h-px flex-1 bg-line" />
+              <div className="my-6 flex items-center gap-3 text-[12px] text-on-surface-variant" aria-hidden="true">
+                <span className="h-px flex-1 bg-on-surface/10" />
+                or with email
+                <span className="h-px flex-1 bg-on-surface/10" />
               </div>
 
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-                {demoBanner && !error && (
-                  <div role="status" className="rounded-control border border-line bg-surface-muted p-3 text-sm text-ink">
-                    Signing in to the {demoBanner === "hr" ? "HR" : "employee"} demo account...
-                  </div>
-                )}
-                {error && (
-                  <div role="alert" className="rounded-control border border-danger/30 bg-danger-soft p-3 text-sm text-danger">
-                    {error}
-                  </div>
-                )}
-
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-medium text-ink" htmlFor="email">Email</label>
-                  <input
-                    className={inputClass}
-                    id="email"
-                    placeholder="name@company.com"
-                    type="email"
-                    autoComplete="email"
-                    aria-invalid={form.formState.errors.email ? true : undefined}
-                    aria-describedby={form.formState.errors.email ? "email-error" : undefined}
-                    {...form.register("email")}
-                  />
-                  {form.formState.errors.email && (
-                    <p id="email-error" className="text-sm text-danger">{form.formState.errors.email.message}</p>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+                <div aria-live="polite" className="space-y-2 empty:hidden">
+                  {demoBanner && !error && (
+                    <div role="status" className="flex items-center justify-center gap-2 rounded-xl bg-primary/[0.06] px-4 py-2.5 text-[13px] font-medium text-primary">
+                      <span className="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-primary" aria-hidden="true" />
+                      Signing in to the {demoBanner === "hr" ? "HR" : "employee"} demo account…
+                    </div>
+                  )}
+                  {error && (
+                    <div role="alert" className="rounded-xl bg-danger-soft px-4 py-2.5 text-center text-[13px] font-medium text-danger">
+                      {error}
+                    </div>
                   )}
                 </div>
 
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="block text-sm font-medium text-ink" htmlFor="password">Password</label>
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-medium text-on-surface" htmlFor="email">
+                    Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant/70" aria-hidden="true" />
+                    <input
+                      className={`${inputClass} pl-10`}
+                      id="email"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      spellCheck={false}
+                      placeholder="name@company.com"
+                      aria-invalid={form.formState.errors.email ? true : undefined}
+                      aria-describedby={form.formState.errors.email ? "email-error" : undefined}
+                      {...form.register("email")}
+                    />
+                  </div>
+                  {form.formState.errors.email && (
+                    <p id="email-error" className="mt-1.5 text-[13px] text-danger">{form.formState.errors.email.message}</p>
+                  )}
+                </div>
+
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label className="block text-[13px] font-medium text-on-surface" htmlFor="password">
+                      Password
+                    </label>
                     <button
                       type="button"
                       onClick={handleForgotPassword}
-                      className="-my-2 -mr-2 inline-flex min-h-11 items-center rounded-control px-2 text-sm font-medium text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+                      className="-my-2 -mr-2 inline-flex min-h-11 items-center rounded-lg px-2 text-[13px] font-medium text-primary hover:text-primary-dim"
                     >
                       Forgot password?
                     </button>
                   </div>
                   <div className="relative">
+                    <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant/70" aria-hidden="true" />
                     <input
-                      className={`${inputClass} pr-12`}
+                      className={`${inputClass} pl-10 pr-12`}
                       id="password"
-                      placeholder="Your password"
                       type={showPassword ? "text" : "password"}
                       autoComplete="current-password"
+                      placeholder="Your password"
                       aria-invalid={form.formState.errors.password ? true : undefined}
                       aria-describedby={form.formState.errors.password ? "password-error" : undefined}
                       {...form.register("password")}
@@ -269,47 +277,39 @@ export default function LoginPage() {
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       aria-label={showPassword ? "Hide password" : "Show password"}
-                      className="absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-ink"
+                      className="absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center rounded-xl text-on-surface-variant transition-colors hover:text-on-surface"
                     >
-                      {showPassword ? <EyeOff className="w-5 h-5" aria-hidden /> : <Eye className="w-5 h-5" aria-hidden />}
+                      {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                     </button>
                   </div>
                   {form.formState.errors.password && (
-                    <p id="password-error" className="text-sm text-danger">{form.formState.errors.password.message}</p>
+                    <p id="password-error" className="mt-1.5 text-[13px] text-danger">{form.formState.errors.password.message}</p>
                   )}
                   <div aria-live="polite">
                     {restrictionToast && (
-                      <p role="status" className="pt-1 text-sm text-ink-muted">
+                      <p role="status" className="pt-2 text-[13px] text-on-surface-variant">
                         {restrictionToast}
                       </p>
                     )}
                   </div>
                 </div>
 
-                <button
-                  className="w-full min-h-12 inline-flex items-center justify-center gap-2 rounded-control bg-accent px-6 py-3 text-base font-semibold text-on-accent transition-colors hover:bg-accent-hover disabled:opacity-60"
-                  type="submit"
-                  disabled={busy}
-                  aria-busy={busy}
-                >
+                <button className={`${btn.dark} ${btn.lg} mt-2 w-full`} type="submit" disabled={busy} aria-busy={busy}>
                   {busy ? (
                     <>
-                      <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden>
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      Signing in...
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      Signing in…
                     </>
                   ) : (
                     <>
                       Sign in
-                      <ArrowRight className="w-5 h-5" aria-hidden />
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </>
                   )}
                 </button>
               </form>
 
-              <div className="mt-6 border-t border-line pt-6">
+              <div className="mt-6 border-t border-on-surface/[0.08] pt-6">
                 {/* A plain link: this route handler redirects to PayPal, so client-side navigation and prefetch must stay off it. */}
                 <a
                   href="/login/paypal/start"
@@ -318,18 +318,18 @@ export default function LoginPage() {
                     if (openingPayPal) event.preventDefault();
                     setOpeningPayPal(true);
                   }}
-                  className={`${secondaryButtonClass} w-full aria-disabled:opacity-60`}
+                  className={`${btn.secondary} ${btn.lg} w-full aria-disabled:opacity-60`}
                 >
-                  <PayPalMark className="w-5 h-5 shrink-0" />
-                  {openingPayPal ? "Opening PayPal..." : "Sign in with PayPal"}
+                  <PayPalMark className="h-5 w-5 shrink-0" />
+                  {openingPayPal ? "Opening PayPal…" : "Sign in with PayPal"}
                 </a>
-                <p className="mt-2 text-center text-sm text-ink-muted">
-                  For employees who have already linked PayPal in Settings.
+                <p className="mt-2 text-center text-[13px] text-on-surface-variant">
+                  For employees who have linked PayPal in Settings.
                 </p>
               </div>
             </div>
           </div>
-        </div>
+        </section>
       </main>
     </>
   );

@@ -77,7 +77,7 @@ export default function MoneyFlow({ reimId, claimStatus, tier }: MoneyFlowProps)
   }
 
   return (
-    <section aria-labelledby={`money-flow-${reimId}`} className="rounded-card border border-line bg-surface p-4">
+    <section aria-labelledby={`money-flow-${reimId}`} className="rounded-card shadow-ambient bg-surface p-4">
       <h4 id={`money-flow-${reimId}`} className="font-display font-semibold text-sm text-ink mb-3">
         Payment
       </h4>

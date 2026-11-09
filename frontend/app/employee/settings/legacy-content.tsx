@@ -99,7 +99,7 @@ export default function SettingsLegacyContent() {
             <section
               id="notifications"
               aria-labelledby="notifications-title"
-              className="scroll-mt-24 bg-surface border border-line rounded-card"
+              className="scroll-mt-24 bg-surface shadow-ambient rounded-card"
             >
               <h2 id="notifications-title" className="px-5 pt-5 pb-1 font-display font-semibold text-lg text-ink">
                 Notifications
@@ -112,7 +112,7 @@ export default function SettingsLegacyContent() {
             {/* Mobile Support Link */}
             <Link
               href="/employee/support"
-              className="md:hidden flex items-center justify-between gap-4 p-4 min-h-[60px] bg-surface border border-line rounded-card hover:bg-surface-muted transition-colors"
+              className="md:hidden flex items-center justify-between gap-4 p-4 min-h-[60px] bg-surface shadow-ambient rounded-card hover:bg-surface-muted transition-colors"
             >
               <div>
                 <p className="font-body font-semibold text-sm text-ink">Help and support</p>
