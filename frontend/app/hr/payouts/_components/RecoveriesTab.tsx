@@ -38,7 +38,7 @@ export default function RecoveriesTab({ onOpenAudit }: { onOpenAudit: () => void
 
   return (
     <>
-      <p className="text-sm text-on-surface-variant mb-4">
+      <p className="text-sm text-ink-muted mb-4">
         The employee can dispute a notice until its deadline. After that you can send the invoice. A disputed recovery can only be waived.
       </p>
 
@@ -51,7 +51,7 @@ export default function RecoveriesTab({ onOpenAudit }: { onOpenAudit: () => void
             <button
               type="button"
               onClick={onOpenAudit}
-              className="inline-flex items-center justify-center min-h-[44px] px-4 rounded-lg border border-outline-variant text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 cursor-pointer"
+              className="inline-flex items-center justify-center min-h-[44px] px-4 rounded-control border border-line text-sm font-semibold text-ink hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 cursor-pointer"
             >
               Open the Audit queue
             </button>

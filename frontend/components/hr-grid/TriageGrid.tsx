@@ -43,9 +43,9 @@ interface TriageGridProps {
 function AiVerdict({ row }: { row: TriageRow }) {
   return (
     <span className="flex flex-col leading-tight">
-      <span className="text-xs font-semibold text-on-surface">{verdictLabel(row.aiVerdict)}</span>
+      <span className="text-xs font-semibold text-ink">{verdictLabel(row.aiVerdict)}</span>
       {row.confidence != null && (
-        <span className="text-[11px] tabular-nums text-on-surface-variant">{row.confidence.toFixed(2)}</span>
+        <span className="text-xs font-mono text-ink-muted">{row.confidence.toFixed(2)}</span>
       )}
     </span>
   );
@@ -65,7 +65,7 @@ function TriageCard({
   onToggle: () => void;
 }) {
   return (
-    <li className="flex items-stretch gap-1 bg-surface-container-lowest rounded-xl border border-outline-variant/20">
+    <li className="flex items-stretch gap-1 bg-surface rounded-card shadow-ambient">
       {selectable && (
         <label className="flex items-start justify-center pt-4 pl-3 min-w-[44px] cursor-pointer has-disabled:cursor-not-allowed">
           <input
@@ -74,36 +74,36 @@ function TriageCard({
             disabled={!canSelect}
             onChange={onToggle}
             aria-label={canSelect ? `Select ${row.ref} for approval` : `${row.ref} can't be batch approved`}
-            className="w-5 h-5 accent-primary focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+            className="w-5 h-5 accent-accent focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
           />
         </label>
       )}
       <Link
         href={claimHref(row)}
-        className="flex-1 min-w-0 p-4 rounded-xl focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        className="flex-1 min-w-0 p-4 rounded-card focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="font-semibold text-sm text-on-surface truncate">{row.employee}</p>
-            <p className="text-xs text-on-surface-variant mt-0.5 truncate">
+            <p className="font-semibold text-sm text-ink truncate">{row.employee}</p>
+            <p className="text-xs text-ink-muted mt-0.5 truncate">
               <span className="font-mono">{row.ref}</span> · {row.category}
             </p>
           </div>
-          <p className="font-headline font-bold text-sm text-on-surface tabular-nums shrink-0">
+          <p className="font-mono font-medium text-sm text-ink shrink-0">
             {formatMoney(row.currency, row.amount)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-3">
           <TierPill tier={row.tier} />
           <RiskBar score={row.riskScore} />
-          <span className="text-xs text-on-surface-variant ml-auto">{formatSubmitted(row.submittedAt)}</span>
+          <span className="text-xs text-ink-muted ml-auto">{formatSubmitted(row.submittedAt)}</span>
         </div>
         {row.signals.length > 0 && (
           <div className="mt-2">
             <SignalChips signals={row.signals} />
           </div>
         )}
-        <p className="mt-2 text-xs text-on-surface-variant">
+        <p className="mt-2 text-xs text-ink-muted">
           AI: {verdictLabel(row.aiVerdict)}
           {row.confidence != null && ` ${row.confidence.toFixed(2)}`} · {statusLabel(row)}
         </p>
@@ -127,7 +127,7 @@ export default function TriageGrid({ rows, selectable, selfId, selected, onSelec
             <Link
               href={claimHref(p.data)}
               tabIndex={-1}
-              className="font-mono text-xs text-on-surface hover:text-primary hover:underline"
+              className="font-mono text-xs text-ink hover:text-accent hover:underline"
             >
               {p.data.ref}
             </Link>
@@ -141,8 +141,8 @@ export default function TriageGrid({ rows, selectable, selfId, selected, onSelec
         cellRenderer: (p: ICellRendererParams<TriageRow>) =>
           p.data ? (
             <span className="flex flex-col leading-tight min-w-0">
-              <span className="truncate font-medium text-on-surface">{p.data.employee}</span>
-              <span className="truncate text-[11px] text-on-surface-variant">{p.data.category}</span>
+              <span className="truncate font-medium text-ink">{p.data.employee}</span>
+              <span className="truncate text-xs text-ink-muted">{p.data.category}</span>
             </span>
           ) : null,
       },
@@ -151,7 +151,7 @@ export default function TriageGrid({ rows, selectable, selfId, selected, onSelec
         headerName: "Amount",
         width: 128,
         type: "rightAligned",
-        cellClass: "tabular-nums font-semibold",
+        cellClass: "font-mono font-medium",
         valueFormatter: (p) => (p.data ? formatMoney(p.data.currency, p.data.amount) : ""),
       },
       {

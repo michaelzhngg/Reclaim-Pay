@@ -17,19 +17,15 @@ export default function SettingsLegacyContent() {
   }, []);
 
   return (
-    <main className="min-h-dvh pb-24 md:pb-12 bg-surface">
+    <main className="min-h-dvh pb-24 md:pb-12 bg-paper">
       <div className="w-full max-w-7xl mx-auto px-4 md:px-6 pt-6 md:pt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
         {/* ── Header ── */}
         <header className="mb-8">
-          <div className="flex items-center gap-2 text-primary mb-2">
-            <Settings className="w-5 h-5" />
-            <span className="font-label font-bold tracking-widest uppercase text-xs">Preferences</span>
-          </div>
-          <h1 className="font-headline text-3xl md:text-4xl font-extrabold text-on-surface tracking-tight">
+          <h1 className="font-display text-3xl md:text-4xl font-bold text-ink">
             Settings
           </h1>
-          <p className="font-body text-sm md:text-base text-on-surface-variant mt-2">
+          <p className="font-body text-sm md:text-base text-ink-muted mt-2">
             Manage your account preferences and banking details for reimbursements.
           </p>
         </header>
@@ -47,10 +43,10 @@ export default function SettingsLegacyContent() {
               <Link
                 key={item.id}
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-body text-sm font-semibold transition-colors ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-control font-body text-sm font-semibold transition-colors ${
                   item.active
-                    ? "bg-primary/10 text-primary"
-                    : "text-on-surface-variant hover:bg-surface-container-lowest hover:text-on-surface"
+                    ? "bg-accent/10 text-accent"
+                    : "text-ink-muted hover:bg-surface hover:text-ink"
                 }`}
               >
                 <item.icon className="w-4 h-4" />
@@ -63,37 +59,37 @@ export default function SettingsLegacyContent() {
           <div className="md:col-span-2 space-y-6">
 
             {/* Profile Section */}
-            <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl overflow-hidden shadow-sm">
-              <div className="p-6 border-b border-outline-variant/10">
-                <h2 className="font-headline font-bold text-lg text-on-surface mb-1">Profile Information</h2>
-                <p className="font-body text-sm text-on-surface-variant">Update your personal details below.</p>
+            <section className="bg-surface border border-line rounded-2xl overflow-hidden">
+              <div className="p-6 border-b border-line">
+                <h2 className="font-display font-semibold text-lg text-ink mb-1">Profile Information</h2>
+                <p className="font-body text-sm text-ink-muted">Update your personal details below.</p>
               </div>
               <div className="p-6 space-y-5">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-16 h-16 rounded-full bg-linear-to-br from-primary-container to-tertiary-container shadow-sm border-2 border-surface flex items-center justify-center font-headline font-bold text-xl text-on-primary-container">
+                  <div className="w-16 h-16 rounded-full bg-surface-muted border border-line flex items-center justify-center font-display font-semibold text-xl text-ink">
                     {user?.name?.charAt(0) || "E"}
                   </div>
-                  <button className="px-4 py-2 border border-outline-variant/20 rounded-xl text-sm font-semibold text-on-surface hover:bg-surface-container transition-colors">
+                  <button className="px-4 py-2 border border-line rounded-control text-sm font-semibold text-ink hover:bg-surface-muted transition-colors">
                     Change Avatar
                   </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div className="space-y-1.5">
-                    <label className="font-label text-xs font-bold text-on-surface-variant uppercase tracking-wider">Full Name</label>
-                    <input type="text" defaultValue={user?.name || "Employee"} className="w-full bg-surface-container text-on-surface px-4 py-2.5 rounded-xl border border-transparent focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" />
+                    <label className="font-body text-xs font-medium text-ink">Full Name</label>
+                    <input type="text" defaultValue={user?.name || "Employee"} className="w-full bg-surface-muted text-ink px-4 py-2.5 rounded-control border border-transparent focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-all" />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="font-label text-xs font-bold text-on-surface-variant uppercase tracking-wider">Email Address</label>
-                    <input type="email" defaultValue={user?.email || "employee@reclaim.inc"} className="w-full bg-surface-container text-on-surface px-4 py-2.5 rounded-xl border border-transparent focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" />
+                    <label className="font-body text-xs font-medium text-ink">Email Address</label>
+                    <input type="email" defaultValue={user?.email || "employee@reclaim.inc"} className="w-full bg-surface-muted text-ink px-4 py-2.5 rounded-control border border-transparent focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-all" />
                   </div>
                   <div className="space-y-1.5 sm:col-span-2">
-                    <label className="font-label text-xs font-bold text-on-surface-variant uppercase tracking-wider">Department</label>
-                    <input type="text" defaultValue={user?.department_name || "General"} disabled className="w-full bg-surface-variant/30 text-on-surface-variant px-4 py-2.5 rounded-xl border border-transparent cursor-not-allowed" />
+                    <label className="font-body text-xs font-medium text-ink">Department</label>
+                    <input type="text" defaultValue={user?.department_name || "General"} disabled className="w-full bg-line/30 text-ink-muted px-4 py-2.5 rounded-control border border-transparent cursor-not-allowed" />
                   </div>
                 </div>
               </div>
-              <div className="p-4 bg-surface-container/30 border-t border-outline-variant/10 flex justify-end">
-                <button className="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold text-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all">
+              <div className="p-4 bg-surface-muted/30 border-t border-line flex justify-end">
+                <button className="flex items-center gap-2 bg-accent text-on-accent px-5 py-2.5 rounded-control font-bold text-sm transition-all">
                   <Save className="w-4 h-4" />
                   Save Changes
                 </button>
@@ -101,47 +97,47 @@ export default function SettingsLegacyContent() {
             </section>
 
             {/* Banking MVP Section */}
-            <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl overflow-hidden shadow-sm">
-              <div className="p-6 border-b border-outline-variant/10">
-                <h2 className="font-headline font-bold text-lg text-on-surface mb-1">Banking & Payouts</h2>
-                <p className="font-body text-sm text-on-surface-variant">Where should we send your reimbursements?</p>
+            <section className="bg-surface border border-line rounded-2xl overflow-hidden">
+              <div className="p-6 border-b border-line">
+                <h2 className="font-display font-semibold text-lg text-ink mb-1">Banking & Payouts</h2>
+                <p className="font-body text-sm text-ink-muted">Where should we send your reimbursements?</p>
               </div>
               <div className="p-6">
-                <div className="flex items-center justify-between p-4 border border-outline-variant/20 rounded-xl bg-surface-container-low hover:bg-surface-container cursor-pointer transition-colors group">
+                <div className="flex items-center justify-between p-4 border border-line rounded-control bg-surface-muted hover:bg-surface-muted cursor-pointer transition-colors group">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-primary-container text-on-primary-container rounded-lg">
+                    <div className="p-3 bg-accent-soft text-ink rounded-lg">
                       <Wallet className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="font-headline font-bold text-sm text-on-surface">
+                      <p className="font-display font-semibold text-sm text-ink">
                         {banking?.bank_code
                           ? `${banking.bank_code} ${banking.bank_account_number ? '•••• ' + banking.bank_account_number.slice(-4) : ''}`
                           : "No bank account set up"}
                       </p>
-                      <p className="font-body text-xs text-on-surface-variant">
+                      <p className="font-body text-xs text-ink-muted">
                         {banking?.bank_account_holder_name || "Tap to add your banking details"}
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-on-surface-variant group-hover:translate-x-1 transition-transform" />
+                  <ChevronRight className="w-5 h-5 text-ink-muted" />
                 </div>
               </div>
             </section>
 
             {/* Mobile Support Link */}
-            <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl overflow-hidden shadow-sm md:hidden block">
+            <section className="bg-surface border border-line rounded-2xl overflow-hidden md:hidden block">
               <div className="p-6">
-                <Link href="/employee/support" className="flex items-center justify-between p-4 border border-outline-variant/20 rounded-xl bg-surface-container-low hover:bg-surface-container cursor-pointer transition-colors group">
+                <Link href="/employee/support" className="flex items-center justify-between p-4 border border-line rounded-control bg-surface-muted hover:bg-surface-muted cursor-pointer transition-colors group">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-tertiary-container text-on-tertiary-container rounded-lg">
+                    <div className="p-3 bg-accent-soft text-ink rounded-lg">
                       <LifeBuoy className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="font-headline font-bold text-sm text-on-surface">Help & Support</p>
-                      <p className="font-body text-xs text-on-surface-variant">Access FAQs or contact HR</p>
+                      <p className="font-display font-semibold text-sm text-ink">Help & Support</p>
+                      <p className="font-body text-xs text-ink-muted">Access FAQs or contact HR</p>
                     </div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-on-surface-variant group-hover:translate-x-1 transition-transform" />
+                  <ChevronRight className="w-5 h-5 text-ink-muted" />
                 </Link>
               </div>
             </section>

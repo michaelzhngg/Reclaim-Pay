@@ -33,9 +33,9 @@ export function ClaimRow({
           navigate();
         }
       }}
-      className="group transition-all duration-200
-                 hover:bg-primary/[0.04] hover:shadow-[inset_4px_0_0_0_#4647d3]
-                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary
+      className="group transition-colors
+                 hover:bg-surface-muted
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent
                  cursor-pointer"
     >
       {/* Employee */}
@@ -43,11 +43,11 @@ export function ClaimRow({
         <div className="flex items-center gap-3">
           <Avatar name={claim.employee.name} initials={claim.employee.initials} />
           <div>
-            <p className="font-semibold text-on-surface text-sm leading-tight">
+            <p className="font-semibold text-ink text-sm leading-tight">
               {claim.employee.name}
             </p>
             {claim.note && (
-              <p className="text-[11px] text-on-surface-variant mt-0.5 leading-tight">
+              <p className="text-xs text-ink-muted mt-0.5 leading-tight">
                 {claim.note}
               </p>
             )}
@@ -55,17 +55,17 @@ export function ClaimRow({
         </div>
       </td>
       {/* Date */}
-      <td className="py-5 px-6 text-on-surface-variant text-sm hidden sm:table-cell">
+      <td className="py-5 px-6 text-ink-muted text-sm hidden sm:table-cell">
         {claim.date}
       </td>
       {/* Amount */}
       <td className="py-5 px-6">
-        <span className="font-semibold text-on-surface text-sm tabular-nums">
+        <span className="font-mono font-medium text-ink text-sm">
           {claim.amount}
         </span>
       </td>
       {/* Category */}
-      <td className="py-5 px-6 text-on-surface-variant text-sm hidden md:table-cell">
+      <td className="py-5 px-6 text-ink-muted text-sm hidden md:table-cell">
         {claim.category}
       </td>
       {/* AI Status */}
@@ -80,9 +80,9 @@ export function ClaimRow({
             e.stopPropagation();
             navigate();
           }}
-          className="text-primary font-semibold text-sm
-                     group-hover:underline group-hover:translate-x-0.5
-                     transition-all duration-150 active:scale-95"
+          type="button"
+          className="inline-flex items-center min-h-[44px] px-2 text-accent-hover font-semibold text-sm
+                     group-hover:underline"
         >
           {actionLabel}
         </button>

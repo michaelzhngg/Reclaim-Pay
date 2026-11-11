@@ -20,7 +20,7 @@ export default function PayPalStatusChip() {
 
   // Loading, or the status request failed: say nothing rather than guess.
   if (status === undefined) {
-    return <div className="h-11 w-56 rounded-xl bg-surface-container animate-pulse" aria-hidden />;
+    return <div className="h-11 w-56 max-w-full rounded-control bg-surface-muted motion-safe:animate-pulse" aria-hidden />;
   }
   if (status === null) return null;
 
@@ -28,13 +28,13 @@ export default function PayPalStatusChip() {
     return (
       <Link
         href="/employee/settings#paypal"
-        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-3.5 py-2 text-sm font-body text-on-surface hover:bg-surface-container focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-control border border-line bg-surface px-3.5 py-2 text-sm font-body text-ink hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
-        <Wallet className="h-4 w-4 text-primary shrink-0" aria-hidden />
+        <Wallet className="h-4 w-4 text-ink-muted shrink-0" aria-hidden />
         <span>
-          Paid to <span className="font-semibold">{status.email_masked ?? "your PayPal"}</span>
+          Paid to <span className="font-semibold break-all">{status.email_masked ?? "your PayPal"}</span>
           {status.cooldown_until && (
-            <span className="text-on-surface-variant"> · Instant payouts paused until {shortDate(status.cooldown_until)}</span>
+            <span className="text-ink-muted"> · Instant payouts paused until {shortDate(status.cooldown_until)}</span>
           )}
         </span>
       </Link>
@@ -44,7 +44,7 @@ export default function PayPalStatusChip() {
   return (
     <Link
       href="/employee/settings#paypal"
-      className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-3.5 py-2 text-sm font-body font-semibold text-on-primary hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      className="inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-3.5 py-2 text-sm font-body font-semibold text-on-accent hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
       <Wallet className="h-4 w-4 shrink-0" aria-hidden />
       Connect PayPal to get paid

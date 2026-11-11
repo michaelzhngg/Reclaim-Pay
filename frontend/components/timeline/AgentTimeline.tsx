@@ -5,10 +5,10 @@ import { AlertTriangle, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import type { TimelineStatus, TimelineStepState } from "@/lib/api/reclaim-pay-types";
 
 const STATUS_STYLE: Record<TimelineStatus, { icon: typeof CheckCircle2; className: string; srLabel: string }> = {
-  running: { icon: Loader2, className: "text-primary animate-spin motion-reduce:animate-none", srLabel: "In progress" },
-  done: { icon: CheckCircle2, className: "text-primary", srLabel: "Done" },
-  warn: { icon: AlertTriangle, className: "text-amber-700", srLabel: "Needs attention" },
-  fail: { icon: XCircle, className: "text-error", srLabel: "Failed" },
+  running: { icon: Loader2, className: "text-accent animate-spin motion-reduce:animate-none", srLabel: "In progress" },
+  done: { icon: CheckCircle2, className: "text-ink", srLabel: "Done" },
+  warn: { icon: AlertTriangle, className: "text-warning", srLabel: "Needs attention" },
+  fail: { icon: XCircle, className: "text-danger", srLabel: "Failed" },
 };
 
 interface AgentTimelineProps {
@@ -27,27 +27,27 @@ export default function AgentTimeline({ steps, title = "What the agent is checki
 
   return (
     <section aria-label={title} className={`w-full text-left ${className}`}>
-      <h3 className="font-headline font-semibold text-sm text-on-surface mb-3">{title}</h3>
+      <h3 className="font-display font-semibold text-sm text-ink mb-3">{title}</h3>
       <ol aria-live="polite" className="flex flex-col gap-2.5">
         {steps.map(s => {
           const { icon: Icon, className: iconClass, srLabel } = STATUS_STYLE[s.status];
           return (
             <motion.li
               key={s.step}
-              // Rows slide in as the agent reaches each check, so progress reads as sequence.
-              initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              // Rows fade in as the agent reaches each check, so progress reads as sequence. No movement, no bounce.
+              initial={reduceMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.15, ease: "linear" }}
               className="flex items-start gap-3"
             >
               <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${iconClass}`} aria-hidden="true" />
               <div className="min-w-0">
-                <p className="font-body text-sm text-on-surface">
+                <p className="font-body text-sm text-ink">
                   {s.label}
                   <span className="sr-only">: {srLabel}</span>
                 </p>
                 {s.detail && (
-                  <p className="font-body text-xs text-on-surface-variant break-words">{s.detail}</p>
+                  <p className="font-body text-xs text-ink-muted break-words">{s.detail}</p>
                 )}
               </div>
             </motion.li>

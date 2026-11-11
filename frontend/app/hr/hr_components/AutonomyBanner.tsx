@@ -74,14 +74,14 @@ export default function AutonomyBanner() {
     <div
       role="status"
       className={`flex flex-col gap-1 px-4 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 md:px-8 border-b ${
-        paused ? "bg-error/10 border-error/30" : "bg-amber-50 border-amber-300"
+        paused ? "bg-danger/10 border-danger/30" : "bg-warning-soft border-warning/30"
       }`}
     >
-      <p className="flex items-start gap-2 min-w-0 text-on-surface">
+      <p className="flex items-start gap-2 min-w-0 text-ink">
         {paused ? (
-          <PauseCircle className="w-4 h-4 mt-0.5 text-error shrink-0" aria-hidden="true" />
+          <PauseCircle className="w-4 h-4 mt-0.5 text-danger shrink-0" aria-hidden="true" />
         ) : (
-          <Clock className="w-4 h-4 mt-0.5 text-amber-800 shrink-0" aria-hidden="true" />
+          <Clock className="w-4 h-4 mt-0.5 text-warning shrink-0" aria-hidden="true" />
         )}
         <span>
           {paused ? (
@@ -99,7 +99,7 @@ export default function AutonomyBanner() {
       </p>
       <Link
         href="/hr/autonomy"
-        className="self-start sm:self-auto shrink-0 inline-flex items-center min-h-[44px] font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-primary rounded"
+        className="self-start sm:self-auto shrink-0 inline-flex items-center min-h-[44px] font-semibold text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-accent rounded"
       >
         Open Autonomy
       </Link>

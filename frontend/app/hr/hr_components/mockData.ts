@@ -42,15 +42,15 @@ export interface PolicyDetail {
   status: string;
 }
 
-// ─── Mock Data (removed — now fetched from backend) ───────────────────────────
+// ─── Mock Data (removed, now fetched from backend) ───────────────────────────
 
 export const MOCK_BUNDLES: Record<string, ClaimBundle> = {};
 export const MOCK_POLICIES: Policy[] = [];
 
 export const POLICY_STATUS_STYLE: Record<PolicyStatus, string> = {
-  "Active": "bg-[#e6f4ea] text-[#137333]",
-  "Impending": "bg-[#fef7e0] text-[#b06000]",
-  "Expired": "bg-surface-container-high text-on-surface-variant",
+  "Active": "bg-success-soft text-success",
+  "Impending": "bg-warning-soft text-warning",
+  "Expired": "bg-line text-ink-muted",
 };
 
 export const MOCK_POLICY_DETAILS: PolicyDetail[] = [];

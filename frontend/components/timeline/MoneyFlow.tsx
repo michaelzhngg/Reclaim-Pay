@@ -17,11 +17,11 @@ interface MoneyFlowProps {
 }
 
 const NODE_STYLE: Record<NodeState, { icon: typeof Circle; className: string }> = {
-  done: { icon: CheckCircle2, className: "text-primary" },
-  active: { icon: Loader2, className: "text-primary animate-spin" },
-  waiting: { icon: Clock, className: "text-amber-700" },
-  error: { icon: XCircle, className: "text-error" },
-  pending: { icon: Circle, className: "text-outline-variant" },
+  done: { icon: CheckCircle2, className: "text-ink" },
+  active: { icon: Loader2, className: "text-accent animate-spin motion-reduce:animate-none" },
+  waiting: { icon: Clock, className: "text-warning" },
+  error: { icon: XCircle, className: "text-danger" },
+  pending: { icon: Circle, className: "text-line-strong" },
 };
 
 function nodeCaption(index: number, state: NodeState, amount: string | null): string {
@@ -59,7 +59,7 @@ export default function MoneyFlow({ reimId, claimStatus, tier }: MoneyFlowProps)
       payee && !payee.linked ? (
         <>
           Connect PayPal to receive this payment.{" "}
-          <Link href="/employee/settings#paypal" className="font-semibold text-primary underline underline-offset-2">
+          <Link href="/employee/settings#paypal" className="font-semibold text-accent-hover underline underline-offset-2">
             Go to settings
           </Link>
         </>
@@ -77,27 +77,29 @@ export default function MoneyFlow({ reimId, claimStatus, tier }: MoneyFlowProps)
   }
 
   return (
-    <section aria-labelledby={`money-flow-${reimId}`} className="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-4">
-      <h4 id={`money-flow-${reimId}`} className="font-headline font-semibold text-sm text-on-surface mb-3">
+    <section aria-labelledby={`money-flow-${reimId}`} className="rounded-card shadow-ambient bg-surface p-4">
+      <h4 id={`money-flow-${reimId}`} className="font-display font-semibold text-sm text-ink mb-3">
         Payment
       </h4>
 
       <ol className="flex flex-col gap-3 sm:flex-row sm:gap-2">
         {FLOW_NODES.map((label, i) => {
-          const { icon: Icon, className } = NODE_STYLE[states[i]];
+          const { icon: Icon, className: base } = NODE_STYLE[states[i]];
+          // Green is kept for money that arrived, so only the last node turns green once it is done.
+          const className = i === FLOW_NODES.length - 1 && states[i] === "done" ? "text-success" : base;
           return (
             <li key={label} className="flex items-center gap-3 sm:flex-1 sm:flex-col sm:items-start sm:gap-1.5">
               <Icon className={`w-5 h-5 shrink-0 ${className}`} aria-hidden="true" />
               <div className="min-w-0">
-                <p className="font-body text-xs font-semibold text-on-surface">{label}</p>
-                <p className="font-body text-xs text-on-surface-variant">{nodeCaption(i, states[i], amount)}</p>
+                <p className="font-body text-xs font-semibold text-ink">{label}</p>
+                <p className="font-body text-xs text-ink-muted">{nodeCaption(i, states[i], amount)}</p>
               </div>
             </li>
           );
         })}
       </ol>
 
-      <p aria-live="polite" className="mt-4 font-body text-sm text-on-surface">
+      <p aria-live="polite" className="mt-4 font-body text-sm text-ink">
         {summary}
       </p>
     </section>

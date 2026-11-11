@@ -55,10 +55,10 @@ function Toggle<T extends string>({
           type="button"
           aria-pressed={value === o.id}
           onClick={() => onChange(o.id)}
-          className={`min-h-11 px-4 rounded-xl font-body text-sm font-semibold border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+          className={`min-h-11 px-4 rounded-full font-body text-sm font-semibold border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
             value === o.id
-              ? "bg-primary text-on-primary border-primary"
-              : "bg-surface-container-lowest text-on-surface border-outline-variant/30 hover:bg-surface-container"
+              ? "bg-ink text-on-accent border-ink"
+              : "bg-surface text-ink border-line hover:bg-surface-muted"
           }`}
         >
           {o.name}
@@ -75,8 +75,8 @@ export default function TimelinePreview() {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-10">
-      <h1 className="font-headline text-xl sm:text-2xl font-bold text-on-surface">Agent timeline preview</h1>
-      <p className="mt-1 font-body text-sm text-on-surface-variant">
+      <h1 className="font-display text-xl sm:text-2xl font-bold text-ink">Agent timeline preview</h1>
+      <p className="mt-1 font-body text-sm text-ink-muted">
         Sample data. Replays what the agent shows while it checks a claim.
       </p>
 
@@ -99,14 +99,14 @@ export default function TimelinePreview() {
         <button
           type="button"
           onClick={() => setRun(r => r + 1)}
-          className="self-start inline-flex items-center gap-2 min-h-11 px-4 rounded-xl font-body text-sm font-semibold text-primary hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          className="self-start inline-flex items-center gap-2 min-h-11 px-4 rounded-control font-body text-sm font-semibold text-accent-hover hover:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           <RotateCcw className="w-4 h-4" aria-hidden="true" />
           Replay
         </button>
       </div>
 
-      <div className="mt-6 rounded-3xl border border-outline-variant/15 bg-surface-container-lowest p-4 sm:p-6">
+      <div className="mt-6 rounded-card shadow-ambient bg-surface p-4 sm:p-6">
         <Replay key={`${scenario}-${audience}-${run}`} scenario={scenario} audience={audience} />
       </div>
     </div>

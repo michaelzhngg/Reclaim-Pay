@@ -61,17 +61,17 @@ export default function WaiveDialog({
               they&apos;ll be told so. You can&apos;t undo this.
             </p>
             {recovery.dispute_note && (
-              <p className="rounded-lg bg-surface-container-low px-3 py-2.5 break-words">
+              <p className="rounded-lg bg-surface-muted px-3 py-2.5 break-words">
                 <span className="font-medium">Employee replied:</span> {recovery.dispute_note}
               </p>
             )}
             <ErrorLine error={error} />
           </div>
-          <footer className="flex flex-col-reverse gap-2 px-5 py-4 border-t border-outline-variant/20 sm:flex-row sm:justify-end">
-            <button type="button" onClick={close} disabled={busy} className={`${btnBase} text-on-surface hover:bg-surface-container focus-visible:outline-primary`}>
+          <footer className="flex flex-col-reverse gap-2 px-5 py-4 border-t border-line sm:flex-row sm:justify-end">
+            <button type="button" onClick={close} disabled={busy} className={`${btnBase} text-ink hover:bg-surface-muted focus-visible:outline-accent`}>
               Keep the recovery
             </button>
-            <button type="button" onClick={confirm} disabled={busy} className={`${btnBase} bg-error text-on-error hover:bg-error-dim focus-visible:outline-error`}>
+            <button type="button" onClick={confirm} disabled={busy} className={`${btnBase} bg-danger text-on-accent hover:bg-danger focus-visible:outline-danger`}>
               {busy && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
               Waive {money}
             </button>

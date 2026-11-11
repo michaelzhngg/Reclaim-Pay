@@ -55,7 +55,7 @@ function Form({
   return (
     <form onSubmit={submit} noValidate className="flex flex-col min-h-0 flex-1">
       <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4 text-sm">
-        <p className="text-on-surface-variant">
+        <p className="text-ink-muted">
           {row.employee} gets a notice with this amount and reason, and can dispute it before anything is collected.
         </p>
         <div>
@@ -70,16 +70,16 @@ function Form({
             autoComplete="off"
             placeholder="0.00"
             aria-describedby="recovery-amount-hint"
-            className="mt-1.5 w-full min-h-[44px] rounded-lg border border-outline-variant/60 bg-surface-container-lowest px-3 text-sm tabular-nums placeholder:text-on-surface-variant focus-visible:outline-2 focus-visible:outline-primary"
+            className="mt-1.5 w-full min-h-[44px] rounded-lg border border-line bg-surface px-3 text-sm tabular-nums placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
           />
-          <p id="recovery-amount-hint" className="mt-1 text-xs text-on-surface-variant">
+          <p id="recovery-amount-hint" className="mt-1 text-xs text-ink-muted">
             Up to {formatMoney(row.currency, row.remaining)}
             {row.inRecovery > 0 && `. ${formatMoney(row.currency, row.inRecovery)} of this claim is already in recovery.`}
           </p>
         </div>
         <div>
           <label htmlFor="recovery-reason" className="block text-sm font-medium">
-            Reason <span className="text-on-surface-variant font-normal">(required)</span>
+            Reason <span className="text-ink-muted font-normal">(required)</span>
           </label>
           <textarea
             id="recovery-reason"
@@ -88,16 +88,16 @@ function Form({
             rows={3}
             maxLength={1000}
             placeholder="For example: breakfast was included in the hotel rate and also claimed separately"
-            className="mt-1.5 w-full rounded-lg border border-outline-variant/60 bg-surface-container-lowest px-3 py-2 text-sm placeholder:text-on-surface-variant focus-visible:outline-2 focus-visible:outline-primary"
+            className="mt-1.5 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
           />
         </div>
         <ErrorLine error={error} />
       </div>
-      <footer className="flex flex-col-reverse gap-2 px-5 py-4 border-t border-outline-variant/20 sm:flex-row sm:justify-end">
-        <button type="button" onClick={onClose} disabled={sending} className={`${btnBase} text-on-surface hover:bg-surface-container focus-visible:outline-primary`}>
+      <footer className="flex flex-col-reverse gap-2 px-5 py-4 border-t border-line sm:flex-row sm:justify-end">
+        <button type="button" onClick={onClose} disabled={sending} className={`${btnBase} text-ink hover:bg-surface-muted focus-visible:outline-accent`}>
           Cancel
         </button>
-        <button type="submit" disabled={sending} className={`${btnBase} bg-primary text-on-primary hover:bg-primary-dim focus-visible:outline-primary`}>
+        <button type="submit" disabled={sending} className={`${btnBase} bg-accent text-on-accent hover:bg-accent-hover focus-visible:outline-accent`}>
           {sending && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
           Send overpayment notice
         </button>

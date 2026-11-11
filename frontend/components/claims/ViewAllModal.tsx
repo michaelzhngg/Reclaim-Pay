@@ -80,7 +80,7 @@ export function ViewAllModal({
     >
       {/* Dimmed overlay */}
       <div
-        className="absolute inset-0 bg-inverse-surface/30 backdrop-blur-sm"
+        className="absolute inset-0 bg-ink/30"
         onClick={onClose}
       />
 
@@ -88,20 +88,20 @@ export function ViewAllModal({
       <div
         ref={panelRef}
         className="relative w-full sm:max-w-4xl max-h-[92dvh] flex flex-col
-                   bg-surface-container-lowest rounded-t-3xl sm:rounded-2xl
-                   shadow-[0_32px_80px_-8px_rgba(44,47,49,0.22)]
+                   bg-surface rounded-t-dialog sm:rounded-dialog
+                   shadow-overlay
                    overflow-hidden"
       >
         {/* ── Modal Header ──────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-outline-variant/15 shrink-0">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-line shrink-0">
           <div>
-            <h3 className="font-headline font-bold text-lg text-on-surface">
+            <h3 className="font-display font-semibold text-lg text-ink">
               {title}
             </h3>
-            <p className="text-xs text-on-surface-variant mt-0.5">
+            <p className="text-xs text-ink-muted mt-0.5">
               {filtered.length} of {claims.length} records
               {activeCount > 0 && (
-                <span className="ml-1.5 text-primary font-semibold">
+                <span className="ml-1.5 text-ink font-semibold">
                   · {activeCount} filter{activeCount !== 1 ? "s" : ""} active
                 </span>
               )}
@@ -111,34 +111,34 @@ export function ViewAllModal({
             id="modal-close-btn"
             onClick={onClose}
             aria-label="Close modal"
-            className="p-2 rounded-xl text-on-surface hover:bg-surface-container-low
-                       active:scale-95 transition-all"
+            className="inline-flex items-center justify-center w-11 h-11 rounded-control text-ink hover:bg-surface-muted
+                       transition-colors"
           >
             <X className="w-5 h-5" strokeWidth={2} />
           </button>
         </div>
 
         {/* ── Search + Filter toggle ─────────────────────────────────────── */}
-        <div className="px-6 py-4 bg-surface border-b border-outline-variant/10 shrink-0">
+        <div className="px-6 py-4 bg-paper border-b border-line shrink-0">
           <div className="flex gap-3">
             {/* Search */}
-            <div className="flex-1 flex items-center gap-2.5 bg-surface-container-low
-                            rounded-xl px-4 py-2.5 ring-1 ring-outline-variant/20
-                            focus-within:ring-primary/40 focus-within:bg-surface-container-lowest
+            <div className="flex-1 flex items-center gap-2.5 bg-surface-muted
+                            rounded-control px-4 min-h-[44px] ring-1 ring-line-strong
+                            focus-within:ring-accent/40 focus-within:bg-surface
                             transition-all">
-              <Search className="w-4 h-4 text-on-surface-variant shrink-0" strokeWidth={2} />
+              <Search className="w-4 h-4 text-ink-muted shrink-0" strokeWidth={2} />
               <input
                 type="text"
                 placeholder="Search by name, category or status…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="flex-1 bg-transparent text-sm text-on-surface
-                           placeholder:text-on-surface-variant/60 outline-none font-body"
+                className="flex-1 bg-transparent text-sm text-ink
+                           placeholder:text-ink-muted/60 outline-none font-body"
               />
               {query && (
                 <button
                   onClick={() => setQuery("")}
-                  className="text-on-surface-variant hover:text-on-surface transition-colors shrink-0"
+                  className="text-ink-muted hover:text-ink transition-colors shrink-0"
                   aria-label="Clear search"
                 >
                   <X className="w-3.5 h-3.5" strokeWidth={2.5} />
@@ -151,12 +151,12 @@ export function ViewAllModal({
               id="filter-toggle-btn"
               onClick={() => setFilterOpen((o) => !o)}
               aria-expanded={filterOpen}
-              className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm
-                          font-semibold font-headline transition-all duration-200
-                          active:scale-95 shrink-0 ring-1 cursor-pointer ${
+              className={`relative flex items-center gap-2 px-4 min-h-[44px] rounded-full text-sm
+                          font-semibold font-body transition-colors
+                          shrink-0 ring-1 cursor-pointer ${
                             filterOpen || activeCount > 0
-                              ? "bg-primary text-on-primary ring-primary shadow-[0_4px_16px_rgba(70,71,211,0.25)]"
-                              : "bg-surface-container-low text-on-surface ring-outline-variant/20 hover:bg-surface-container"
+                              ? "bg-ink text-on-accent ring-ink"
+                              : "bg-surface text-ink ring-line-strong hover:bg-surface-muted"
                           }`}
             >
               <SlidersHorizontal className="w-4 h-4" strokeWidth={2} />
@@ -166,8 +166,8 @@ export function ViewAllModal({
                   className={`absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full text-[9px]
                               font-bold flex items-center justify-center ${
                                 filterOpen || activeCount > 0
-                                  ? "bg-on-primary text-primary"
-                                  : "bg-primary text-on-primary"
+                                  ? "bg-on-accent text-ink"
+                                  : "bg-ink text-on-accent"
                               }`}
                 >
                   {activeCount}
@@ -195,13 +195,13 @@ export function ViewAllModal({
         <div className="flex-1 overflow-y-auto min-h-0">
           <table className="w-full text-left border-collapse">
             <thead className="sticky top-0 z-10">
-              <tr className="bg-surface-container-low/80 backdrop-blur-sm">
+              <tr className="bg-surface-muted/80">
                 {["Employee", "Date", "Amount", "Category", "AI Status", "Action"].map(
                   (h, i) => (
                     <th
                       key={h}
-                      className={`py-3.5 px-6 text-xs font-semibold font-headline
-                                  text-on-surface-variant uppercase tracking-wider
+                      className={`py-3.5 px-6 text-xs font-medium font-body
+                                  text-ink-muted
                                   ${i === 1 ? "hidden sm:table-cell" : ""}
                                   ${i === 3 ? "hidden md:table-cell" : ""}
                                   ${i === 4 ? "hidden lg:table-cell" : ""}
@@ -213,7 +213,7 @@ export function ViewAllModal({
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-outline-variant/10">
+            <tbody className="divide-y divide-line">
               {filtered.length > 0 ? (
                 filtered.map((claim) => (
                   <ClaimRow
@@ -227,10 +227,10 @@ export function ViewAllModal({
                   <td colSpan={6} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <SlidersHorizontal
-                        className="w-8 h-8 text-outline-variant"
+                        className="w-8 h-8 text-line"
                         strokeWidth={1.5}
                       />
-                      <p className="text-sm text-on-surface-variant font-medium">
+                      <p className="text-sm text-ink-muted font-medium">
                         No records match your filters.
                       </p>
                       <button
@@ -238,7 +238,7 @@ export function ViewAllModal({
                           setFilters(EMPTY_FILTERS);
                           setQuery("");
                         }}
-                        className="text-xs text-primary font-semibold hover:underline mt-1"
+                        className="text-xs text-accent font-semibold hover:underline mt-1"
                       >
                         Clear all
                       </button>
@@ -251,16 +251,16 @@ export function ViewAllModal({
         </div>
 
         {/* ── Footer ────────────────────────────────────────────────────── */}
-        <div className="px-6 py-4 border-t border-outline-variant/10 shrink-0
-                        flex items-center justify-between bg-surface">
-          <p className="text-xs text-on-surface-variant">
+        <div className="px-6 py-4 border-t border-line shrink-0
+                        flex items-center justify-between bg-paper">
+          <p className="text-xs text-ink-muted">
             Showing{" "}
-            <span className="font-semibold text-on-surface">{filtered.length}</span>{" "}
+            <span className="font-semibold text-ink">{filtered.length}</span>{" "}
             result{filtered.length !== 1 ? "s" : ""}
             {activeCount > 0 && (
               <button
                 onClick={() => setFilters(EMPTY_FILTERS)}
-                className="ml-2 text-primary hover:underline font-semibold"
+                className="ml-2 min-h-[44px] px-1 text-accent-hover hover:underline font-semibold"
               >
                 Reset filters
               </button>
@@ -268,9 +268,8 @@ export function ViewAllModal({
           </p>
           <button
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-primary text-on-primary text-sm font-semibold
-                       font-headline hover:bg-primary-dim active:scale-95 transition-all
-                       shadow-[0_4px_16px_rgba(70,71,211,0.25)]"
+            className="inline-flex items-center min-h-[44px] px-5 rounded-control bg-accent text-on-accent text-sm font-semibold
+                       font-body hover:bg-accent-hover transition-colors"
           >
             Done
           </button>

@@ -28,7 +28,7 @@ export function CopyBatchId({ value }: { value: string | null }) {
     if (timer.current) clearTimeout(timer.current);
   }, []);
 
-  if (!value) return <span className="text-on-surface-variant">Not issued yet</span>;
+  if (!value) return <span className="text-ink-muted">Not issued yet</span>;
 
   const copy = async () => {
     try {
@@ -46,13 +46,13 @@ export function CopyBatchId({ value }: { value: string | null }) {
       type="button"
       onClick={copy}
       aria-label={copied ? `Copied ${value}` : `Copy PayPal batch ID ${value}`}
-      className="inline-flex items-center gap-1.5 min-h-[44px] -my-2 px-1.5 rounded-md font-mono text-xs text-on-surface hover:text-primary focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 cursor-pointer"
+      className="inline-flex items-center gap-1.5 min-h-[44px] -my-2 px-1.5 rounded-md font-mono text-xs text-ink hover:text-accent focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 cursor-pointer"
     >
       <span className="truncate">{value}</span>
       {copied ? (
-        <Check className="w-3.5 h-3.5 text-emerald-700 shrink-0" aria-hidden="true" />
+        <Check className="w-3.5 h-3.5 text-success shrink-0" aria-hidden="true" />
       ) : (
-        <Copy className="w-3.5 h-3.5 text-on-surface-variant shrink-0" aria-hidden="true" />
+        <Copy className="w-3.5 h-3.5 text-ink-muted shrink-0" aria-hidden="true" />
       )}
       <span aria-live="polite" className="sr-only">
         {copied ? "Copied" : ""}
@@ -63,17 +63,17 @@ export function CopyBatchId({ value }: { value: string | null }) {
 
 function LedgerCard({ row }: { row: PayoutLedgerRow }) {
   return (
-    <li className="bg-surface-container-lowest rounded-xl border border-outline-variant/20 p-4">
+    <li className="bg-surface rounded-card shadow-ambient p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-semibold text-sm text-on-surface truncate">{row.employee_name}</p>
-          <p className="font-mono text-xs text-on-surface-variant mt-0.5">{formatClaimRef(row.claim_ref)}</p>
+          <p className="font-semibold text-sm text-ink truncate">{row.employee_name}</p>
+          <p className="font-mono text-xs text-ink-muted mt-0.5">{formatClaimRef(row.claim_ref)}</p>
         </div>
-        <p className="font-headline font-bold text-sm text-on-surface tabular-nums shrink-0">
+        <p className="font-mono font-medium text-sm text-ink shrink-0">
           {formatMoney(row.currency, row.amount)}
         </p>
       </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-3 text-xs text-on-surface-variant">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-3 text-xs text-ink-muted">
         <StatusPill status={row.status} />
         {row.tier && <span>{tierLabel(row.tier)}</span>}
         <span>Attempt {row.attempt}</span>
@@ -107,7 +107,7 @@ export default function LedgerGrid({ rows }: { rows: PayoutLedgerRow[] }) {
         headerName: "Amount",
         width: 112,
         type: "rightAligned",
-        cellClass: "tabular-nums font-semibold",
+        cellClass: "font-mono font-medium",
         valueFormatter: (p) => (p.data ? formatMoney(p.data.currency, p.data.amount) : ""),
       },
       {

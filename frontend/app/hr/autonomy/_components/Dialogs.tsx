@@ -19,7 +19,7 @@ function ReasonField({
   return (
     <div>
       <label htmlFor={id} className="block text-sm font-medium">
-        Reason <span className="text-on-surface-variant font-normal">(required)</span>
+        Reason <span className="text-ink-muted font-normal">(required)</span>
       </label>
       <textarea
         id={id}
@@ -28,7 +28,7 @@ function ReasonField({
         rows={2}
         maxLength={500}
         placeholder={placeholder}
-        className="mt-1.5 w-full rounded-lg border border-outline-variant/60 bg-surface-container-lowest px-3 py-2 text-sm placeholder:text-on-surface-variant focus-visible:outline-2 focus-visible:outline-primary"
+        className="mt-1.5 w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-sm placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-accent"
       />
     </div>
   );
@@ -59,24 +59,24 @@ export function SaveDialog({
   return (
     <Sheet open={open} titleId="save-title" title={`Save version ${nextVersion}?`} busy={busy} onClose={onClose}>
       <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4 text-sm">
-        <p className="text-on-surface-variant">New claims use these limits as soon as you save. Claims already decided stay as they are.</p>
+        <p className="text-ink-muted">New claims use these limits as soon as you save. Claims already decided stay as they are.</p>
         <table className="w-full">
           <caption className="sr-only">Changes</caption>
           <thead>
-            <tr className="text-left text-xs text-on-surface-variant">
+            <tr className="text-left text-xs text-ink-muted">
               <th scope="col" className="pb-1 font-medium">Setting</th>
               <th scope="col" className="pb-1 font-medium text-right">Before</th>
               <th scope="col" className="pb-1 font-medium text-right">After</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-outline-variant/20">
+          <tbody className="divide-y divide-line">
             {changes.map((c) => (
               <tr key={c.key}>
                 <th scope="row" className="py-2 pr-3 text-left font-medium">{c.label}</th>
-                <td className="py-2 pl-2 text-right tabular-nums text-on-surface-variant whitespace-nowrap">
+                <td className="py-2 pl-2 text-right font-mono text-ink-muted whitespace-nowrap">
                   <s>{c.before}</s>
                 </td>
-                <td className="py-2 pl-2 text-right tabular-nums font-semibold whitespace-nowrap">{c.after}</td>
+                <td className="py-2 pl-2 text-right font-mono font-semibold whitespace-nowrap">{c.after}</td>
               </tr>
             ))}
           </tbody>
@@ -84,15 +84,15 @@ export function SaveDialog({
         <ReasonField id="save-reason" value={reason} onChange={setReason} placeholder="For example: raising limits after the Q3 audit" />
         <ErrorLine error={error} />
       </div>
-      <footer className="flex flex-col-reverse gap-2 px-5 py-4 border-t border-outline-variant/20 sm:flex-row sm:justify-end">
-        <button type="button" onClick={onClose} disabled={busy} className={`${btnBase} text-on-surface hover:bg-surface-container focus-visible:outline-primary`}>
+      <footer className="flex flex-col-reverse gap-2 px-5 py-4 border-t border-line sm:flex-row sm:justify-end">
+        <button type="button" onClick={onClose} disabled={busy} className={`${btnBase} text-ink hover:bg-surface-muted focus-visible:outline-accent`}>
           Keep editing
         </button>
         <button
           type="button"
           onClick={() => onConfirm(reason.trim())}
           disabled={busy || !reason.trim()}
-          className={`${btnBase} bg-primary text-on-primary hover:bg-primary-dim focus-visible:outline-primary`}
+          className={`${btnBase} bg-accent text-on-accent hover:bg-accent-hover focus-visible:outline-accent`}
         >
           {busy && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
           Save version {nextVersion}
@@ -137,7 +137,7 @@ export function KillSwitchDialog({
       onClose={onClose}
     >
       <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4 text-sm">
-        <p className="text-on-surface-variant">
+        <p className="text-ink-muted">
           {pausing
             ? "New claims will wait for HR until you turn this back on. Payouts already sent to PayPal are not affected."
             : "Claims that pass every check will be paid to PayPal right away again, within the limits on this page."}
@@ -159,14 +159,14 @@ export function KillSwitchDialog({
               onChange={(e) => setTyped(e.target.value)}
               autoComplete="off"
               spellCheck={false}
-              className="mt-1.5 w-full min-h-[44px] rounded-lg border border-outline-variant/60 bg-surface-container-lowest px-3 text-sm font-mono uppercase focus-visible:outline-2 focus-visible:outline-primary"
+              className="mt-1.5 w-full min-h-[44px] rounded-control border border-line-strong bg-surface px-3 text-sm font-mono uppercase focus-visible:outline-2 focus-visible:outline-accent"
             />
           </div>
         )}
         <ErrorLine error={error} />
       </div>
-      <footer className="flex flex-col-reverse gap-2 px-5 py-4 border-t border-outline-variant/20 sm:flex-row sm:justify-end">
-        <button type="button" onClick={onClose} disabled={busy} className={`${btnBase} text-on-surface hover:bg-surface-container focus-visible:outline-primary`}>
+      <footer className="flex flex-col-reverse gap-2 px-5 py-4 border-t border-line sm:flex-row sm:justify-end">
+        <button type="button" onClick={onClose} disabled={busy} className={`${btnBase} text-ink hover:bg-surface-muted focus-visible:outline-accent`}>
           Cancel
         </button>
         <button
@@ -174,7 +174,7 @@ export function KillSwitchDialog({
           onClick={() => onConfirm(reason.trim())}
           disabled={!canConfirm}
           className={`${btnBase} ${
-            pausing ? "bg-error text-on-error hover:bg-error-dim focus-visible:outline-error" : "bg-primary text-on-primary hover:bg-primary-dim focus-visible:outline-primary"
+            pausing ? "bg-danger text-on-accent hover:bg-danger focus-visible:outline-danger" : "bg-accent text-on-accent hover:bg-accent-hover focus-visible:outline-accent"
           }`}
         >
           {busy && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}

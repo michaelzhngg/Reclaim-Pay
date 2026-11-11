@@ -38,7 +38,7 @@ import { AUTONOMY_CHANGED_EVENT } from "../hr_components/AutonomyBanner";
 // AG Charts draws on a canvas, so it only renders in the browser.
 const BacktestChart = dynamic(() => import("./_components/BacktestChart"), {
   ssr: false,
-  loading: () => <div className="h-[420px] rounded-xl bg-surface-container-low animate-pulse" aria-hidden="true" />,
+  loading: () => <div className="h-[420px] rounded-card bg-surface-muted animate-pulse" aria-hidden="true" />,
 });
 
 const DEBOUNCE_MS = 400;
@@ -81,31 +81,31 @@ function StatusStrip({
   return (
     <section
       aria-label="Auto-pay status"
-      className={`rounded-2xl border px-4 py-4 sm:px-5 ${
-        paused ? "border-error/40 bg-error/5" : "border-outline-variant/30 bg-surface-container-lowest"
+      className={`rounded-card border px-4 py-4 sm:px-5 ${
+        paused ? "border-danger/40 bg-danger-soft" : "border-line bg-surface"
       }`}
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 font-headline font-bold text-lg">
+          <p className="flex items-center gap-2 font-display font-semibold text-lg">
             {paused ? (
-              <PauseCircle className="w-5 h-5 text-error shrink-0" aria-hidden="true" />
+              <PauseCircle className="w-5 h-5 text-danger shrink-0" aria-hidden="true" />
             ) : breaker ? (
-              <Clock className="w-5 h-5 text-amber-700 shrink-0" aria-hidden="true" />
+              <Clock className="w-5 h-5 text-warning shrink-0" aria-hidden="true" />
             ) : (
-              <CheckCircle2 className="w-5 h-5 text-green-700 shrink-0" aria-hidden="true" />
+              <CheckCircle2 className="w-5 h-5 text-success shrink-0" aria-hidden="true" />
             )}
             {paused ? "Auto-pay paused" : breaker ? `Auto-pay on hold until ${clockTime(breakerUntil)}` : "Auto-pay on"}
           </p>
           {paused && (
-            <p className="mt-1 text-sm text-on-surface">
+            <p className="mt-1 text-sm text-ink">
               Every new claim waits for HR.{pauseReason ? <> Reason: {pauseReason}</> : null}
             </p>
           )}
           {!paused && breaker && (
-            <div className="mt-1 text-sm text-on-surface max-w-prose">
+            <div className="mt-1 text-sm text-ink max-w-prose">
               <p>The circuit breaker tripped: {breakerReason ?? "too many recent claims looked risky."}</p>
-              <p className="mt-1 text-on-surface-variant">
+              <p className="mt-1 text-ink-muted">
                 It trips by itself when too many of the last {settings.config.breaker_window} claims are high-risk, or
                 more than {money(currency, 1000)} is auto-paid within an hour. Until {clockTime(breakerUntil)}, claims
                 that would pay automatically go to quick HR approval instead. It lifts on its own; use the kill switch
@@ -115,37 +115,37 @@ function StatusStrip({
           )}
 
           {statusError ? (
-            <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-on-surface-variant">
-              <AlertCircle className="w-4 h-4 text-error" aria-hidden="true" />
+            <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+              <AlertCircle className="w-4 h-4 text-danger" aria-hidden="true" />
               Couldn&apos;t load today&apos;s totals.
-              <button type="button" onClick={onRetryStatus} className="min-h-[44px] px-2 font-semibold text-primary rounded-lg focus-visible:outline-2 focus-visible:outline-primary cursor-pointer">
+              <button type="button" onClick={onRetryStatus} className="min-h-[44px] px-2 font-semibold text-ink underline underline-offset-2 rounded-control focus-visible:outline-2 focus-visible:outline-accent cursor-pointer">
                 Try again
               </button>
             </p>
           ) : status ? (
             <div className="mt-3 max-w-md">
-              <p className="text-sm text-on-surface-variant">
+              <p className="text-sm text-ink-muted">
                 Auto-paid today{" "}
-                <span className="font-semibold text-on-surface">{money(currency, status.auto_paid_today)}</span> of{" "}
-                {money(currency, status.agent_daily_budget)} company budget
+                <span className="font-mono font-medium text-ink">{money(currency, status.auto_paid_today)}</span> of{" "}
+                <span className="font-mono">{money(currency, status.agent_daily_budget)}</span> company budget
               </p>
               <div
-                className="mt-1.5 h-2 rounded-full bg-primary/15 overflow-hidden"
+                className="mt-1.5 h-2 rounded-full bg-surface-muted ring-1 ring-inset ring-line overflow-hidden"
                 role="meter"
                 aria-label="Company auto-pay budget used today"
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(pct)}
               >
-                <div className={`h-full rounded-full ${pct >= 90 ? "bg-error" : "bg-primary"}`} style={{ width: `${pct}%` }} />
+                <div className={`h-full rounded-full ${pct >= 90 ? "bg-danger" : "bg-ink-muted"}`} style={{ width: `${pct}%` }} />
               </div>
-              <p className="mt-2 text-xs text-on-surface-variant">
+              <p className="mt-2 text-xs text-ink-muted">
                 Today: {tiers.AUTO_PAY ?? 0} auto-paid · {tiers.HR_QUICK ?? 0} quick approval · {tiers.HR_REVIEW ?? 0} HR
                 review · {tiers.DUAL_REVIEW ?? 0} two-person
               </p>
             </div>
           ) : (
-            <div className="mt-3 h-10 max-w-md rounded-lg bg-surface-container-low animate-pulse" aria-hidden="true" />
+            <div className="mt-3 h-10 max-w-md rounded-control bg-surface-muted animate-pulse" aria-hidden="true" />
           )}
         </div>
 
@@ -156,23 +156,23 @@ function StatusStrip({
             aria-checked={paused}
             aria-describedby="kill-switch-state"
             onClick={onToggle}
-            className="group inline-flex items-center gap-3 min-h-[44px] rounded-xl px-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error cursor-pointer"
+            className="group inline-flex items-center gap-3 min-h-[44px] rounded-control px-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger cursor-pointer"
           >
             <span className="font-semibold text-sm">Kill switch</span>
             <span
               aria-hidden="true"
               className={`relative inline-flex h-7 w-12 items-center rounded-full border-2 transition-colors ${
-                paused ? "bg-error border-error" : "bg-surface-container-high border-error"
+                paused ? "bg-danger border-danger" : "bg-line border-danger"
               }`}
             >
               <span
-                className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                className={`inline-block h-5 w-5 rounded-full bg-surface transition-transform ${
                   paused ? "translate-x-[22px]" : "translate-x-[2px]"
                 }`}
               />
             </span>
           </button>
-          <p id="kill-switch-state" className="text-xs text-on-surface-variant">
+          <p id="kill-switch-state" className="text-xs text-ink-muted">
             {paused ? "On: nothing pays automatically" : "Off: limits below apply"}
           </p>
         </div>
@@ -185,10 +185,10 @@ function StatusStrip({
 
 function Tile({ label, value, was }: { label: string; value: string | null; was?: string | null }) {
   return (
-    <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 min-w-0">
-      <p className="text-xs font-medium text-on-surface-variant">{label}</p>
-      <p className="mt-1 font-headline font-bold text-2xl text-on-surface truncate">{value ?? "–"}</p>
-      <p className="mt-0.5 text-xs text-on-surface-variant min-h-[1rem]">{was ? `Saved settings: ${was}` : null}</p>
+    <div className="rounded-card shadow-ambient bg-surface px-4 py-3 min-w-0">
+      <p className="text-xs font-medium text-ink-muted">{label}</p>
+      <p className="mt-1 font-headline tabular-nums tracking-[-0.02em] font-medium text-xl sm:text-2xl text-ink truncate">{value ?? "Not set"}</p>
+      <p className="mt-0.5 text-xs text-ink-muted min-h-[1rem]">{was ? `Saved settings: ${was}` : null}</p>
     </div>
   );
 }
@@ -352,16 +352,16 @@ export default function AutonomyPage() {
     return (
       <div className="min-h-full px-4 py-6 sm:px-6 md:px-8 md:py-10">
         <PageHeader />
-        <div role="alert" className="max-w-xl rounded-2xl border border-error/30 bg-error/5 px-5 py-6">
-          <p className="flex items-center gap-2 font-semibold text-on-surface">
-            <AlertCircle className="w-5 h-5 text-error" aria-hidden="true" />
+        <div role="alert" className="max-w-xl rounded-card border border-danger/30 bg-danger-soft px-5 py-6">
+          <p className="flex items-center gap-2 font-semibold text-ink">
+            <AlertCircle className="w-5 h-5 text-danger" aria-hidden="true" />
             Couldn&apos;t load the autonomy settings.
           </p>
-          <p className="mt-1 text-sm text-on-surface-variant">{loadError}</p>
+          <p className="mt-1 text-sm text-ink-muted">{loadError}</p>
           <button
             type="button"
             onClick={() => void loadAll()}
-            className="mt-4 inline-flex items-center gap-2 min-h-[44px] px-4 rounded-xl bg-primary text-on-primary text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary cursor-pointer"
+            className="mt-4 inline-flex items-center gap-2 min-h-[44px] px-4 rounded-full bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent cursor-pointer"
           >
             <RefreshCw className="w-4 h-4" aria-hidden="true" />
             Try again
@@ -377,13 +377,13 @@ export default function AutonomyPage() {
         <PageHeader />
         <p className="sr-only">Loading autonomy settings…</p>
         <div className="flex flex-col gap-4" aria-hidden="true">
-          <div className="h-28 rounded-2xl bg-surface-container-low animate-pulse" />
+          <div className="h-28 rounded-card bg-surface-muted animate-pulse" />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-24 rounded-xl bg-surface-container-low animate-pulse" />
+              <div key={i} className="h-24 rounded-card bg-surface-muted animate-pulse" />
             ))}
           </div>
-          <div className="h-96 rounded-2xl bg-surface-container-low animate-pulse" />
+          <div className="h-96 rounded-card bg-surface-muted animate-pulse" />
         </div>
       </div>
     );
@@ -411,8 +411,8 @@ export default function AutonomyPage() {
         />
 
         {notice && (
-          <p role="status" className="flex items-center gap-2 text-sm font-medium text-on-surface">
-            <CheckCircle2 className="w-4 h-4 text-green-700" aria-hidden="true" />
+          <p role="status" className="flex items-center gap-2 text-sm font-medium text-ink">
+            <CheckCircle2 className="w-4 h-4 text-success" aria-hidden="true" />
             {notice}
           </p>
         )}
@@ -427,15 +427,15 @@ export default function AutonomyPage() {
               e.preventDefault();
               if (changes.length && !hasErrors) openDialog("save");
             }}
-            className="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-5 sm:px-5"
+            className="rounded-card shadow-ambient bg-surface px-4 py-5 sm:px-5"
             aria-labelledby="limits-title"
             noValidate
           >
             <h3 id="limits-title" className="sr-only">Limits and caps</h3>
             <LimitsForm register={register} errors={formState.errors} saved={saved} dirtyKeys={dirtyKeys} currency={currency} />
 
-            <div className="mt-6 pt-4 border-t border-outline-variant/20 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-on-surface-variant" aria-live="polite">
+            <div className="mt-6 pt-4 border-t border-line flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-ink-muted" aria-live="polite">
                 {hasErrors
                   ? "Fix the highlighted fields to see the impact and save."
                   : changes.length
@@ -447,14 +447,14 @@ export default function AutonomyPage() {
                   type="button"
                   onClick={() => reset(saved)}
                   disabled={!changes.length && !hasErrors}
-                  className="min-h-[44px] px-4 rounded-xl text-sm font-semibold text-on-surface hover:bg-surface-container disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-primary cursor-pointer"
+                  className="min-h-[44px] px-4 rounded-control text-sm font-semibold text-ink hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-accent cursor-pointer"
                 >
                   Undo changes
                 </button>
                 <button
                   type="submit"
                   disabled={!changes.length || hasErrors}
-                  className="min-h-[44px] px-4 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:bg-primary-dim disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary cursor-pointer"
+                  className="min-h-[44px] px-4 rounded-full bg-ink text-paper text-sm font-semibold hover:bg-ink/85 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent cursor-pointer"
                 >
                   Review and save
                 </button>
@@ -464,37 +464,37 @@ export default function AutonomyPage() {
 
           <section
             aria-labelledby="impact-title"
-            className="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-5 sm:px-5 lg:sticky lg:top-4"
+            className="rounded-card shadow-ambient bg-surface px-4 py-5 sm:px-5 lg:sticky lg:top-4"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 id="impact-title" className="font-headline font-bold text-base text-on-surface">
+                <h3 id="impact-title" className="font-display font-semibold text-base text-ink">
                   What these limits would have done
                 </h3>
-                <p className="text-sm text-on-surface-variant mt-1">
+                <p className="text-sm text-ink-muted mt-1">
                   {shown
                     ? `The last 90 days, ${shown.total_claims} claims, replayed with the limits on the left.`
                     : "The last 90 days of claims, replayed with the limits on the left."}
                 </p>
               </div>
               {backtest.kind === "loading" && (
-                <Loader2 className="w-4 h-4 mt-1 animate-spin text-on-surface-variant shrink-0" aria-label="Updating" />
+                <Loader2 className="w-4 h-4 mt-1 animate-spin text-ink-muted shrink-0" aria-label="Updating" />
               )}
             </div>
 
             <div className="mt-4">
               {backtest.kind === "unavailable" ? (
-                <div className="rounded-xl bg-surface-container-low px-4 py-6 text-sm">
-                  <p className="font-semibold text-on-surface">Back-test unavailable</p>
-                  <p className="mt-1 text-on-surface-variant">
+                <div className="rounded-card bg-surface-muted px-4 py-6 text-sm">
+                  <p className="font-semibold text-ink">Back-test unavailable</p>
+                  <p className="mt-1 text-ink-muted">
                     This server can&apos;t replay past claims yet. You can still change and save limits; they apply to new
                     claims as usual.
                   </p>
                 </div>
               ) : shown && shown.total_claims === 0 ? (
-                <div className="rounded-xl bg-surface-container-low px-4 py-6 text-sm">
-                  <p className="font-semibold text-on-surface">No claims to replay yet</p>
-                  <p className="mt-1 text-on-surface-variant">
+                <div className="rounded-card bg-surface-muted px-4 py-6 text-sm">
+                  <p className="font-semibold text-ink">No claims to replay yet</p>
+                  <p className="mt-1 text-ink-muted">
                     The back-test uses claims from the last 90 days. Once employees submit a few, their impact shows here.
                   </p>
                 </div>
@@ -503,28 +503,28 @@ export default function AutonomyPage() {
                   <BacktestChart data={chartData} currency={currency} />
                 </div>
               ) : backtest.kind === "error" ? null : (
-                <div className="h-[420px] rounded-xl bg-surface-container-low animate-pulse" aria-hidden="true" />
+                <div className="h-[420px] rounded-card bg-surface-muted animate-pulse" aria-hidden="true" />
               )}
 
               {backtest.kind === "error" && (
-                <p role="alert" className="mt-3 flex flex-wrap items-center gap-2 text-sm text-on-surface">
-                  <AlertCircle className="w-4 h-4 text-error" aria-hidden="true" />
+                <p role="alert" className="mt-3 flex flex-wrap items-center gap-2 text-sm text-ink">
+                  <AlertCircle className="w-4 h-4 text-danger" aria-hidden="true" />
                   Couldn&apos;t run the back-test: {backtest.message}
                   <button
                     type="button"
                     onClick={() => setRetry((n) => n + 1)}
-                    className="min-h-[44px] px-2 font-semibold text-primary rounded-lg focus-visible:outline-2 focus-visible:outline-primary cursor-pointer"
+                    className="min-h-[44px] px-2 font-semibold text-ink underline underline-offset-2 rounded-control focus-visible:outline-2 focus-visible:outline-accent cursor-pointer"
                   >
                     Try again
                   </button>
                 </p>
               )}
               {hasErrors && shown && (
-                <p className="mt-3 text-sm text-on-surface-variant">Showing the last valid limits until the form is fixed.</p>
+                <p className="mt-3 text-sm text-ink-muted">Showing the last valid limits until the form is fixed.</p>
               )}
 
               {shown && shown.assumptions.length > 0 && (
-                <p className="mt-4 text-xs text-on-surface-variant">
+                <p className="mt-4 text-xs text-ink-muted">
                   {FIXTURES_ON ? "Sample data. " : ""}Assumptions: {shown.assumptions.join("; ")}.
                 </p>
               )}
@@ -559,8 +559,8 @@ export default function AutonomyPage() {
 function PageHeader() {
   return (
     <header className="mb-6 max-w-3xl">
-      <h2 className="font-headline font-extrabold text-on-background text-3xl md:text-4xl tracking-tight">Autonomy</h2>
-      <p className="text-on-surface-variant text-base font-body mt-2">
+      <h1 className="font-display font-semibold text-ink text-2xl md:text-3xl">Autonomy</h1>
+      <p className="text-ink-muted text-base font-body mt-2">
         Decide which claims Reclaim Pay pays to PayPal on its own, and see what each limit would have done to recent claims
         before you save it.
       </p>

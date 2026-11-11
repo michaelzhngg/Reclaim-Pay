@@ -5,7 +5,7 @@ import { disputeRecovery } from "@/lib/actions/recoveries";
 import type { DisputeError, Recovery } from "@/lib/api/reclaim-pay-types";
 import { disputeErrorLine, isDisputeOpen, noticeLine, statusLines } from "../_lib/copy";
 
-const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
+const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 /**
  * An overpayment the employee is asked to return. Written to inform, not
@@ -100,20 +100,20 @@ export default function RecoveryNotice({ recovery: initial, linked = false }: { 
     <section
       ref={sectionRef}
       aria-labelledby={`${ids}-heading`}
-      className={`rounded-2xl border bg-surface-container-lowest p-4 md:p-5 ${
-        linked ? "border-primary ring-1 ring-primary" : "border-outline-variant/40"
+      className={`rounded-card border bg-warning-soft p-4 md:p-5 ${
+        linked ? "border-accent ring-1 ring-accent" : "border-warning/40"
       }`}
     >
-      <h3 id={`${ids}-heading`} className="font-headline text-base font-bold text-on-surface">
+      <h3 id={`${ids}-heading`} className="font-display text-base font-semibold text-ink">
         Overpayment notice
       </h3>
-      <p className="mt-1.5 font-body text-sm leading-relaxed text-on-surface">{noticeLine(recovery)}</p>
-      <p className="mt-1 font-body text-sm leading-relaxed text-on-surface-variant">{recovery.reason}</p>
+      <p className="mt-1.5 font-body text-sm leading-relaxed text-ink">{noticeLine(recovery)}</p>
+      <p className="mt-1 font-body text-sm leading-relaxed text-ink-muted">{recovery.reason}</p>
 
       <div aria-live="polite">
-        <p className="mt-3 font-body text-sm font-semibold text-on-surface">{line}</p>
-        {detail && <p className="mt-1 font-body text-sm leading-relaxed text-on-surface-variant">{detail}</p>}
-        {cardError && <p className="mt-2 font-body text-sm leading-relaxed text-on-surface">{cardError}</p>}
+        <p className="mt-3 font-body text-sm font-semibold text-ink">{line}</p>
+        {detail && <p className="mt-1 font-body text-sm leading-relaxed text-ink-muted">{detail}</p>}
+        {cardError && <p className="mt-2 font-body text-sm leading-relaxed text-ink">{cardError}</p>}
       </div>
 
       {canDispute && !formOpen && (
@@ -121,7 +121,7 @@ export default function RecoveryNotice({ recovery: initial, linked = false }: { 
           ref={disputeButtonRef}
           type="button"
           onClick={() => setFormOpen(true)}
-          className={`mt-3 inline-flex min-h-11 items-center rounded-xl border border-outline px-4 py-2 font-body text-sm font-semibold text-on-surface hover:bg-surface-container ${focusRing}`}
+          className={`mt-3 inline-flex min-h-11 items-center rounded-control border border-line-strong bg-surface px-4 py-2 font-body text-sm font-semibold text-ink hover:bg-surface-muted ${focusRing}`}
         >
           Dispute
         </button>
@@ -129,7 +129,7 @@ export default function RecoveryNotice({ recovery: initial, linked = false }: { 
 
       {canDispute && formOpen && (
         <form onSubmit={submit} onKeyDown={onKeyDown} noValidate className="mt-3 flex flex-col gap-2">
-          <label htmlFor={`${ids}-note`} className="font-body text-sm font-semibold text-on-surface">
+          <label htmlFor={`${ids}-note`} className="font-body text-sm font-semibold text-ink">
             What should HR know?
           </label>
           <textarea
@@ -146,10 +146,10 @@ export default function RecoveryNotice({ recovery: initial, linked = false }: { 
             aria-invalid={formError ? true : undefined}
             aria-describedby={formError ? `${ids}-error` : undefined}
             placeholder="For example: breakfast wasn't included in my room rate."
-            className={`w-full rounded-xl border border-outline bg-surface-container-lowest px-3 py-2 font-body text-base md:text-sm text-on-surface placeholder:text-on-surface-variant ${focusRing}`}
+            className={`w-full rounded-control border border-line-strong bg-surface px-3 py-2 font-body text-base md:text-sm text-ink placeholder:text-ink-muted ${focusRing}`}
           />
           {formError && (
-            <p id={`${ids}-error`} role="alert" className="font-body text-sm text-error">
+            <p id={`${ids}-error`} role="alert" className="font-body text-sm text-danger">
               {formError}
             </p>
           )}
@@ -157,7 +157,7 @@ export default function RecoveryNotice({ recovery: initial, linked = false }: { 
             <button
               type="submit"
               disabled={sending}
-              className={`inline-flex min-h-11 items-center rounded-xl bg-primary px-4 py-2 font-body text-sm font-semibold text-on-primary hover:bg-primary/90 disabled:opacity-60 ${focusRing}`}
+              className={`inline-flex min-h-11 items-center rounded-full bg-accent px-4 py-2 font-body text-sm font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-60 ${focusRing}`}
             >
               {sending ? "Sending…" : "Send dispute"}
             </button>
@@ -165,7 +165,7 @@ export default function RecoveryNotice({ recovery: initial, linked = false }: { 
               type="button"
               onClick={closeForm}
               disabled={sending}
-              className={`inline-flex min-h-11 items-center rounded-xl px-4 py-2 font-body text-sm font-semibold text-on-surface-variant hover:bg-surface-container ${focusRing}`}
+              className={`inline-flex min-h-11 items-center rounded-control px-4 py-2 font-body text-sm font-semibold text-ink hover:bg-surface ${focusRing}`}
             >
               Cancel
             </button>

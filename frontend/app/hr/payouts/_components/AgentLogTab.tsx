@@ -25,7 +25,7 @@ export default function AgentLogTab() {
 
   return (
     <>
-      <p className="text-sm text-on-surface-variant mb-4">
+      <p className="text-sm text-ink-muted mb-4">
         What the agent and HR did, newest first. Each entry is hashed with the one before it, so changing or deleting an entry breaks the chain.
       </p>
 
@@ -33,24 +33,24 @@ export default function AgentLogTab() {
       {!isLoading && error && <TabError message={error} onRetry={retry} />}
 
       {!isLoading && !error && data && !data.chain_valid && (
-        <div role="alert" className="flex items-start gap-3 rounded-xl bg-red-700 text-white px-4 py-3 mb-4">
+        <div role="alert" className="flex items-start gap-3 rounded-card bg-danger text-on-accent px-4 py-3 mb-4">
           <ShieldAlert className="w-5 h-5 mt-0.5 shrink-0" aria-hidden="true" />
           <div className="text-sm">
-            <p className="font-bold">{chainBadgeLabel(false, count, LIMIT)}</p>
+            <p className="font-semibold">{chainBadgeLabel(false, count, LIMIT)}</p>
             <p className="mt-0.5">An entry was changed or removed after it was written, so don&apos;t rely on this log until it has been investigated.</p>
           </div>
         </div>
       )}
 
       {!isLoading && !error && data?.chain_valid && count > 0 && (
-        <p className="inline-flex items-center gap-1.5 px-2.5 py-1 mb-4 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm font-semibold">
+        <p className="inline-flex items-center gap-1.5 px-2.5 py-1 mb-4 rounded-md border border-success/30 bg-success-soft text-success text-sm font-semibold">
           <ShieldCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
           {chainBadgeLabel(true, count, LIMIT)}
         </p>
       )}
 
       {!isLoading && !error && count >= LIMIT && (
-        <p className="text-xs text-on-surface-variant mb-3">Showing the latest {LIMIT} entries. The chain check covers the whole log.</p>
+        <p className="text-xs text-ink-muted mb-3">Showing the latest {LIMIT} entries. The chain check covers the whole log.</p>
       )}
 
       {!isLoading && !error && data && count === 0 && (

@@ -1,22 +1,28 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { Inter_Tight, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext"; // Import AuthProvider
 import ServiceWorkerRegistration from "./_components/ServiceWorkerRegistration";
 import PushNotificationProvider from "./_components/PushNotificationProvider";
-import PushPermissionPrompt from "./_components/PushPermissionPrompt";
 import { ToastProvider } from "@/components/toast/ToastProvider";
 
 const inter = localFont({
   src: "./fonts/inter-latin-wght-normal.woff2",
   weight: "100 900",
-  variable: "--font-body",
+  variable: "--font-inter",
 });
 
-const plusJakartaSans = localFont({
-  src: "./fonts/plus-jakarta-sans-latin-wght-normal.woff2",
-  weight: "200 800",
-  variable: "--font-headline",
+const interTight = Inter_Tight({
+  subsets: ["latin"],
+  variable: "--font-inter-tight",
+  display: "swap",
+});
+
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains",
+  display: "swap",
 });
 
 export const viewport: Viewport = {
@@ -24,11 +30,11 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-visual",
-  themeColor: "#f5f7f9",
+  themeColor: "#f0f0f0",
 };
 
 const DESCRIPTION =
-  "An AI agent checks each expense claim against policy, pays clean low-risk claims to the employee's PayPal in seconds, and sends everything else to HR with the evidence. Automation where it's safe, judgment where it matters.";
+  "An AI agent checks each expense claim against policy, pays clean low-risk claims to the employee's PayPal in under a minute, and sends everything else to HR with the evidence. Automation where it's safe, judgment where it matters.";
 
 export const metadata: Metadata = {
   title: "Reclaim Pay",
@@ -72,14 +78,17 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${plusJakartaSans.variable} h-full antialiased`}
+      // The app is light-only. glisse (Liquid Glass) otherwise switches its
+      // glass to dark tints under an OS dark-mode preference, turning the
+      // search fields / segmented controls into grey bars.
+      data-theme="light"
+      className={`${inter.variable} ${interTight.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <ToastProvider>
           <AuthProvider>
             <PushNotificationProvider>
               {children}
-              <PushPermissionPrompt />
               <ServiceWorkerRegistration />
             </PushNotificationProvider>
           </AuthProvider>

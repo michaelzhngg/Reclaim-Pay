@@ -19,29 +19,27 @@ export default function MvpFeatureRestricted({
   backLabel = "Back to Dashboard",
 }: MvpFeatureRestrictedProps) {
   return (
-    <main className="min-h-dvh pb-24 md:pb-12 bg-surface">
+    <main className="min-h-dvh pb-24 md:pb-12 bg-paper">
       <div className="w-full max-w-4xl mx-auto px-4 md:px-6 pt-8 md:pt-10">
-        <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-6 md:p-8 shadow-sm">
-          <span className="inline-flex items-center rounded-full bg-tertiary-container text-on-tertiary-container px-3 py-1 text-xs font-bold tracking-wide uppercase">
+        <section className="bg-surface shadow-ambient rounded-card p-6 md:p-8">
+          <p className="text-sm font-medium text-ink-muted">
             {badge}
-          </span>
+          </p>
 
-          <div className="mt-5 flex items-start gap-4">
-            <div className="p-3 rounded-xl bg-primary-container text-on-primary-container">
-              <Icon className="w-6 h-6" />
-            </div>
+          <div className="mt-3 flex items-start gap-3">
+            <Icon className="w-6 h-6 mt-1 shrink-0 text-ink-muted" aria-hidden="true" />
             <div>
-              <h1 className="font-headline text-2xl md:text-3xl font-extrabold text-on-surface tracking-tight">
+              <h1 className="font-display text-2xl md:text-3xl font-semibold text-ink">
                 {title}
               </h1>
-              <p className="font-body text-sm md:text-base text-on-surface-variant mt-2 max-w-2xl">
+              <p className="font-body text-sm md:text-base text-ink-muted mt-2 max-w-2xl">
                 {description}
               </p>
             </div>
           </div>
 
-          <div className="mt-8 rounded-xl border border-outline-variant/20 bg-surface-container-low p-4">
-            <p className="font-body text-sm text-on-surface">
+          <div className="mt-8 rounded-card shadow-ambient bg-surface-muted p-4">
+            <p className="font-body text-sm text-ink">
               This screen is intentionally simplified for MVP production. The previous full UI is preserved in code and can be restored later.
             </p>
           </div>
@@ -49,9 +47,9 @@ export default function MvpFeatureRestricted({
           <div className="mt-8">
             <Link
               href={backHref}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary text-on-primary px-4 py-2.5 text-sm font-bold hover:shadow-md transition-all"
+              className="inline-flex items-center gap-2 min-h-[44px] rounded-full bg-accent text-on-accent px-4 text-sm font-semibold hover:bg-accent-hover transition-colors"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
               {backLabel}
             </Link>
           </div>

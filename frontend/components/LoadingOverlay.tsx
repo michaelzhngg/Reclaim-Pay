@@ -1,44 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Image from "next/image";
 
+// Full-screen cover shown while the session loads or a signed-in route changes (see AuthContext).
 export default function LoadingOverlay({ show }: { show: boolean }) {
-  const [dots, setDots] = useState(0);
-
-  useEffect(() => {
-    if (!show) { setDots(0); return; }
-    const t = setInterval(() => setDots(p => (p + 1) % 4), 400);
-    return () => clearInterval(t);
-  }, [show]);
-
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-surface flex flex-col items-center justify-center animate-in fade-in duration-300">
-      {/* Logo */}
-      <div className="flex items-center gap-3 mb-2">
-        <Image src="/images/logo.svg" alt="Reclaim Logo" width={40} height={40} className="w-10 h-10 object-contain" priority />
-        <h1 className="font-headline text-4xl font-black text-on-surface tracking-tighter select-none">
-          Reclaim<span className="text-primary">.</span>
-        </h1>
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-paper px-4"
+    >
+      <div className="mb-3 flex items-center gap-2.5">
+        <Image src="/images/logo.svg" alt="" width={32} height={32} className="w-8 h-8 object-contain" priority />
+        <span className="font-display text-2xl font-semibold text-ink select-none">Reclaim Pay</span>
       </div>
 
-      {/* Tagline */}
-      <p className="text-sm text-on-surface-variant font-body mb-10 max-w-xs text-center">
-        Automation where it's safe, judgment where it matters
-      </p>
+      <p className="mb-8 text-center text-sm text-ink-muted">Loading, one moment...</p>
 
-      {/* Slim progress bar */}
-      <div className="w-32 h-0.5 bg-surface-container-high rounded-full overflow-hidden">
-        <div className="h-full bg-primary rounded-full animate-[loading_1.4s_ease-in-out_infinite]" />
+      {/* Indeterminate bar. Under reduced motion the global rule stops it after one pass. */}
+      <div aria-hidden className="h-1 w-32 overflow-hidden rounded-full bg-line">
+        <div className="h-full w-2/5 rounded-full bg-accent animate-[loading_1.4s_ease-in-out_infinite]" />
       </div>
 
       <style>{`
         @keyframes loading {
-          0%   { transform: translateX(-100%); width: 40%; }
-          50%  { transform: translateX(150%);  width: 60%; }
-          100% { transform: translateX(300%);  width: 40%; }
+          0%   { transform: translateX(-100%); }
+          100% { transform: translateX(250%); }
         }
       `}</style>
     </div>
