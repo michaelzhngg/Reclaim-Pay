@@ -1,0 +1,93 @@
+databases:
+  - name: reclaim-pay-db
+    postgresMajorVersion: "16"
+    plan: 0.1c-256mb
+    region: singapore
+    databaseName: smart_reimburse
+
+services:
+  - type: web
+    name: reclaim-pay-api
+    runtime: docker
+    plan: 0.5c-512mb
+    region: singapore
+    branch: main
+    dockerContext: ./backend
+    dockerfilePath: ./backend/uv.Dockerfile
+    healthCheckPath: /health
+    domains:
+      - api.reclaimai.dev
+    autoDeployTrigger: commit
+    disk:
+      name: reclaim-pay-storage
+      mountPath: /app/storage
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: reclaim-pay-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: BACKEND_PUBLIC_URL
+        value: "https://api.reclaimai.dev"
+      - key: FRONTEND_PUBLIC_URL
+        value: "https://reclaimai.dev"
+      - key: FRONTEND_URL
+        value: "https://reclaimai.dev,https://www.reclaimai.dev,https://reclaim-pay-web.onrender.com"
+      - key: VAPID_KEYS_FILE
+        value: /app/storage/vapid_keys.json
+      - key: LLM_BASE_URL
+        value: "https://generativelanguage.googleapis.com/v1beta/openai/"
+      - key: CHAT_MODEL
+        value: gemini-3.6-flash
+      - key: OPENROUTER_BASE_URL
+        value: "https://openrouter.ai/api/v1"
+      - key: VISION_BASE_URL
+        value: "https://generativelanguage.googleapis.com/v1beta/openai/"
+      - key: VISION_MODEL
+        value: gemini-3.6-flash
+      - key: EMBEDDING_MODEL
+        value: openai/text-embedding-3-small
+      - key: PAYPAL_MOCK_MODE
+        value: "false"
+      - key: PAYPAL_BASE_URL
+        value: "https://api-m.sandbox.paypal.com"
+      - key: PAYPAL_WEB_URL
+        value: "https://www.sandbox.paypal.com"
+      - key: PAYPAL_CURRENCY
+        value: MYR
+      - key: AUTO_REIMBURSE_ENABLED
+        value: "true"
+      - key: VAPID_CLAIMS_EMAIL
+        value: reclaim@reclaimai.dev
+      - key: LANGCHAIN_TRACING
+        value: "true"
+      - key: LANGCHAIN_ENDPOINT
+        value: "https://api.smith.langchain.com"
+      - key: LANGCHAIN_PROJECT
+        value: reclaim_pay
+      - key: CHANNEL3_CATEGORIES
+        value: "Equipment,Office Supplies,IT Equipment"
+      - key: FX_TO_USD
+        value: "0"
+      - fromGroup: reclaim-pay-secrets
+
+  - type: web
+    name: reclaim-pay-web
+    runtime: docker
+    plan: 0.5c-512mb
+    region: singapore
+    branch: main
+    dockerContext: ./frontend
+    dockerfilePath: ./frontend/Dockerfile
+    healthCheckPath: /
+    # Render adds www.reclaimai.dev as a redirect to the apex.
+    domains:
+      - reclaimai.dev
+    autoDeployTrigger: commit
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: "https://api.reclaimai.dev"
+      - key: INTERNAL_API_URL
+        value: "https://api.reclaimai.dev"

@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Empty means OpenRouter.
     VISION_BASE_URL: str = ""
     VISION_API_KEY: str = ""
+    # Gemini API only: models tried in order when the configured one answers 429 (quota or
+    # rate limit), before OpenRouter. Each has its own free-tier quota.
+    GEMINI_QUOTA_FALLBACK_MODELS: str = "gemini-3.5-flash-lite,gemini-3.1-flash-lite"
 
     # PayPal (sandbox by default; mock mode needs no keys)
     PAYPAL_MOCK_MODE: bool = True
