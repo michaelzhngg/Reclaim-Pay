@@ -78,6 +78,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      // The app is light-only. glisse (Liquid Glass) otherwise switches its
+      // glass to dark tints under an OS dark-mode preference, turning the
+      // search fields / segmented controls into grey bars.
+      data-theme="light"
       className={`${inter.variable} ${interTight.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">

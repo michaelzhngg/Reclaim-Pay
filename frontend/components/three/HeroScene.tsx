@@ -191,7 +191,7 @@ function makeCardFace(side: "front" | "back"): THREE.CanvasTexture {
 
     ctx.fillStyle = "rgba(255,255,255,0.45)";
     ctx.font = `500 20px ${mono}`;
-    ctx.fillText("Policy: Travel & Expense v3 · §4.2 · Payout via PayPal", 60, H - 40);
+    ctx.fillText("Policy: Travel & Expense v3 · Clause 4.2 · Payout via PayPal", 60, H - 40);
   }
 
   ctx.restore();
@@ -493,7 +493,9 @@ export default function HeroScene({ className = "" }: { className?: string }) {
         type="button"
         onClick={() => setFlipped((f) => !f)}
         aria-pressed={flipped}
-        className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full px-3 py-1.5 text-[12px] font-medium text-on-surface-variant transition-colors hover:text-on-surface"
+        // Hidden visually (the card itself is clickable); kept for keyboard and
+        // screen-reader users, and shown only while it has keyboard focus.
+        className="sr-only rounded-full text-[12px] font-medium text-on-surface-variant focus-visible:not-sr-only focus-visible:px-3 focus-visible:py-1.5 focus-visible:absolute focus-visible:bottom-2 focus-visible:left-1/2 focus-visible:-translate-x-1/2"
       >
         {flipped ? "Show the Payout" : "Flip to See the AI Audit"}
       </button>

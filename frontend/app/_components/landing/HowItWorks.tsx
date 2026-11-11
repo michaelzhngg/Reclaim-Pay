@@ -103,8 +103,8 @@ function SubmitVisual() {
 
 function VerifyVisual() {
   const checks = [
-    ["Fare within RM 800 travel cap", "§4.2"],
-    ["Receipt date matches trip", "§3.1"],
+    ["Fare within RM 800 travel cap", "Clause 4.2"],
+    ["Receipt date matches trip", "Clause 3.1"],
     ["No edits to AI-extracted fields", "audit"],
   ];
   return (
@@ -298,9 +298,7 @@ export default function HowItWorks() {
                     </motion.div>
                   </AnimatePresence>
                 </div>
-              </div>
-              <p className="mt-4 text-center text-[12px] text-white/35">Scroll to move the claim through the pipeline</p>
-            </div>
+              </div>            </div>
           </div>
         </div>
       </div>

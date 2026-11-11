@@ -148,21 +148,29 @@ function AuditVisual() {
     { icon: Receipt, label: "Receipt", meta: "IMG_2041.jpg" },
     { icon: Cpu, label: "AI extraction", meta: "conf 0.96" },
     { icon: PenLine, label: "Employee edit", meta: "1 field" },
-    { icon: Scale, label: "Compliance", meta: "§4.2 cap" },
+    { icon: Scale, label: "Compliance", meta: "Clause 4.2" },
     { icon: Gavel, label: "HR decision", meta: "Approved" },
   ];
   return (
-    <ol className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-4 ring-1 ring-on-surface/[0.05]">
+    // One even row of five on sm+ (icon over text, arrows in the gaps), a
+    // plain stacked list on phones, so no step is ever orphaned on a new line.
+    <ol className="grid gap-2 rounded-2xl bg-white p-4 ring-1 ring-on-surface/[0.05] sm:grid-cols-5 sm:gap-4">
       {steps.map((s, i) => (
-        <li key={s.label} className="flex min-w-0 items-center gap-2">
-          <div className="flex min-w-0 items-center gap-2 rounded-xl bg-marshmallow px-3 py-2">
-            <s.icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-            <div className="min-w-0 leading-tight">
-              <p className="whitespace-nowrap text-[12px] font-medium text-on-surface">{s.label}</p>
-              <p className="whitespace-nowrap font-mono text-[10px] text-on-surface-variant">{s.meta}</p>
-            </div>
+        <li
+          key={s.label}
+          className="relative flex min-w-0 items-center gap-3 rounded-xl bg-marshmallow px-3 py-2.5 sm:flex-col sm:items-start sm:gap-2"
+        >
+          <s.icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-[12px] font-medium text-on-surface">{s.label}</p>
+            <p className="truncate font-mono text-[10px] text-on-surface-variant">{s.meta}</p>
           </div>
-          {i < steps.length - 1 && <ArrowRight className="h-3.5 w-3.5 shrink-0 text-on-surface-variant/50" aria-hidden="true" />}
+          {i < steps.length - 1 && (
+            <ArrowRight
+              className="absolute -right-[14px] top-1/2 hidden h-3 w-3 -translate-y-1/2 text-on-surface-variant/50 sm:block"
+              aria-hidden="true"
+            />
+          )}
         </li>
       ))}
     </ol>
