@@ -189,8 +189,12 @@ def notify_hr(db: Session, recorded: RecordedRun) -> int:
 
 
 def record_run(db: Session, summary: ReconcileSummary, *, trigger: str,
-               started_at: datetime, triggered_by: Optional[UUID] = None) -> RecordedRun:
-    """Persist one comparison and update the difference lifecycle. Commits."""
+               started_at: datetime, triggered_by: Optional[UUID] = None,
+               resolve: bool = True) -> RecordedRun:
+    """Persist one comparison and update the difference lifecycle. Commits.
+
+    `resolve=False` is for the demo seed: a synthetic summary must not close a real open difference.
+    """
     now = _utc(summary.checked_at)
     days = summary.days
     window_start = now - timedelta(days=days)
@@ -227,7 +231,7 @@ def record_run(db: Session, summary: ReconcileSummary, *, trigger: str,
             for row in open_rows
         }
         seen = set(observed)
-        for row in open_rows:
+        for row in (open_rows if resolve else []):
             key = difference_key(row.kind, row.payout_id, row.transaction_id)
             if should_close(row, seen, window_start):
                 row.resolved_at = now

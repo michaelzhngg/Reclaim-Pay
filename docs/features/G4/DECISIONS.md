@@ -105,3 +105,11 @@ One entry per non-obvious choice. Each names the alternative that was rejected a
 **Rejected:** return 409 for a second dismissal, or delete the row.
 
 **Why:** a double click or a stale tab is a retry, not an error. Keeping the row preserves the run counts and the audit trail, which is the point of storing differences at all.
+
+## D14: Demo runs use a `demo` trigger and do not resolve real differences
+
+**Chosen:** the demo seed records a run with trigger `demo` and `resolve=False`; it can update or open its own difference but never closes an existing row.
+
+**Rejected:** run the seed through the normal path with a synthetic one-difference summary.
+
+**Why:** a synthetic summary that omits every other subject would look like a complete comparison and close real open differences inside the window. A demo must not rewrite the ledger history. The `demo` trigger also makes the reset surgical.
