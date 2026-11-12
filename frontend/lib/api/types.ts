@@ -279,6 +279,8 @@ export interface ClaimBundle {
   audit_log: AuditLogEntry[];
   /** The autonomy engine's decision. null for claims decided before it existed. */
   autonomy?: ClaimAutonomy | null;
+  /** The claimant's user ID, so HR screens can tell when the viewer filed the claim. */
+  claimant_id?: string;
 }
 
 /** Dashboard list row. */

@@ -1,6 +1,7 @@
 import Link from "next/link";
-import type { RiskSignal, Severity } from "@/lib/api/reclaim-pay-types";
+import type { RiskSignal, Severity, SignalReview } from "@/lib/api/reclaim-pay-types";
 import { SEVERITY_LABEL, signalEvidence, signalLabel } from "@/lib/hr/evidence";
+import { SignalReviewButtons } from "./SignalReviewButtons";
 
 // Severity is a small written label; the text colour only backs it up.
 const SEVERITY_TONE: Record<Severity, string> = {
@@ -12,7 +13,15 @@ const SEVERITY_TONE: Record<Severity, string> = {
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 /** One signal: what was found, how many points it added, and the evidence behind it. */
-export function SignalEvidence({ id, signal, currency }: { id: string; signal: RiskSignal; currency: string }) {
+export function SignalEvidence({ id, signal, currency, reimId, review = null, viewerId }: {
+  id: string;
+  signal: RiskSignal;
+  currency: string;
+  /** Set only on the HR review page: shows the "Was this check right?" buttons. */
+  reimId?: string;
+  review?: SignalReview | null;
+  viewerId?: string | null;
+}) {
   const view = signalEvidence(signal, currency);
   const headingId = `${id}-heading`;
 
@@ -75,6 +84,16 @@ export function SignalEvidence({ id, signal, currency }: { id: string; signal: R
             </Link>
           ))}
         </div>
+      )}
+
+      {reimId && (
+        <SignalReviewButtons
+          reimId={reimId}
+          code={signal.code}
+          documentId={signal.document_id}
+          initial={review}
+          viewerId={viewerId}
+        />
       )}
     </article>
   );

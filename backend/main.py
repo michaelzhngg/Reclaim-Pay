@@ -30,6 +30,7 @@ from api.departments import router as departments_router
 from api.push import router as push_router
 from api.autonomy import router as autonomy_router
 from api.recoveries import router as recoveries_router
+from api.signal_reviews import router as signal_reviews_router
 from api import deps
 from core.models import User
 
@@ -89,6 +90,8 @@ app.include_router(drafts_router, prefix=f"{settings.API_V1_STR}/drafts", tags=[
 app.include_router(push_router, prefix=f"{settings.API_V1_STR}/push", tags=["push"])
 app.include_router(autonomy_router, prefix=f"{settings.API_V1_STR}/autonomy", tags=["autonomy"])
 app.include_router(recoveries_router, prefix=f"{settings.API_V1_STR}/recoveries", tags=["recoveries"])
+# Paths are fully qualified: the routes sit under /reimbursements and /autonomy.
+app.include_router(signal_reviews_router, prefix=settings.API_V1_STR, tags=["signal-reviews"])
 
 @app.get("/")
 async def root():

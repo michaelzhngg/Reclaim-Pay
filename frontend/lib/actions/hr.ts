@@ -112,6 +112,7 @@ function mapToBundle(r: TriageSource): ClaimBundle {
       },
     ],
     autonomy: toClaimAutonomy(r),
+    claimant_id: r.user_id,
   };
 }
 

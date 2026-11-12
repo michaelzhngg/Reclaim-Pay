@@ -8,6 +8,8 @@ import {
   summarySentence,
   type ClaimAutonomy,
 } from "@/lib/hr/evidence";
+import type { SignalReview } from "@/lib/api/reclaim-pay-types";
+import { reviewFor } from "@/lib/hr/signalQuality";
 import { SignalEvidence } from "./SignalEvidence";
 
 const SHELL = "bg-surface shadow-ambient rounded-card overflow-hidden";
@@ -21,11 +23,18 @@ export function AutonomyPanel({
   autonomy,
   aiSummary,
   aiVerdict,
+  reimId,
+  reviews = [],
+  viewerId,
 }: {
   autonomy: ClaimAutonomy | null | undefined;
   /** The AI's own summary of the claim, shown when the engine has nothing to add. */
   aiSummary: string;
   aiVerdict: string;
+  /** With reimId, each evidence card gets the optional "Real problem" / "False alarm" buttons. */
+  reimId?: string;
+  reviews?: SignalReview[];
+  viewerId?: string | null;
 }) {
   if (!autonomy) {
     return (
@@ -126,7 +135,15 @@ export function AutonomyPanel({
             <h4 className={SUBHEAD}>Evidence</h4>
             <div className="flex flex-col gap-3">
               {signals.map((s, i) => (
-                <SignalEvidence key={`${s.code}-${i}`} id={`signal-${i}`} signal={s} currency={autonomy.currency} />
+                <SignalEvidence
+                  key={`${s.code}-${i}`}
+                  id={`signal-${i}`}
+                  signal={s}
+                  currency={autonomy.currency}
+                  reimId={reimId}
+                  review={reviewFor(reviews, s)}
+                  viewerId={viewerId}
+                />
               ))}
             </div>
           </div>
