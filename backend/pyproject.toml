@@ -38,6 +38,7 @@ dependencies = [
     "imagehash>=4.3.2",
     "paypal-server-sdk>=2.4.0",
     "paypal-agent-toolkit>=1.1.0",
+    "tzdata>=2026.6",
 ]
 
 [dependency-groups]
