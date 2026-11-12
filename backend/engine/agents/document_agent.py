@@ -328,6 +328,14 @@ def _parse_date_str(date_str: Optional[str]) -> Optional[date]:
     return None
 
 
+def _ordered_trip_dates(departure: str, arrival: str) -> tuple[str, str]:
+    """A trip can't end before it starts. A hotel bill often comes back with check-out as the departure."""
+    start, end = _parse_date_str(departure), _parse_date_str(arrival)
+    if start and end and start > end:
+        return arrival, departure
+    return departure, arrival
+
+
 # ---------------------------------------------------------------------------
 # Upload-time fingerprints and provenance (read later by the Receipt Shield)
 # ---------------------------------------------------------------------------
@@ -460,6 +468,7 @@ def process_receipts(
             location = ed.get("location")
         if overseas is None and ed.get("overseas") is not None:
             overseas = ed.get("overseas")
+    departure_date_str, arrival_date_str = _ordered_trip_dates(departure_date_str, arrival_date_str)
 
     # Build aggregated results
     currency = "MYR"
