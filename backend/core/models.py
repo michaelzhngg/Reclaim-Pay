@@ -18,6 +18,7 @@ from core.enums import (
     RecoveryStatus,
     AgentActionType,
 )
+from core.enums import SignalVerdict
 
 
 # ---------------------------------------------------------------------------
@@ -628,6 +629,35 @@ class DocumentChangeLog(SQLModel, table=True):
     changed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True))
+    )
+
+
+# ---------------------------------------------------------------------------
+# signal_reviews (R1a)
+# ---------------------------------------------------------------------------
+
+class SignalReview(SQLModel, table=True):
+    """HR's verdict on one Receipt Shield signal of one claim. The latest answer wins; the action log keeps each one."""
+    __tablename__ = "signal_reviews"
+
+    review_id: UUID = Field(default_factory=uuid4, primary_key=True)
+    reim_id: UUID = Field(foreign_key="reimbursements.reim_id", ondelete="CASCADE", index=True)
+    signal_code: str = Field(sa_column=Column(String, nullable=False))
+    # "" when the signal belongs to the whole claim; NULLs would defeat the unique constraint.
+    document_key: str = Field(default="", sa_column=Column(String, nullable=False, server_default=""))
+    verdict: SignalVerdict = Field(sa_column=Column(String, nullable=False))
+    reviewed_by: UUID = Field(foreign_key="employees.user_id")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True))
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True))
+    )
+
+    __table_args__ = (
+        UniqueConstraint("reim_id", "signal_code", "document_key", name="uq_signal_review"),
     )
 
 
