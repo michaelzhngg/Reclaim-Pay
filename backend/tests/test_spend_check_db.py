@@ -194,3 +194,15 @@ def test_results_name_the_place_that_set_the_zone(reclaim_api):
     assert trip["zone"] == "2" and trip["zone_place"] == "*"
     blank = client.post("/api/v1/spend-check/check", json={"category": "Intercity Transport"}).json()
     assert blank["zone_place"] is None
+
+
+def test_zone_is_only_named_when_a_zoned_rule_set_the_rate(reclaim_api):
+    client = reclaim_api(4)
+    abroad = client.post("/api/v1/spend-check/check",
+                         json={"category": "Daily Trip Allowance", "destination": "Ipoh", "overseas": True}).json()
+    assert abroad["verdict"] == "LIMIT_ONLY" and abroad["zone_place"] is None  # the overseas rate has no zone
+    hotel = client.post("/api/v1/spend-check/check", json={"category": "Accommodations", "destination": "Ipoh"}).json()
+    assert hotel["zone_place"] is None
+    trip = client.post("/api/v1/spend-check/trip", json={"destination": "Ipoh", "overseas": True,
+                                                          "depart": "2026-11-20", "return_date": "2026-11-21"}).json()
+    assert trip["zone_place"] is None

@@ -100,9 +100,11 @@ def check_cost(db: Session, grade: int | None, body: SpendCheckIn) -> SpendCheck
     result = check_spend(rules, places, category=match[0], grade=grade, overseas=body.overseas,
                          destination=body.destination, amount=body.amount, quantity=body.quantity)
     rule = result.cap or result.pre_approval
+    # Name the zone only when a zoned rule set the rate; an overseas or flat rate ignores it.
+    zoned = rule is not None and rule.zone is not None
     return SpendCheckOut(**{**result.model_dump(), "verdict": result.verdict.value},
                          policy_title=match[1], currency=rule.currency if rule else _currency(rules),
-                         zone_place=_zone_place(places, body.destination, result.zone))
+                         zone_place=_zone_place(places, body.destination, result.zone) if zoned else None)
 
 
 def plan_trip(db: Session, grade: int | None, body: TripIn) -> TripOut:
@@ -110,10 +112,12 @@ def plan_trip(db: Session, grade: int | None, body: TripIn) -> TripOut:
     rules, places = store.active_limits(db)
     est = estimate_trip(rules, places, grade=grade, overseas=body.overseas, destination=body.destination,
                         depart=body.depart, return_date=body.return_date)
-    reasons = {
-        category: check_spend(rules, places, category=category, grade=grade, overseas=body.overseas,
-                              destination=body.destination, amount=None).verdict.value
-        for category in est.missing
-    }
+
+    def check(category: str) -> SpendCheck:
+        return check_spend(rules, places, category=category, grade=grade, overseas=body.overseas,
+                           destination=body.destination, amount=None)
+
+    reasons = {category: check(category).verdict.value for category in est.missing}
+    zoned = any((cap := check(line.category).cap) is not None and cap.zone is not None for line in est.lines)
     return TripOut(**est.model_dump(), currency=_currency(rules), missing_reasons=reasons,
-                   zone_place=_zone_place(places, body.destination, est.zone))
+                   zone_place=_zone_place(places, body.destination, est.zone) if zoned else None)

@@ -78,10 +78,9 @@ export function verdictMessage(r: SpendCheckResult): { tone: SpendTone; text: st
   }
 }
 
-/** "Zone 2 rate (everywhere else)": shown with a result so an employee can spot a wrong place match. */
+/** "Zone 2 rate (everywhere else)", so an employee can spot a wrong place match. null when no zoned rate applied. */
 export function zoneText(zone: string | null, place: string | null): string | null {
-  if (zone === null) return null;
-  if (place === null) return `Zone ${zone} rate`;
+  if (zone === null || place === null) return null;
   return `Zone ${zone} rate (${place === "*" ? "everywhere else" : place})`;
 }
 

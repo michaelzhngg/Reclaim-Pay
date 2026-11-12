@@ -139,7 +139,7 @@ describe("zoneText", () => {
   it("names the place that set the zone so a wrong match is easy to spot", () => {
     expect(zoneText("1", "Ipoh")).toBe("Zone 1 rate (Ipoh)");
     expect(zoneText("2", "*")).toBe("Zone 2 rate (everywhere else)");
-    expect(zoneText("2", null)).toBe("Zone 2 rate");
+    expect(zoneText("1", null)).toBeNull(); // the rate that applied has no zone, e.g. an overseas rate
     expect(zoneText(null, null)).toBeNull();
   });
 });
