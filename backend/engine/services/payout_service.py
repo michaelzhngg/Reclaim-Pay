@@ -56,7 +56,7 @@ def payee_for_reim(db: Session, reim: Reimbursement) -> Payee | None:
     if (reim.kind or "CLAIM") == "VENDOR_BOOKING":
         booking = db.exec(select(VendorBooking).where(VendorBooking.reim_id == reim.reim_id)).first()
         vendor = db.get(Vendor, booking.vendor_id) if booking else None
-        if not vendor or not vendor.paypal_verified or not vendor.paypal_payer_id:
+        if not vendor or not vendor.paypal_verified or not vendor.paypal_payer_id or not vendor.is_active:
             return None
         return Payee(
             kind="VENDOR_BOOKING",

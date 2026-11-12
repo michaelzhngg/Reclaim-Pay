@@ -59,7 +59,7 @@ def _find_payout(db: Session, item_id: str | None, sender_item_id: str | None) -
 def _notify_change(db: Session, payout: Payout, status: PayoutStatus):
     ref = f"RC-{str(payout.reim_id)[:8]}"
     link = f"/employee/history?id={payout.reim_id}"
-    is_booking = payout.vendor_id is not None
+    is_booking = getattr(payout, "vendor_id", None) is not None
     vendor = db.get(Vendor, payout.vendor_id) if is_booking else None
     label = "booking" if is_booking else "claim"
     payee = vendor.name if vendor else "the vendor"

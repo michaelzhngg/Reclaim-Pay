@@ -3,7 +3,7 @@
 import asyncio
 import hashlib
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -449,6 +449,38 @@ def test_vendor_payment_budget_forces_a_clean_booking_to_hr(pg_db, monkeypatch):
 
     assert reim.tier != "AUTO_PAY"
     assert "AGENT_DAILY_BUDGET" in reim.autonomy["hard_stops"]
+
+
+def test_create_booking_api_pays_a_verified_vendor(pg_db, monkeypatch):
+    from main import app
+    import engine.services.payout_service as payout_service
+
+    monkeypatch.setattr(payout_service, "fire_and_forget_push", lambda *a, **k: None)
+    user = _user(pg_db)
+    _policy(pg_db, user)
+    vendor = _vendor(pg_db, "Verified Cab Co.")
+
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: user
+    try:
+        res = TestClient(app).post("/api/v1/vendor-bookings", json={
+            "vendor_id": str(vendor.vendor_id),
+            "category": "Transportation",
+            "amount": 40,
+            "service_start": str(NOW.date() + timedelta(days=1)),
+            "service_end": str(NOW.date() + timedelta(days=2)),
+            "purpose": "Airport transfer",
+        })
+        assert res.status_code == 201, res.text
+        body = res.json()
+        assert body["status"] in ("DISBURSING", "PAID")
+        assert body["payout"]["status"] == "ACCEPTED"
+    finally:
+        app.dependency_overrides.clear()
+
+    payout = pg_db.exec(select(Payout).where(Payout.reim_id == UUID(body["reim_id"]))).one()
+    assert payout.vendor_id == vendor.vendor_id
+    assert payout.user_id == user.user_id
 
 
 def test_create_booking_api_returns_employee_view(pg_db):
