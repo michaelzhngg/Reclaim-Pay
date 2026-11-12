@@ -7,22 +7,24 @@ from typing import Optional
 from urllib.parse import quote, urlencode
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from jose import jwt, JWTError
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from api import deps
-from api.rate_limit import PAYPAL_CONNECT_LIMIT, limiter
+from api.rate_limit import PAYPAL_CONNECT_LIMIT, PAYPAL_WEBHOOK_RETRY_LIMIT, limiter
 from core import security
 from core.config import settings
-from core.enums import AgentActionType
-from core.models import User
+from core.enums import AgentActionType, WebhookEventStatus
+from core.models import PayPalWebhookEvent, User
 from engine.services.action_log import record_action
 from engine.services.payout_service import notify
 from engine.services.paypal_client import PayPalError, PayPalUser, get_paypal_client, mask_email  # noqa: F401
-from engine.services.webhook_events import InvalidWebhook, ingest_event
+from engine.services.webhook_events import (
+    InvalidWebhook, WebhookNotFound, WebhookNotRetryable, ingest_event, retry_event,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -134,6 +136,32 @@ class PayPalStatus(BaseModel):
     linked_at: Optional[datetime] = None
     cooldown_until: Optional[datetime] = None
     link_changes_paused_until: Optional[datetime] = None
+
+
+class WebhookEventOut(BaseModel):
+    event_id: str
+    event_type: str
+    resource_id: Optional[str] = None
+    status: WebhookEventStatus
+    attempts: int
+    error: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    processed_at: Optional[datetime] = None
+
+
+def _event_out(row: PayPalWebhookEvent) -> WebhookEventOut:
+    return WebhookEventOut(
+        event_id=row.event_id,
+        event_type=row.event_type,
+        resource_id=row.resource_id,
+        status=WebhookEventStatus(row.status),
+        attempts=row.attempts,
+        error=row.error,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+        processed_at=row.processed_at,
+    )
 
 
 class SigninStart(BaseModel):
@@ -386,3 +414,35 @@ async def paypal_webhook(request: Request, db: Session = Depends(deps.get_db)):
     if result.outcome == "failed":
         raise HTTPException(status_code=500, detail="Webhook handling failed")
     return {"status": result.outcome}
+
+
+@router.get("/events", response_model=list[WebhookEventOut])
+def list_webhook_events(
+    status: Optional[WebhookEventStatus] = Query(default=WebhookEventStatus.DEAD_LETTER),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    query = select(PayPalWebhookEvent)
+    if status is not None:
+        query = query.where(PayPalWebhookEvent.status == status.value)
+    rows = db.exec(query.order_by(PayPalWebhookEvent.updated_at.desc()).limit(limit)).all()
+    return [_event_out(row) for row in rows]
+
+
+@router.post("/events/{event_id}/retry", response_model=WebhookEventOut)
+@limiter.limit(PAYPAL_WEBHOOK_RETRY_LIMIT)
+def retry_webhook_event(
+    request: Request,
+    event_id: str,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    try:
+        retry_event(db, event_id, str(current_user.user_id))
+    except WebhookNotFound:
+        raise HTTPException(status_code=404, detail="Webhook event not found")
+    except WebhookNotRetryable as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    row = db.get(PayPalWebhookEvent, event_id)
+    return _event_out(row)

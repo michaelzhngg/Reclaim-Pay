@@ -1143,6 +1143,10 @@ class PayPalWebhookEvent(SQLModel, table=True):
         default=WebhookEventStatus.RECEIVED,
         sa_column=Column(String, nullable=False, index=True)
     )
+    attempts: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0")
+    )
     error: Optional[str] = Field(
         default=None,
         sa_column=Column(Text)
