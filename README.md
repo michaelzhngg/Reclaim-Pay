@@ -90,7 +90,7 @@ On the review page, HR marks each signal as a real problem or a false alarm. The
 | Live timeline | Shows each check as it runs, in employee-safe wording. | The wait is visible, so claims don't feel like a black box. |
 | Money flow | Shows the claim's path from approved to "in your PayPal". | Employees know where their money is. |
 | Trust card | Shows the current instant-pay limit and progress to the next level. | The rules for faster payment are open. |
-| Check before you spend | A dashboard card checks one cost against the employee's own grade's confirmed limits (within, over, needs pre-approval and so on), estimates the most a trip can be reimbursed, and answers questions about the policy. Each answer quotes the policy word for word, and its numbers must appear in the policy text or the employee's own limits. An answer the quote can't back becomes "ask HR". Questions are capped at 20 a day, and policy text is treated as untrusted. The card says it is guidance, not an approval. | Employees learn the limit before they pay, not after a claim lands with HR. |
+| Check before you spend | A dashboard card checks one cost against the employee's own grade's confirmed limits (within, over, needs pre-approval and so on), estimates the most a trip can be reimbursed, and answers questions about the policy. Each answer quotes the policy word for word, and its numbers must appear in that quote, the question or the employee's own limits. An answer the quote can't back becomes "ask HR". Questions are capped at 20 in any 24 hours, and policy text is treated as untrusted. The card says it is guidance, not an approval. | Employees learn the limit before they pay, not after a claim lands with HR. |
 | Overpayment notice with dispute | Tells the employee what's owed and why, and gives them a form to dispute it. | Nothing is collected without notice and a chance to respond. |
 | Calendar | Shows claims and payouts on a Bryntum calendar (trial version, with its watermark). | Employees can see at a glance what was paid and when. |
 | Privacy rules | Hides risk scores, signal names and HR's explanations from employees, and shows two-person review as ordinary review. Employees do see the AI's verdict and confidence on their claim. | Honest staff aren't made to feel accused, and fraudsters can't easily learn the checks. |
@@ -294,7 +294,7 @@ docker compose exec backend python -m seeds.seed_reclaim_pay    # demo accounts 
 
 - **Make it real (Nov to Dec 2026):** go live with PayPal for one pilot company, tune the trust thresholds on pilot data, and add an HR assistant that prepares batches and never pays.
 - **Fix the category budget check (next):** it sums per-unit amounts such as nights and meals, so a claim can go to HR with every unit inside policy. The fix is to check claims against the confirmed per-unit limits ([details](docs/hackathon/DECISION-D1-LIMITS.md)).
-- **Close policy gaps:** send the questions the policy couldn't answer to HR as suggested policy edits, and add semantic search over policy text for the Q&A (today it tries vector search and falls back to keywords).
+- **Close policy gaps:** send the questions the policy couldn't answer to HR as suggested policy edits.
 - **Learn from HR's reviews:** feed signal accuracy back into the Receipt Shield weights.
 - **Remove out-of-pocket spending (Q1 2027):** travel advances, company-paid vendor bookings, and matching receipts against the real PayPal payment.
 - **Meet people where they are (Q2 2027):** claims by chat, team budgets and a policy simulator.

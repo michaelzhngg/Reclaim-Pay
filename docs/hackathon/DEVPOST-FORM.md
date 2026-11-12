@@ -71,7 +71,7 @@ A colleague submits a cropped copy of your receipt: it's matched to yours and go
 **Fair to employees**
 - Nobody is rejected on the AI's word. Only a person can reject a claim.
 - Employees never see risk scores or which check fired, so honest staff aren't made to feel accused and fraudsters can't learn the checks.
-- A "Check before you spend" card checks one cost against the employee's own grade's confirmed limits, estimates the most a trip can be reimbursed, and answers policy questions. Each answer quotes the policy word for word, its numbers must appear in the policy or the employee's own limits, questions are capped at 20 a day, and policy text is treated as untrusted.
+- A "Check before you spend" card checks one cost against the employee's own grade's confirmed limits, estimates the most a trip can be reimbursed, and answers policy questions. Each answer quotes the policy word for word, its numbers must appear in that quote, the question or the employee's own limits, questions are capped at 20 in any 24 hours, and policy text is treated as untrusted.
 - Overpayments get a notice and a 5-day dispute window, then a deduction from the next claim. A PayPal invoice goes out only after HR previews and approves it.
 
 ## How we built it
@@ -112,7 +112,7 @@ Reclaim began in April 2026 as our expense review prototype. Everything about Pa
 
 - **Go live:** move to live PayPal Payouts with one pilot company and tune the trust thresholds on pilot data.
 - **Fix the category budget check:** it sums per-unit amounts such as nights and meals, so a claim can go to HR with every unit inside policy.
-- **Close policy gaps:** send the questions the policy couldn't answer to HR as suggested policy edits, and add semantic search over policy text for the Q&A.
+- **Close policy gaps:** send the questions the policy couldn't answer to HR as suggested policy edits.
 - **Learn from HR's reviews:** feed signal accuracy back into the Receipt Shield weights.
 - **Remove out-of-pocket spending:** travel advances, company-paid bookings, and matching receipts against the company's real PayPal transactions, which gives evidence an image generator can't fake.
 - **Meet people where they are:** claims by chat (Telegram, then WhatsApp), team budgets and a policy simulator.

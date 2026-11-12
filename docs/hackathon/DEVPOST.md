@@ -96,7 +96,7 @@ The Receipt Shield runs on every claim. Five checks always run, and a sixth is o
 - **Money flow:** a simple strip shows where the money is, ending in the employee's PayPal account.
 - **Trust card:** shows the employee's level and current auto-pay limit, plus progress toward the next one.
 - **Calendar:** a Bryntum calendar of claims submitted and payouts received, with colors that reveal nothing about which lane a held claim is in.
-- **Check before you spend:** a dashboard card checks one cost against the employee's own grade's confirmed limits (within, over, needs pre-approval and so on), estimates the most a trip can be reimbursed, and answers questions about the policy. Each answer quotes the policy word for word, its numbers must appear in the policy text or the employee's own limits, and an answer the quote can't back becomes "ask HR". Employees can ask 20 questions a day, and policy text is treated as untrusted. The card is guidance, not an approval.
+- **Check before you spend:** a dashboard card checks one cost against the employee's own grade's confirmed limits (within, over, needs pre-approval and so on), estimates the most a trip can be reimbursed, and answers questions about the policy. Each answer quotes the policy word for word, its numbers must appear in that quote, the question or the employee's own limits, and an answer the quote can't back becomes "ask HR". Employees can ask 20 questions in any 24 hours, and policy text is treated as untrusted. The card is guidance, not an approval.
 
 ### Recovering mistakes
 
@@ -221,7 +221,7 @@ Reclaim began in April 2026 as our own expense review product. It recommended de
 
 **Fix the category budget check (next).** It sums per-unit amounts such as nights and meals, so a claim can go to HR with every unit inside policy. The fix is to check claims against the confirmed per-unit limits.
 
-**Close policy gaps (next).** Send the questions the policy couldn't answer to HR as suggested policy edits, and add semantic search over policy text for the Q&A (today it tries vector search and falls back to keywords). Feed signal accuracy back into the Receipt Shield weights.
+**Close policy gaps (next).** Send the questions the policy couldn't answer to HR as suggested policy edits. Feed signal accuracy back into the Receipt Shield weights.
 
 **Remove out-of-pocket spending (Q1 2027).** Travel advances that settle automatically, company-paid vendor bookings, and matching receipts against the company's real PayPal transactions. That last check gives us evidence an image generator can't fake.
 
