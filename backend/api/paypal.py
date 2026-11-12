@@ -18,7 +18,7 @@ from api.rate_limit import PAYPAL_CONNECT_LIMIT, PAYPAL_WEBHOOK_RETRY_LIMIT, lim
 from core import security
 from core.config import settings
 from core.enums import AgentActionType, WebhookEventStatus
-from core.models import PayPalWebhookEvent, User
+from core.models import PayPalWebhookEvent, User, Vendor
 from engine.services.action_log import record_action
 from engine.services.payout_service import notify
 from engine.services.payee_link import PAYEE_COOLDOWN_HOURS, cooldown_until, link_update  # noqa: F401
@@ -209,8 +209,11 @@ async def paypal_callback(
     taken = db.exec(
         select(User).where(User.paypal_payer_id == paypal_user.payer_id, User.user_id != user_id)
     ).first()
-    if taken:
-        logger.warning("[PAYPAL_LINK] Payer already linked to another employee; user=%s", user_id)
+    vendor_taken = db.exec(
+        select(Vendor).where(Vendor.paypal_payer_id == paypal_user.payer_id)
+    ).first()
+    if taken or vendor_taken:
+        logger.warning("[PAYPAL_LINK] Payer already linked to another payee; user=%s", user_id)
         return failed("payer_already_linked")
 
     update = link_update(employee.paypal_payer_id, employee.paypal_linked_at is not None, paypal_user, now)

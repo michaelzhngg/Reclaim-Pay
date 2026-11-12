@@ -30,12 +30,14 @@ from core.models import (
     Department, Payout, Notification, SettlementReceipt, PolicyReimbursableCategory,
     Vendor, VendorBooking,
 )
-from core.enums import AgentActionType, UserRole, ReimbursementStatus, JudgmentResult, PolicyStatus
+from core.enums import AgentActionType, UserRole, ReimbursementStatus, JudgmentResult, PolicyStatus, is_vendor_booking
 from core.database import engine as db_engine
 from engine.agents.compliance_agent import run_compliance_workflow, timeline_emitter
 from engine.progress import ProgressTracker
 from engine.services.action_log import record_action
+from engine.services import autonomy_store
 from engine.services.approvals import DUAL_TIER, register_approval, required_approvals, split_batch
+from engine.services.payee_link import cooldown_until
 from engine.risk.timeline import make_step
 from engine.services.payout_service import initiate_payout_sync
 from engine.services.paypal_client import mask_email
@@ -208,13 +210,14 @@ def _build_reimbursement_response(
         "vendor_verified": None,
         "vendor_paypal_masked": None,
         "vendor_cooldown_until": None,
+        "vendor_cooldown_hours": None,
         "service_start": None,
         "service_end": None,
     }
 
     booking = None
     vendor = None
-    if (r.kind or "CLAIM") == "VENDOR_BOOKING":
+    if is_vendor_booking(r):
         if prefetched is not None:
             booking = prefetched.bookings.get(r.reim_id)
             vendor = prefetched.vendors.get(booking.vendor_id) if booking else None
@@ -222,10 +225,13 @@ def _build_reimbursement_response(
             booking = db.exec(select(VendorBooking).where(VendorBooking.reim_id == r.reim_id)).first()
             vendor = db.get(Vendor, booking.vendor_id) if booking else None
         if booking and vendor:
+            cooldown_hours = (
+                prefetched.cooldown_hours if prefetched is not None
+                else autonomy_store.payee_cooldown_hours(db)
+            )
             cooldown = None
             if vendor.payout_destination_changed_at:
-                from api.paypal import PAYEE_COOLDOWN_HOURS, cooldown_until
-                cooldown = cooldown_until(vendor.payout_destination_changed_at, PAYEE_COOLDOWN_HOURS)
+                cooldown = cooldown_until(vendor.payout_destination_changed_at, cooldown_hours)
                 if cooldown and cooldown <= datetime.now(timezone.utc):
                     cooldown = None
             result.update({
@@ -234,6 +240,7 @@ def _build_reimbursement_response(
                 "vendor_verified": bool(vendor.paypal_verified and vendor.paypal_payer_id) if viewer_is_hr else None,
                 "vendor_paypal_masked": mask_email(vendor.paypal_email) if viewer_is_hr and vendor.paypal_email else None,
                 "vendor_cooldown_until": cooldown.isoformat() if viewer_is_hr and cooldown else None,
+                "vendor_cooldown_hours": cooldown_hours if viewer_is_hr else None,
                 "service_start": booking.service_start.isoformat(),
                 "service_end": booking.service_end.isoformat(),
                 "purpose": booking.purpose,
@@ -294,6 +301,7 @@ class _ListContext:
     latest_payouts: dict
     bookings: dict
     vendors: dict
+    cooldown_hours: int
 
 
 def _list_context(db: Session, reimbursements: list) -> _ListContext:
@@ -346,7 +354,7 @@ def _list_context(db: Session, reimbursements: list) -> _ListContext:
     )
 
     return _ListContext(users, departments, receipt_counts, policy_titles, merchants, latest_payouts,
-                        bookings, vendors)
+                        bookings, vendors, autonomy_store.payee_cooldown_hours(db))
 
 
 @router.get("/health")
@@ -498,7 +506,7 @@ def _apply_status(
     db.add(r)
 
     reim_short = str(r.reim_id)[:8]
-    is_booking = (r.kind or "CLAIM") == "VENDOR_BOOKING"
+    is_booking = is_vendor_booking(r)
     label = "Booking" if is_booking else "Claim"
     if new_status == ReimbursementStatus.APPROVED:
         title = f"{label} RC-{reim_short} approved"

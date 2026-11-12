@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
@@ -12,7 +13,12 @@ from sqlmodel import select
 from api import deps
 from api.reimbursements import _build_reimbursement_response
 from core.enums import JudgmentResult, PolicyStatus, ReimbursementStatus, UserRole
-from core.models import LineItem, Payout, Policy, PolicyReimbursableCategory, Reimbursement, User, Vendor
+from core.models import (
+    LineItem, Payout, Policy, PolicyReimbursableCategory, Recovery, Reimbursement, User, Vendor,
+)
+from engine.risk.queries import recent_claims
+from engine.services.autonomy_store import ledger_snapshot, recent_decisions
+from engine.services.recovery_service import RecoveryError, create_recovery, find_offset_claim
 from engine.services.payout_service import initiate_payout_async, initiate_payout_sync, payee_for_reim
 from engine.services.vendor_booking_service import (
     check_booking_policy,
@@ -425,11 +431,17 @@ def test_vendor_payment_reduces_the_company_daily_budget(pg_db):
     assert reim.status == ReimbursementStatus.APPROVED
 
     # Approved but unpaid does not reserve budget.
-    assert ledger_snapshot(pg_db, NOW).vendor_paid_today == 0
+    ledger_before = ledger_snapshot(pg_db, NOW)
+    assert ledger_before.vendor_paid_today == 0
+    assert ledger_before.auto_paid_today == 0 and ledger_before.auto_paid_last_hour == 0
     before = employee_history(pg_db, user.user_id, NOW)
 
     assert asyncio.run(initiate_payout_async(reim.reim_id, pg_db)) is not None
-    assert ledger_snapshot(pg_db, NOW).vendor_paid_today == 40.0
+    ledger_after = ledger_snapshot(pg_db, NOW)
+    # One payment of 40 counts once: vendor spend only, never auto-paid or breaker velocity.
+    assert ledger_after.vendor_paid_today == 40.0
+    assert ledger_after.auto_paid_today == 0
+    assert ledger_after.auto_paid_last_hour == 0
 
     # A vendor payment is not employee income and must not consume the employee's trust or caps.
     after = employee_history(pg_db, user.user_id, NOW)
@@ -532,3 +544,210 @@ def test_create_booking_api_validates_dates(pg_db):
         assert res.status_code == 422 and res.json()["detail"] == "SERVICE_END_BEFORE_START"
     finally:
         app.dependency_overrides.clear()
+
+
+def test_vendor_booking_is_never_an_offset_target(pg_db):
+    user = _user(pg_db, paid_claims=0)
+    _policy(pg_db, user)
+    _vendor(pg_db, "Verified Cab Co.")
+    booking, _booking_row, _vendor_row, _created = _booking(pg_db, user, "Verified Cab Co.", amount=40.0)
+    assert booking.status == ReimbursementStatus.APPROVED
+
+    rec = Recovery(reim_id=uuid4(), user_id=user.user_id, amount=10.0, currency="MYR", reason="test",
+                   status="NOTICE_SENT", dispute_until=NOW + timedelta(days=5), created_by=user.user_id)
+    assert find_offset_claim(pg_db, rec) is None
+
+
+def test_create_recovery_refuses_a_paid_booking(pg_db):
+    user = _user(pg_db, paid_claims=0)
+    hr = _user(pg_db, "hr", role=UserRole.HR, verified=False, paid_claims=0)
+    _policy(pg_db, user)
+    _vendor(pg_db, "Verified Cab Co.")
+    booking, _booking_row, _vendor_row, _created = _booking(pg_db, user, "Verified Cab Co.", amount=40.0)
+    booking.status = ReimbursementStatus.PAID
+    pg_db.add(booking)
+    pg_db.commit()
+
+    with pytest.raises(RecoveryError) as err:
+        create_recovery(pg_db, booking, Decimal("10.00"), "test", hr, NOW)
+    assert err.value.code == "NOT_A_CLAIM"
+
+
+def test_audit_queue_query_excludes_bookings(pg_db):
+    from main import app
+
+    user = _user(pg_db)
+    hr = _user(pg_db, "hr", role=UserRole.HR, verified=False, paid_claims=0)
+    _policy(pg_db, user)
+    _vendor(pg_db, "Verified Cab Co.")
+    booking, _booking_row, _vendor_row, _created = _booking(pg_db, user, "Verified Cab Co.", amount=40.0)
+    booking.audit_selected = True
+    pg_db.add(booking)
+    pg_db.commit()
+
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: hr
+    try:
+        rows = TestClient(app).get("/api/v1/reimbursements/?audit_selected=true&kind=CLAIM").json()
+        assert all(row["kind"] == "CLAIM" for row in rows)
+        assert str(booking.reim_id) not in {row["reim_id"] for row in rows}
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_recent_claims_and_breaker_window_are_claim_only(pg_db):
+    user = _user(pg_db)
+    _policy(pg_db, user)
+    _vendor(pg_db, "Verified Cab Co.")
+    booking, _booking_row, _vendor_row, _created = _booking(pg_db, user, "Verified Cab Co.", amount=40.0)
+
+    claim = Reimbursement(
+        user_id=user.user_id, kind="CLAIM", main_category="Meals", currency="MYR",
+        total_claimed_amount=12.0, total_approved_amount=12.0, judgment=JudgmentResult.APPROVED,
+        summary="recent claim", status=ReimbursementStatus.PAID, tier="AUTO_PAY",
+        autonomy={**booking.autonomy, "tier": "AUTO_PAY"}, created_at=NOW, updated_at=NOW,
+    )
+    pg_db.add(claim)
+    pg_db.commit()
+
+    recent = recent_claims(pg_db, user.user_id, NOW)
+    assert {r.reim_id for r in recent} == {str(claim.reim_id)}
+    decisions = recent_decisions(pg_db, 20)
+    assert len(decisions) == 1
+    assert decisions[0].tier.value == "AUTO_PAY"
+
+
+def test_failed_vendor_paypal_call_leaves_the_booking_for_retry(pg_db, monkeypatch):
+    from engine.services.paypal_client import MockPayPalClient
+
+    user = _user(pg_db)
+    _policy(pg_db, user)
+    _vendor(pg_db, "Verified Cab Co.")
+    booking, _booking_row, _vendor_row, _created = _booking(pg_db, user, "Verified Cab Co.", amount=40.0)
+
+    original = MockPayPalClient.create_payout
+    calls = {"n": 0}
+
+    async def flaky(self, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("PayPal timeout")
+        return await original(self, **kwargs)
+
+    monkeypatch.setattr(MockPayPalClient, "create_payout", flaky)
+
+    assert asyncio.run(initiate_payout_async(booking.reim_id, pg_db)) is None
+    pg_db.refresh(booking)
+    assert booking.status == ReimbursementStatus.APPROVED
+    assert pg_db.exec(select(Payout).where(Payout.reim_id == booking.reim_id)).all() == []
+
+    payout = asyncio.run(initiate_payout_async(booking.reim_id, pg_db))
+    assert payout is not None
+    payouts = pg_db.exec(select(Payout).where(Payout.reim_id == booking.reim_id)).all()
+    assert len(payouts) == 1 and payouts[0].attempt == 1
+
+
+def test_ledger_row_keeps_vendor_payee_and_employee_requester(pg_db):
+    from api.payouts import ledger_row
+
+    user = _user(pg_db)
+    _policy(pg_db, user)
+    vendor = _vendor(pg_db, "Verified Cab Co.")
+    booking, _booking_row, _vendor_row, _created = _booking(pg_db, user, "Verified Cab Co.", amount=40.0)
+    payout = asyncio.run(initiate_payout_async(booking.reim_id, pg_db))
+    assert payout is not None
+    pg_db.refresh(booking)
+
+    row = ledger_row(payout, booking, user, vendor)
+    assert row.payee_name == "Verified Cab Co."
+    assert row.employee_name == user.name
+    assert row.kind == "VENDOR_BOOKING"
+
+
+def test_rejecting_a_booking_pays_nobody(pg_db, monkeypatch):
+    from main import app
+    import api.reimbursements as reimbursements_api
+    import engine.services.payout_service as payout_service
+
+    monkeypatch.setattr(reimbursements_api, "fire_and_forget_push", lambda *a, **k: None)
+    monkeypatch.setattr(payout_service, "fire_and_forget_push", lambda *a, **k: None)
+    user = _user(pg_db)
+    hr = _user(pg_db, "hr", role=UserRole.HR, verified=False, paid_claims=0)
+    _policy(pg_db, user)
+    booking, _booking_row, _vendor_row, _created = _booking(pg_db, user, "New Vendor Sdn Bhd", amount=40.0)
+
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: hr
+    try:
+        res = TestClient(app).patch(
+            f"/api/v1/reimbursements/{booking.reim_id}/status",
+            json={"status": "REJECTED", "hr_note": "Not approved"},
+        )
+        assert res.status_code == 200, res.text
+    finally:
+        app.dependency_overrides.clear()
+
+    pg_db.refresh(booking)
+    assert booking.status == ReimbursementStatus.REJECTED
+    assert pg_db.exec(select(Payout).where(Payout.reim_id == booking.reim_id)).all() == []
+
+
+def test_vendor_cooldown_display_uses_live_config(pg_db, monkeypatch):
+    from api.vendors import vendor_out
+    from engine.services import autonomy_store
+
+    vendor = _vendor(pg_db, "Verified Cab Co.")
+    vendor.payout_destination_changed_at = NOW - timedelta(hours=1)
+    pg_db.add(vendor)
+    pg_db.commit()
+
+    shown = vendor_out(vendor, viewer_is_hr=True, cooldown_hours=5)
+    assert shown.cooldown_hours == 5
+    assert shown.cooldown_until == vendor.payout_destination_changed_at + timedelta(hours=5)
+
+    monkeypatch.setattr(autonomy_store, "payee_cooldown_hours", lambda db: 5)
+    handler = _build_reimbursement_response
+    user = _user(pg_db, paid_claims=0)
+    booking, _booking_row, _vendor_row, _created = _booking(pg_db, user, "Verified Cab Co.", amount=40.0)
+    pg_db.refresh(booking)
+    view = handler(booking, pg_db, include_line_items=False, viewer_is_hr=True)
+    assert view["vendor_cooldown_hours"] == 5
+    until = datetime.fromisoformat(view["vendor_cooldown_until"])
+    assert until - vendor.payout_destination_changed_at == timedelta(hours=5)
+
+
+def test_verification_refuses_an_employee_payer(pg_db):
+    from main import app
+
+    hr = _user(pg_db, "hr", role=UserRole.HR, verified=False, paid_claims=0)
+    email = "employee-linked@example.com"
+    payer = "MOCKV" + hashlib.sha256(email.encode()).hexdigest()[:12].upper()
+    employee = _user(pg_db, "employee-payer")
+    employee.paypal_payer_id = payer
+    pg_db.add(employee)
+    pg_db.commit()
+    vendor = _vendor(pg_db, "New Vendor Sdn Bhd", verified=False)
+
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: hr
+    try:
+        res = TestClient(app).post(
+            f"/api/v1/vendors/{vendor.vendor_id}/verify",
+            json={"paypal_email": email},
+        )
+        assert res.status_code == 409 and res.json()["detail"] == "PAYEE_ALREADY_LINKED"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_vendor_payout_notification_names_the_vendor(pg_db):
+    from core.models import Notification
+
+    user = _user(pg_db)
+    _policy(pg_db, user)
+    vendor = _vendor(pg_db, "Verified Cab Co.")
+    booking, _booking_row, _vendor_row, _created = _booking(pg_db, user, "Verified Cab Co.", amount=40.0)
+    assert asyncio.run(initiate_payout_async(booking.reim_id, pg_db)) is not None
+
+    notes = pg_db.exec(select(Notification).where(Notification.user_id == user.user_id)).all()
+    assert any("Vendor paid for booking" in n.title and vendor.name in n.message for n in notes)

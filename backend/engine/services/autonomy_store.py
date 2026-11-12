@@ -163,6 +163,12 @@ def get_config(db: Session) -> AutonomyConfig:
     return cfg
 
 
+def payee_cooldown_hours(db: Session) -> int:
+    """Display-only read that never creates or commits the settings row."""
+    row = db.exec(select(AutonomySettings).where(AutonomySettings.id == SETTINGS_ID)).first()
+    return config_from_row(row).payee_cooldown_hours if row else AutonomyConfig().payee_cooldown_hours
+
+
 def is_enabled(db: Session) -> bool:
     return bool(settings.AUTO_REIMBURSE_ENABLED and settings_row(db).enabled)
 
@@ -291,6 +297,7 @@ def payee_status(db: Session, user_id: UUID) -> PayeeStatus:
 def ledger_snapshot(db: Session, now: datetime) -> AgentLedger:
     claims = db.exec(
         select(Reimbursement).where(
+            Reimbursement.kind == "CLAIM",
             Reimbursement.tier == "AUTO_PAY",
             Reimbursement.status.in_(AUTO_PAID_STATUSES),
             Reimbursement.updated_at >= _day_start(now),
@@ -315,7 +322,10 @@ def recent_decisions(db: Session, n: int) -> list:
     """Newest first. AutonomyDecision models once engine.risk exists, stored dicts until then."""
     rows = db.exec(
         select(Reimbursement.autonomy)
-        .where(Reimbursement.tier.is_not(None))
+        .where(
+            Reimbursement.kind == "CLAIM",
+            Reimbursement.tier.is_not(None),
+        )
         .order_by(Reimbursement.created_at.desc())
         .limit(n)
     ).all()

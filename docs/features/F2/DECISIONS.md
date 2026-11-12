@@ -77,3 +77,15 @@ Non-obvious choices, with the alternative rejected. Newest ticket last.
 **Chosen:** add `vendor_paid_today` to `AgentLedger` and include it only in the company daily budget hard stop. Count vendor bookings that reached `DISBURSING` or `PAID` today, across all tiers. Leave the circuit breaker's hourly auto-pay velocity alone.
 
 **Rejected:** folding vendor payments into `auto_paid_today`. That would mislabel HR-approved spend as agent spend and could make the breaker trip on vendor payments, which are not autonomous agent velocity.
+
+## 13. Every claim-only rule filters by kind
+
+**Chosen:** employee history, recovery offsets, receipt-shield recent claims, the breaker decision window, the back-test, audit rows and dashboard totals all read `kind == CLAIM`. Vendor spend reaches only the company ledger and vendor-specific surfaces.
+
+**Rejected:** relying on "a booking is a claim" and fixing leaks one screen at a time. A booking is claim-shaped for decision and payment reuse, not an employee reimbursement, and any claim-only rule that forgets the discriminator mispays or misreports money.
+
+## 14. Reconciliation names the actual payee
+
+**Chosen:** reconciliation facts carry both the requester and the payee. A booking mismatch names the vendor; the requester stays available as attribution.
+
+**Rejected:** reusing `employee_name` as the payee label, which told HR that an employee received a vendor's payment.

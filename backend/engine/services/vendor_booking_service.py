@@ -195,19 +195,3 @@ def create_booking(
     db.refresh(reim)
     db.refresh(booking)
     return reim, booking, vendor, vendor_created
-
-
-def booking_context(db: Session, reim_ids: list[UUID]) -> tuple[dict, dict]:
-    """Bulk lookup for list responses: {reim_id: VendorBooking} and {vendor_id: Vendor}."""
-    if not reim_ids:
-        return {}, {}
-    bookings = {
-        b.reim_id: b
-        for b in db.exec(select(VendorBooking).where(VendorBooking.reim_id.in_(reim_ids))).all()
-    }
-    vendor_ids = {b.vendor_id for b in bookings.values()}
-    vendors = (
-        {v.vendor_id: v for v in db.exec(select(Vendor).where(Vendor.vendor_id.in_(vendor_ids))).all()}
-        if vendor_ids else {}
-    )
-    return bookings, vendors

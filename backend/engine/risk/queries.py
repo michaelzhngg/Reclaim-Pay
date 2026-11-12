@@ -62,8 +62,11 @@ def recent_claims(db: Session, user_id: str | UUID, now: datetime, days: int = 3
     uid = user_id if isinstance(user_id, UUID) else UUID(str(user_id))
     rows = db.exec(
         select(Reimbursement)
-        .where(Reimbursement.user_id == uid)
-        .where(Reimbursement.created_at >= now - timedelta(days=days))
+        .where(
+            Reimbursement.user_id == uid,
+            Reimbursement.kind == "CLAIM",
+            Reimbursement.created_at >= now - timedelta(days=days),
+        )
     ).all()
     out = []
     for r in rows:

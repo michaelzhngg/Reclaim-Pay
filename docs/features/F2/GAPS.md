@@ -20,7 +20,12 @@ No invoice, receipt, tax document or remittance advice is generated or stored fo
 
 ## Refunds, cancellations and vendor recovery
 
-No booking cancellation, partial refund or vendor overpayment recovery. `Recovery` is employee-centric and expects a claim paid to an employee.
+No booking cancellation, partial refund or vendor overpayment recovery. `Recovery` is employee-centric; it now refuses vendor bookings outright and every offset selection is claim-only.
+
+## Claim-only reporting
+
+Vendor bookings are excluded from employee trust history, employee caps, dashboard money and review totals, Receipt Shield recent-claim windows, the breaker decision window, the autonomy back-test, recovery/audit seats and HR dashboard totals. They remain visible in the HR triage queue, payouts ledger and vendor-specific views. This separation is deliberate because a booking is claim-shaped for reuse, not an employee reimbursement.
+
 
 ## Manager and department-head routing
 

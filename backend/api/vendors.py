@@ -21,6 +21,7 @@ from engine.services.payee_link import PAYEE_COOLDOWN_HOURS, cooldown_until, lin
 from engine.services.payout_service import initiate_payout_async
 from engine.services.paypal_client import PayPalUser, mask_email
 from engine.services.vendor_booking_service import create_booking
+from engine.services import autonomy_store
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ class VendorOut(BaseModel):
     paypal_verified: bool
     paypal_linked_at: Optional[datetime] = None
     cooldown_until: Optional[datetime] = None
+    cooldown_hours: int = PAYEE_COOLDOWN_HOURS
 
 
 class VendorPaypalVerify(BaseModel):
@@ -62,8 +64,8 @@ class VendorBookingCreate(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 
-def vendor_out(vendor: Vendor, viewer_is_hr: bool) -> VendorOut:
-    until = cooldown_until(vendor.payout_destination_changed_at, PAYEE_COOLDOWN_HOURS)
+def vendor_out(vendor: Vendor, viewer_is_hr: bool, cooldown_hours: int = PAYEE_COOLDOWN_HOURS) -> VendorOut:
+    until = cooldown_until(vendor.payout_destination_changed_at, cooldown_hours)
     if until and until <= datetime.now(timezone.utc):
         until = None
     return VendorOut(
@@ -75,6 +77,7 @@ def vendor_out(vendor: Vendor, viewer_is_hr: bool) -> VendorOut:
         paypal_verified=bool(vendor.paypal_verified) if viewer_is_hr else False,
         paypal_linked_at=vendor.paypal_linked_at if viewer_is_hr else None,
         cooldown_until=until if viewer_is_hr else None,
+        cooldown_hours=cooldown_hours,
     )
 
 
@@ -85,7 +88,8 @@ def list_vendors(
 ):
     """Active vendors for the booking picker. Employees see names, not payout details."""
     vendors = db.exec(select(Vendor).where(Vendor.is_active == True).order_by(Vendor.name)).all()  # noqa: E712
-    return [vendor_out(v, current_user.role == UserRole.HR) for v in vendors]
+    hours = autonomy_store.payee_cooldown_hours(db)
+    return [vendor_out(v, current_user.role == UserRole.HR, hours) for v in vendors]
 
 
 def _mock_vendor_paypal(email: str) -> PayPalUser:
@@ -136,7 +140,7 @@ def verify_vendor(
         "verified": True,
         "changed": update.get("payout_destination_changed_at") is not None,
     })
-    return vendor_out(vendor, viewer_is_hr=True)
+    return vendor_out(vendor, viewer_is_hr=True, cooldown_hours=autonomy_store.payee_cooldown_hours(db))
 
 
 @router.patch("/vendors/{vendor_id}/paypal", response_model=VendorOut)
@@ -155,7 +159,7 @@ def change_vendor_paypal(
 
     identity = _mock_vendor_paypal(str(body.paypal_email))
     if identity.payer_id == vendor.paypal_payer_id:
-        return vendor_out(vendor, viewer_is_hr=True)
+        return vendor_out(vendor, viewer_is_hr=True, cooldown_hours=autonomy_store.payee_cooldown_hours(db))
     if _identity_taken(db, identity.payer_id, vendor.vendor_id):
         raise HTTPException(status_code=409, detail="PAYEE_ALREADY_LINKED")
 
@@ -173,7 +177,7 @@ def change_vendor_paypal(
         "verified": True,
         "changed": update.get("payout_destination_changed_at") is not None,
     })
-    return vendor_out(vendor, viewer_is_hr=True)
+    return vendor_out(vendor, viewer_is_hr=True, cooldown_hours=autonomy_store.payee_cooldown_hours(db))
 
 
 @router.post("/vendor-bookings", status_code=status.HTTP_201_CREATED)

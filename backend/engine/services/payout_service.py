@@ -24,7 +24,7 @@ from sqlmodel import Session, select
 
 from core.config import settings
 from core.models import User, Reimbursement, Payout, Notification, Vendor, VendorBooking
-from core.enums import AgentActionType, ReimbursementStatus, PayoutStatus
+from core.enums import AgentActionType, ReimbursementStatus, PayoutStatus, is_vendor_booking
 from core.push_service import fire_and_forget_push
 from engine.services.action_log import record_action
 from engine.services.paypal_client import (
@@ -53,7 +53,7 @@ class Payee:
 
 def payee_for_reim(db: Session, reim: Reimbursement) -> Payee | None:
     """The verified payee for a claim or a vendor booking, or None if there is not one."""
-    if (reim.kind or "CLAIM") == "VENDOR_BOOKING":
+    if is_vendor_booking(reim):
         booking = db.exec(select(VendorBooking).where(VendorBooking.reim_id == reim.reim_id)).first()
         vendor = db.get(Vendor, booking.vendor_id) if booking else None
         if not vendor or not vendor.paypal_verified or not vendor.paypal_payer_id or not vendor.is_active:
