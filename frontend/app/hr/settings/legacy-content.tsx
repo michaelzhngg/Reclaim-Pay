@@ -2,36 +2,28 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import {
-  User, Bell, Shield, Wallet, Save, LifeBuoy,
-  AlertTriangle, Loader2,
-} from "lucide-react";
+import { User, Bell, Wallet, LifeBuoy, AlertTriangle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { getBankingDetails } from "@/lib/actions/settings";
+import { getSettings, setKillSwitch } from "@/lib/actions/autonomy";
 import type { BankingDetails } from "@/lib/api/types";
 import { useToast } from "@/components/toast/ToastProvider";
 import PushSettingToggle from "@/app/_components/PushSettingToggle";
-
-const NOT_BUILT = "Feature has not been implemented yet.";
+import ProfileCard from "@/app/employee/settings/_components/ProfileCard";
 
 const TABS = [
   { id: "profile", label: "Profile Information", icon: User },
   { id: "notifications", label: "Notifications", icon: Bell },
-  { id: "security", label: "Security & Login", icon: Shield },
   { id: "banking", label: "Banking & Payouts", icon: Wallet },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
 
-const secondaryBtn =
-  "shrink-0 inline-flex items-center justify-center min-h-[44px] px-4 text-sm font-semibold text-ink border border-line-strong rounded-control hover:bg-surface-muted transition-colors cursor-pointer";
-const primaryBtn =
-  "inline-flex items-center justify-center gap-2 min-h-[44px] bg-accent text-on-accent px-5 rounded-full font-semibold text-sm hover:bg-accent-hover transition-colors cursor-pointer";
-const inputCls =
-  "w-full min-h-[44px] bg-surface text-ink px-3 rounded-control border border-line-strong focus:border-accent outline-none";
+/** Auto-pay is the autonomy kill switch: GET /autonomy/settings `enabled`, changed with POST /autonomy/kill-switch. */
+type AutoPay = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; enabled: boolean };
 
-function Section({ title, desc, children, footer }: { title: string; desc: string; children: ReactNode; footer?: ReactNode }) {
+function Section({ title, desc, children }: { title: string; desc: string; children: ReactNode }) {
   return (
     <section className="bg-surface shadow-ambient rounded-card overflow-hidden">
       <div className="px-4 sm:px-6 py-4 border-b border-line">
@@ -39,7 +31,6 @@ function Section({ title, desc, children, footer }: { title: string; desc: strin
         <p className="font-body text-sm text-ink-muted mt-0.5">{desc}</p>
       </div>
       {children}
-      {footer && <div className="px-4 sm:px-6 py-3 border-t border-line flex justify-end">{footer}</div>}
     </section>
   );
 }
@@ -49,7 +40,7 @@ function Row({ title, desc, children }: { title: string; desc: ReactNode; childr
     <div className="px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div className="min-w-0">
         <p className="font-body font-semibold text-sm text-ink">{title}</p>
-        <p className="font-body text-sm text-ink-muted mt-0.5">{desc}</p>
+        <div className="font-body text-sm text-ink-muted mt-0.5">{desc}</div>
       </div>
       {children}
     </div>
@@ -57,7 +48,7 @@ function Row({ title, desc, children }: { title: string; desc: ReactNode; childr
 }
 
 /** Plain on/off switch with a 44 px hit area. */
-function Switch({ checked, onClick, label }: { checked: boolean; onClick: () => void; label: string }) {
+function Switch({ checked, onClick, label, disabled }: { checked: boolean; onClick: () => void; label: string; disabled?: boolean }) {
   return (
     <button
       type="button"
@@ -65,7 +56,8 @@ function Switch({ checked, onClick, label }: { checked: boolean; onClick: () => 
       aria-checked={checked}
       aria-label={label}
       onClick={onClick}
-      className="self-start sm:self-auto shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] px-0.5 rounded-control cursor-pointer"
+      disabled={disabled}
+      className="self-start sm:self-auto shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] px-0.5 rounded-control cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
     >
       <span
         aria-hidden="true"
@@ -87,29 +79,23 @@ export default function SettingsLegacyContent() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [banking, setBanking] = useState<BankingDetails | null>(null);
-
-  const showToast = () => toast({ tone: "info", title: NOT_BUILT });
-
   const [activeTab, setActiveTab] = useState<TabId>("profile");
 
-  // ── Auto-Reimbursement state ──
-  const [isAutoReimburseEnabled, setIsAutoReimburseEnabled] = useState(false);
+  const [autoPay, setAutoPay] = useState<AutoPay>({ state: "loading" });
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [reason, setReason] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("reclaim_auto_reimburse");
-    if (saved === "true") setIsAutoReimburseEnabled(true);
-  }, []);
-
-  const toggleAutoReimbursementAPI = async (newState: boolean): Promise<boolean> => {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    localStorage.setItem("reclaim_auto_reimburse", newState.toString());
-    return true;
-  };
+  const [updateError, setUpdateError] = useState<string | null>(null);
 
   useEffect(() => {
     getBankingDetails().then(setBanking);
+    getSettings().then(({ settings, error }) =>
+      setAutoPay(settings ? { state: "ready", enabled: settings.enabled } : { state: "error", message: error ?? "Couldn't load the auto-pay setting." }),
+    );
+    // An older version of this page faked the switch in the browser.
+    try {
+      localStorage.removeItem("reclaim_auto_reimburse");
+    } catch { /* storage blocked: nothing to clear */ }
   }, []);
 
   // Escape closes the confirmation dialog unless an update is running.
@@ -122,21 +108,31 @@ export default function SettingsLegacyContent() {
     return () => document.removeEventListener("keydown", onKey);
   }, [showConfirmModal, isUpdating]);
 
-  const handleToggleClick = () => setShowConfirmModal(true);
+  const enabled = autoPay.state === "ready" && autoPay.enabled;
+
+  const openConfirm = () => {
+    setReason("");
+    setUpdateError(null);
+    setShowConfirmModal(true);
+  };
 
   const handleConfirmToggle = async () => {
-    setIsUpdating(true);
-    try {
-      const success = await toggleAutoReimbursementAPI(!isAutoReimburseEnabled);
-      if (success) {
-        setIsAutoReimburseEnabled(!isAutoReimburseEnabled);
-        setShowConfirmModal(false);
-      }
-    } catch (error) {
-      console.error("Failed to update auto-reimbursement setting", error);
-    } finally {
-      setIsUpdating(false);
+    if (autoPay.state !== "ready") return;
+    if (!reason.trim()) {
+      setUpdateError("Add a reason. It goes in the agent log with your name.");
+      return;
     }
+    setIsUpdating(true);
+    setUpdateError(null);
+    const { settings, error } = await setKillSwitch(!autoPay.enabled, reason);
+    setIsUpdating(false);
+    if (!settings) {
+      setUpdateError(error ?? "Couldn't change auto-pay. Try again.");
+      return;
+    }
+    setAutoPay({ state: "ready", enabled: settings.enabled });
+    setShowConfirmModal(false);
+    toast({ tone: "success", title: settings.enabled ? "Auto-pay is on" : "Auto-pay is paused" });
   };
 
   const tabClass = (active: boolean) =>
@@ -149,7 +145,7 @@ export default function SettingsLegacyContent() {
       <div className="max-w-7xl mx-auto">
         <header className="mb-5">
           <h1 className="font-display font-semibold text-2xl md:text-3xl text-ink">Settings</h1>
-          <p className="mt-1 text-sm text-ink-muted">Manage your account preferences and banking details for reimbursements.</p>
+          <p className="mt-1 text-sm text-ink-muted">Your profile, notifications and how claims are paid.</p>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
@@ -175,7 +171,7 @@ export default function SettingsLegacyContent() {
 
           <div className="md:col-span-2 space-y-6 min-w-0">
             {activeTab === "banking" && (
-              <Section title="Banking & Payouts" desc="Manage disbursement accounts, schedules, and auto-payout settings.">
+              <Section title="Banking & Payouts" desc="Where reimbursements are paid from, and whether claims can pay without review.">
                 <div className="divide-y divide-line">
                   <Row
                     title="Corporate Bank Account"
@@ -188,126 +184,44 @@ export default function SettingsLegacyContent() {
                         "No bank account set up"
                       )
                     }
-                  >
-                    <button type="button" onClick={showToast} className={secondaryBtn}>
-                      Update
-                    </button>
-                  </Row>
+                  />
 
-                  <Row title="Disbursement Schedule" desc="Weekly (Fridays)">
-                    <button type="button" onClick={showToast} className={secondaryBtn}>
-                      Change
-                    </button>
-                  </Row>
-
-                  <Row title="Payment Gateway" desc="PayPal Payouts (sandbox)">
-                    <span className="self-start sm:self-auto shrink-0 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-muted text-ink">
-                      Sandbox
-                    </span>
-                  </Row>
+                  <Row title="Payment Gateway" desc="PayPal Payouts" />
 
                   <Row
                     title="Auto-Reimbursement"
-                    desc="Pay claims automatically when every fixed rule passes. The AI only reads receipts; it never starts a payment."
+                    desc={
+                      autoPay.state === "error" ? (
+                        <span className="text-danger">{autoPay.message}</span>
+                      ) : autoPay.state === "loading" ? (
+                        "Checking the current setting…"
+                      ) : (
+                        <>
+                          {autoPay.enabled ? "On." : "Paused."} Claims that pass every fixed rule pay without HR review. The AI only reads receipts; it never starts a payment.
+                        </>
+                      )
+                    }
                   >
-                    <Switch checked={isAutoReimburseEnabled} onClick={handleToggleClick} label="Auto-Reimbursement" />
+                    <Switch checked={enabled} onClick={openConfirm} label="Auto-Reimbursement" disabled={autoPay.state !== "ready"} />
                   </Row>
 
                   <div className="px-4 sm:px-6 py-3 bg-warning-soft flex items-start gap-3">
                     <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" aria-hidden="true" />
                     <p className="text-sm leading-relaxed text-warning font-medium">
-                      Turning this on lets claims that pass every fixed rule pay without HR review. Limits and the kill switch
-                      are on the Autonomy page.
+                      This is the same switch as the kill switch on the{" "}
+                      <Link href="/hr/autonomy" className="underline underline-offset-2">Autonomy page</Link>, where the limits are set.
                     </p>
                   </div>
                 </div>
               </Section>
             )}
 
-            {activeTab === "profile" && (
-              <Section
-                title="Profile Information"
-                desc="Update your personal details below."
-                footer={
-                  <button type="button" onClick={showToast} className={primaryBtn}>
-                    <Save className="w-4 h-4" aria-hidden="true" />
-                    Save Changes
-                  </button>
-                }
-              >
-                <div className="p-4 sm:p-6 space-y-5">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-full bg-surface-muted border border-line flex items-center justify-center font-display font-semibold text-xl text-ink">
-                      {user?.name?.charAt(0) || "H"}
-                    </div>
-                    <button type="button" onClick={showToast} className={secondaryBtn}>
-                      Change Avatar
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <div className="space-y-1.5">
-                      <label htmlFor="hr-settings-name" className="font-body text-sm font-medium text-ink">Full Name</label>
-                      <input id="hr-settings-name" type="text" defaultValue={user?.name || "HR Admin"} className={inputCls} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label htmlFor="hr-settings-email" className="font-body text-sm font-medium text-ink">Email Address</label>
-                      <input id="hr-settings-email" type="email" defaultValue={user?.email || "hr@reclaim.inc"} className={inputCls} />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <label htmlFor="hr-settings-dept" className="font-body text-sm font-medium text-ink">Department</label>
-                      <input
-                        id="hr-settings-dept"
-                        type="text"
-                        defaultValue={user?.department_name || "Human Resources"}
-                        disabled
-                        className="w-full min-h-[44px] bg-surface-muted text-ink-muted px-3 rounded-control border border-line cursor-not-allowed"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </Section>
-            )}
+            {activeTab === "profile" && <ProfileCard key={user?.user_id ?? "anon"} />}
 
             {activeTab === "notifications" && (
-              <Section
-                title="Notifications"
-                desc="Choose when and how you are notified."
-                footer={
-                  <button type="button" onClick={showToast} className={primaryBtn}>
-                    <Save className="w-4 h-4" aria-hidden="true" />
-                    Save Preferences
-                  </button>
-                }
-              >
+              <Section title="Notifications" desc="Choose how you are notified.">
                 <div className="divide-y divide-line">
                   <PushSettingToggle className="px-4 sm:px-6" />
-                  {[
-                    { label: "Claim Submitted", desc: "Notify when an employee submits a new claim." },
-                    { label: "Claim Auto-Paid", desc: "Notify when a claim is paid automatically because every fixed rule passed." },
-                    { label: "Disbursement Sent", desc: "Notify after a payout is processed." },
-                  ].map((row) => (
-                    <Row key={row.label} title={row.label} desc={row.desc}>
-                      <Switch checked={false} onClick={showToast} label={row.label} />
-                    </Row>
-                  ))}
-                </div>
-              </Section>
-            )}
-
-            {activeTab === "security" && (
-              <Section title="Security & Login" desc="Manage your password and access credentials.">
-                <div className="divide-y divide-line">
-                  {[
-                    { label: "Change Password", desc: "Last updated 3 months ago." },
-                    { label: "Two-Factor Authentication", desc: "Add an extra layer of security to your account." },
-                    { label: "Active Sessions", desc: "1 active session on this device." },
-                  ].map((row) => (
-                    <Row key={row.label} title={row.label} desc={row.desc}>
-                      <button type="button" onClick={showToast} aria-label={`Manage ${row.label}`} className={secondaryBtn}>
-                        Manage
-                      </button>
-                    </Row>
-                  ))}
                 </div>
               </Section>
             )}
@@ -315,7 +229,7 @@ export default function SettingsLegacyContent() {
         </div>
       </div>
 
-      {showConfirmModal && typeof document !== "undefined" && createPortal(
+      {showConfirmModal && autoPay.state === "ready" && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6">
           <div className="absolute inset-0 bg-ink/40" onClick={() => !isUpdating && setShowConfirmModal(false)} />
           <div
@@ -325,15 +239,31 @@ export default function SettingsLegacyContent() {
             className="relative w-full max-w-md bg-surface rounded-dialog border border-line shadow-overlay overflow-hidden"
           >
             <div className="p-6 sm:p-8">
-              {isAutoReimburseEnabled && <AlertTriangle className="w-7 h-7 text-danger mb-4" aria-hidden="true" />}
+              {autoPay.enabled && <AlertTriangle className="w-7 h-7 text-danger mb-4" aria-hidden="true" />}
               <h3 id="auto-reimburse-title" className="text-xl font-semibold font-display text-ink mb-2">
-                {isAutoReimburseEnabled ? "Disable Auto-Reimbursement?" : "Enable Auto-Reimbursement?"}
+                {autoPay.enabled ? "Pause auto-pay?" : "Turn on auto-pay?"}
               </h3>
-              <p className="text-ink-muted font-body leading-relaxed mb-7">
-                {isAutoReimburseEnabled
-                  ? "Are you sure you want to disable automatic payouts? All future claims will require manual HR review before disbursement."
-                  : "Are you sure? Claims that pass every fixed rule will be paid to the employee's PayPal without manual HR review. The AI never starts a payment."}
+              <p className="text-ink-muted font-body leading-relaxed mb-5">
+                {autoPay.enabled
+                  ? "Every new claim will wait for HR review before it is paid, until auto-pay is turned back on."
+                  : "Claims that pass every fixed rule will be paid to the employee's PayPal without HR review, within the limits on the Autonomy page. The AI never starts a payment."}
               </p>
+              <div className="flex flex-col gap-1.5 mb-6">
+                <label htmlFor="auto-pay-reason" className="font-body text-sm font-medium text-ink">Reason</label>
+                <textarea
+                  id="auto-pay-reason"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  maxLength={500}
+                  rows={3}
+                  disabled={isUpdating}
+                  aria-describedby="auto-pay-reason-help"
+                  aria-invalid={updateError !== null && !reason.trim()}
+                  className="w-full bg-surface text-ink text-sm px-3 py-2 rounded-control border border-line-strong focus:border-accent outline-none resize-y"
+                />
+                <p id="auto-pay-reason-help" className="text-xs text-ink-muted">Saved in the agent log with your name.</p>
+                {updateError && <p role="alert" className="text-sm text-danger">{updateError}</p>}
+              </div>
               <div className="flex flex-col-reverse sm:flex-row gap-3">
                 <button
                   type="button"
@@ -349,7 +279,7 @@ export default function SettingsLegacyContent() {
                   disabled={isUpdating}
                   onClick={handleConfirmToggle}
                   className={`flex-1 flex items-center justify-center gap-2 min-h-[44px] px-6 rounded-full text-sm font-semibold text-on-accent transition-colors disabled:opacity-50 cursor-pointer ${
-                    isAutoReimburseEnabled ? "bg-danger hover:bg-danger/90" : "bg-accent hover:bg-accent-hover"
+                    autoPay.enabled ? "bg-danger hover:bg-danger/90" : "bg-accent hover:bg-accent-hover"
                   }`}
                 >
                   {isUpdating ? (
@@ -357,10 +287,10 @@ export default function SettingsLegacyContent() {
                       <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                       Updating…
                     </>
-                  ) : isAutoReimburseEnabled ? (
-                    "Disable Feature"
+                  ) : autoPay.enabled ? (
+                    "Pause auto-pay"
                   ) : (
-                    "Enable Feature"
+                    "Turn on auto-pay"
                   )}
                 </button>
               </div>

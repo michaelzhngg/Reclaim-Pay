@@ -9,6 +9,7 @@ import ClaimSidebar from "./_components/ClaimSidebar";
 import { type HistoryClaim, type ClaimStatus, type LineItem, categoryIcon } from "./_components/historyData";
 import { merchantLabel, type ReimbursementRaw } from "@/lib/api/types";
 import { formatClaimRef, formatMoney } from "@/lib/format";
+import { employeeHistorySummary } from "./_lib/summary";
 import { getRawReimbursements, getRawReimbursement } from "@/lib/actions/claims";
 
 // ─── Map backend ReimbursementRaw → HistoryClaim ─────────────────────────────
@@ -60,8 +61,10 @@ function mapToHistoryClaim(r: ReimbursementRaw): HistoryClaim {
     approvedAmount: net,
     status: claimStatus,
     hrNote: (r.ai_reasoning?.['hr_note'] as string | undefined),
+    isVendorBooking: (r.kind ?? "CLAIM") === "VENDOR_BOOKING",
+    vendorName: r.vendor_name ?? undefined,
     lineItems,
-    receiptCount: lineItems.length,
+    receiptCount: (r.kind ?? "CLAIM") === "VENDOR_BOOKING" ? 0 : lineItems.length,
     pdfDownloadUrl: `/api/v1/reimbursements/${r.reim_id}/pdf`,
     settlementId: r.settlement_id,
     settlementTemplateUrl: r.settlement_id
@@ -79,6 +82,9 @@ function mapToHistoryClaim(r: ReimbursementRaw): HistoryClaim {
       departurDate: r.departure_date ?? undefined,
       arrivalDate: r.arrival_date ?? undefined,
       overseas: false,
+      vendorName: r.vendor_name ?? undefined,
+      serviceStart: r.service_start ?? undefined,
+      serviceEnd: r.service_end ?? undefined,
     },
   };
 }
@@ -158,13 +164,8 @@ function HistoryPageContent() {
     return result;
   }, [currentStatus, selectedCategory, dateRange, claims, searchQuery]);
 
-  // KPI summary
-  const summary = useMemo(() => {
-    const fmt = (v: number) => formatMoney("MYR", v);
-    const reimbursed = claims.filter((c) => c.status === "Approved" || c.status === "Paid").reduce((acc, c) => acc + c.approvedAmount, 0);
-    const pending = claims.filter((c) => c.status === "Pending").reduce((acc, c) => acc + c.amountNumeric, 0);
-    return { total: fmt(reimbursed), pending: fmt(pending) };
-  }, [claims]);
+  // KPI summary. Only claims count; vendor bookings are company money.
+  const summary = useMemo(() => employeeHistorySummary(claims), [claims]);
 
   return (
     <div className="px-4 pt-6 pb-24 md:px-8 md:pt-8 md:pb-12 lg:px-12 lg:pt-10 lg:pb-10 max-w-screen-xl mx-auto w-full">

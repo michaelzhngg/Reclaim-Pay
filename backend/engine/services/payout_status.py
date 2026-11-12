@@ -11,7 +11,7 @@ from uuid import UUID
 from sqlmodel import Session, select
 
 from core.enums import AgentActionType, PayoutStatus, ReimbursementStatus, UserRole
-from core.models import Payout, Reimbursement, User
+from core.models import Payout, Reimbursement, User, Vendor
 from engine.services.action_log import record_action
 from engine.services.payout_service import notify
 from engine.services.paypal_client import get_paypal_client, map_item_status
@@ -60,17 +60,30 @@ def _find_payout(db: Session, item_id: str | None, sender_item_id: str | None) -
 def _notify_change(db: Session, payout: Payout, status: PayoutStatus):
     ref = f"RC-{str(payout.reim_id)[:8]}"
     link = f"/employee/history?id={payout.reim_id}"
+    is_booking = getattr(payout, "vendor_id", None) is not None
+    vendor = db.get(Vendor, payout.vendor_id) if is_booking else None
+    label = "booking" if is_booking else "claim"
+    payee = vendor.name if vendor else "the vendor"
     if status == PayoutStatus.SUCCEEDED:
-        notify(db, payout.user_id, "success", f"Payment received for claim {ref}",
-               f"{payout.currency} {float(payout.amount):,.2f} arrived in your PayPal account", link=link, email=True)
+        if is_booking:
+            notify(db, payout.user_id, "success", f"Vendor paid for booking {ref}",
+                   f"{payout.currency} {float(payout.amount):,.2f} was sent to {payee}.", link=link)
+        else:
+            notify(db, payout.user_id, "success", f"Payment received for claim {ref}",
+                   f"{payout.currency} {float(payout.amount):,.2f} arrived in your PayPal account",
+                   link=link, email=True)
         return
     if status not in _FAILED_STATUSES:
         return
     reason = payout.failure_code or status.value
-    notify(db, payout.user_id, "error", f"Payout failed for claim {ref}",
-           f"Your PayPal payout did not go through ({reason}). HR has been told.", link=link, email=True)
+    if is_booking:
+        notify(db, payout.user_id, "error", f"Vendor payment failed for booking {ref}",
+               f"The payment to {payee} did not go through ({reason}). HR has been told.", link=link)
+    else:
+        notify(db, payout.user_id, "error", f"Payout failed for claim {ref}",
+               f"Your PayPal payout did not go through ({reason}). HR has been told.", link=link, email=True)
     for hr in db.exec(select(User).where(User.role == UserRole.HR, User.is_active == True)).all():  # noqa: E712
-        notify(db, hr.user_id, "error", f"Payout {status.value.lower()} for claim {ref}",
+        notify(db, hr.user_id, "error", f"Payout {status.value.lower()} for {label} {ref}",
                f"PayPal payout of {payout.currency} {float(payout.amount):,.2f} ended {status.value} ({reason}).",
                link=f"/hr/view/{payout.reim_id}")
 

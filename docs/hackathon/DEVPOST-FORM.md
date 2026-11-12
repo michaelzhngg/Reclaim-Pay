@@ -57,17 +57,21 @@ A colleague submits a cropped copy of your receipt: it's matched to yours and go
 - Duplicates across all employees, even cropped or re-saved, by file hash and visual hash.
 - AI-image markers (C2PA), editing software and missing camera data.
 - Totals that don't add up, split bills and amounts sitting just under a limit.
+- HR marks each signal as a real problem or a false alarm, and the Autonomy page shows how accurate each check has been. A check's precision appears only after 10 rated cases.
 
 **HR stays in control**
 - An AG Grid triage queue with a tab per lane, risk bars and batch approve.
 - An evidence panel that explains why each claim was routed.
-- An Autonomy page where HR moves a limit and an AG Charts back-test replays past claims to show the trade-off between automation and losses before saving.
+- An Autonomy page where HR moves a limit and an AG Charts back-test replays past claims to show the trade-off between automation and losses before saving. A notice says so when the replay includes demo claims.
+- Policy limits as data: in Policy Studio, the AI reads an uploaded policy and proposes limits per category (unit, grade, zone or place, pre-approval thresholds). HR confirms or edits each row, and only confirmed limits are used. Each category takes its limits from the newest active policy, and Save is blocked while a limit edit is unconfirmed.
+- Policy questions: employees' questions with the date only and no name, the parts of the policy asked about most, and the questions the policy couldn't answer, which show where the policy has gaps.
 - A kill switch, a circuit breaker that pauses auto-pay when suspicious claims pile up, and a tamper-evident, hash-chained log of everything the agent does.
 - A payouts ledger with every PayPal payout, plus a check that compares payouts with the company's PayPal transaction history.
 
 **Fair to employees**
 - Nobody is rejected on the AI's word. Only a person can reject a claim.
 - Employees never see risk scores or which check fired, so honest staff aren't made to feel accused and fraudsters can't learn the checks.
+- A "Check before you spend" card checks one cost against the employee's own grade's confirmed limits, estimates the most a trip can be reimbursed, and answers policy questions. Each answer quotes the policy word for word, its numbers must appear in that quote, the question or the employee's own limits, questions are capped at 20 in any 24 hours, and policy text is treated as untrusted.
 - Overpayments get a notice and a 5-day dispute window, then a deduction from the next claim. A PayPal invoice goes out only after HR previews and approves it.
 
 ## How we built it
@@ -106,7 +110,10 @@ Reclaim began in April 2026 as our expense review prototype. Everything about Pa
 
 ## What's next for Reclaim Pay
 
-- **Go live:** move to live PayPal Payouts with one pilot company and tune limits on real claims.
+- **Go live:** move to live PayPal Payouts with one pilot company and tune the trust thresholds on pilot data.
+- **Fix the category budget check:** it sums per-unit amounts such as nights and meals, so a claim can go to HR with every unit inside policy.
+- **Close policy gaps:** send the questions the policy couldn't answer to HR as suggested policy edits.
+- **Learn from HR's reviews:** feed signal accuracy back into the Receipt Shield weights.
 - **Remove out-of-pocket spending:** travel advances, company-paid bookings, and matching receipts against the company's real PayPal transactions, which gives evidence an image generator can't fake.
 - **Meet people where they are:** claims by chat (Telegram, then WhatsApp), team budgets and a policy simulator.
 - **Grow:** contractor and overseas payouts in other currencies, then multi-company support.
@@ -229,6 +236,10 @@ What we built during the submission period (from 2 November 2026), all visible i
 10. A reconciliation check against the company's PayPal records with the PayPal Server SDK
 11. The employee live timeline, money flow, trust card, overpayment notice and Bryntum calendar
 12. Demo kit, 120-claim seed, Postman collection and the public deployment
+13. Policy limits as data: AI-proposed limits per category that HR confirms in Policy Studio, with only confirmed limits used
+14. Check before you spend: a cost check, trip estimate and quoted policy answers for employees, and a policy questions page for HR
+15. Signal reviews, with a per-signal accuracy table on the Autonomy page
+16. Decision engine clean-up: one source for the trust thresholds, a demo-data notice on the Autonomy page, and a decision note on the default limits
 ```
 
 **Team:** the paste-ready public text in DEVPOST.md leaves out the UM Hackathon name. This field is judges-only and asks directly, so name it here.

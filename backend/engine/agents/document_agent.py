@@ -8,7 +8,7 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, date
 
-import pymupdf4llm
+from engine.tools.pdf_text import pdf_to_markdown
 from langchain_core.messages import HumanMessage, SystemMessage
 from sqlmodel import Session, select
 
@@ -163,7 +163,7 @@ def _ocr_pdf(file_path: str, prompt: str) -> dict:
     """Standard text LLM path for PDF receipts — extracts markdown then queries LLM."""
     logger.info("[OCR_PDF] Starting OCR for PDF: %s", file_path)
     try:
-        md_text = pymupdf4llm.to_markdown(file_path)
+        md_text = pdf_to_markdown(file_path)
         logger.info("[OCR_PDF] Extracted %d chars of markdown from %s", len(md_text), file_path)
     except Exception as e:
         logger.error("[OCR_PDF] Failed to extract PDF text from %s: %s", file_path, e)

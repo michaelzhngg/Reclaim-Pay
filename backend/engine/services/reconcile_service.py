@@ -15,7 +15,7 @@ from sqlmodel import Session, select
 
 from core.config import settings
 from core.enums import PayoutStatus
-from core.models import Payout, User
+from core.models import Payout, User, Vendor
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ class PayoutFacts:
     payout_id: UUID
     reim_id: UUID
     employee_name: str
+    payee_name: str
     amount: Decimal
     currency: str
     created_at: datetime
@@ -86,6 +87,7 @@ class MismatchedPayout(BaseModel):
     reim_id: UUID
     claim_ref: str
     employee_name: str
+    payee_name: str = ""
     amount: float
     currency: str
     created_at: datetime
@@ -150,6 +152,7 @@ def _mismatch(payout: PayoutFacts) -> MismatchedPayout:
         reim_id=payout.reim_id,
         claim_ref=f"RC-{str(payout.reim_id)[:8].upper()}",
         employee_name=payout.employee_name,
+        payee_name=payout.payee_name,
         amount=float(payout.amount),
         currency=payout.currency,
         created_at=payout.created_at,
@@ -287,11 +290,17 @@ def _load_payouts(db: Session, start: datetime) -> list[PayoutFacts]:
         .where(Payout.status.in_([s.value for s in SETTLED + IN_FLIGHT]))
         .where(Payout.created_at >= start)
     ).all()
+    vendor_ids = {payout.vendor_id for payout, _employee in rows if payout.vendor_id}
+    vendors = (
+        {v.vendor_id: v for v in db.exec(select(Vendor).where(Vendor.vendor_id.in_(vendor_ids))).all()}
+        if vendor_ids else {}
+    )
     return [
         PayoutFacts(
             payout_id=payout.payout_id,
             reim_id=payout.reim_id,
             employee_name=employee.name,
+            payee_name=vendors[payout.vendor_id].name if payout.vendor_id in vendors else employee.name,
             amount=Decimal(str(payout.amount)).quantize(Decimal("0.01")),
             currency=payout.currency,
             created_at=_utc(payout.created_at),

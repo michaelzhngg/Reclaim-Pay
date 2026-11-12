@@ -95,3 +95,30 @@ services:
         value: "https://api.reclaimai.dev"
       - key: INTERNAL_API_URL
         value: "https://api.reclaimai.dev"
+
+  - type: cron
+    name: reclaim-pay-reconcile
+    runtime: docker
+    region: singapore
+    branch: main
+    schedule: "0 2 * * *"
+    dockerContext: ./backend
+    dockerfilePath: ./backend/uv.Dockerfile
+    dockerCommand: python -m jobs.daily_reconcile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: reclaim-pay-db
+          property: connectionString
+      - key: SECRET_KEY
+        fromService:
+          type: web
+          name: reclaim-pay-api
+          envVarKey: SECRET_KEY
+      - key: PAYPAL_MOCK_MODE
+        value: "false"
+      - key: PAYPAL_BASE_URL
+        value: "https://api-m.sandbox.paypal.com"
+      - key: PAYPAL_CURRENCY
+        value: MYR
+      - fromGroup: reclaim-pay-secrets
