@@ -8,7 +8,7 @@ from sqlalchemy import text
 from api import deps
 from core.enums import PolicyStatus, UserRole
 from core.models import Policy, PolicyReimbursableCategory, User
-from engine.policy.limits import LimitRule, LimitUnit
+from engine.policy.limits import LimitRule, LimitUnit, ZonePlace
 from engine.policy.samples import DEMO_RULES, RECLAIM_RULES, RECLAIM_ZONES
 from engine.services import policy_limits_store as store
 
@@ -149,3 +149,33 @@ def test_zone_allowance_needs_a_destination_then_prices_it(reclaim_api):
     ipoh = client.post("/api/v1/spend-check/check",
                        json={"category": "Daily Trip Allowance", "destination": "Ipoh", "quantity": 3}).json()
     assert ipoh["verdict"] == "LIMIT_ONLY" and ipoh["zone"] == "1" and ipoh["limit_total"] == 225
+
+
+@pytest.fixture
+def zoned_api(pg_db, hr):
+    """A zoned allowance in a policy with no "*" place, so an unlisted city matches no zone."""
+    p = _policy(pg_db, hr, "Zoned policy", ("Daily Allowance",))
+    rule = LimitRule(category="Daily Allowance", unit=LimitUnit.PER_DAY, amount=75, zone="1", grade_min=3)
+    store.confirm_all(pg_db, p.policy_id, [rule], [ZonePlace(zone="1", place="Ipoh")], hr.user_id, NOW)
+
+    def as_grade(rank):
+        return _client(pg_db, _user(pg_db, rank=rank))[1]
+
+    try:
+        yield as_grade
+    finally:
+        from main import app
+        app.dependency_overrides.clear()
+
+
+def test_unlisted_place_is_told_apart_from_no_destination(zoned_api):
+    client = zoned_api(4)
+    tokyo = client.post("/api/v1/spend-check/check", json={"category": "Daily Allowance", "destination": "Tokyo"}).json()
+    assert tokyo["verdict"] == "PLACE_NOT_LISTED" and tokyo["zone"] is None
+    dates = {"depart": "2026-11-20", "return_date": "2026-11-21"}
+    blank = client.post("/api/v1/spend-check/trip", json=dates).json()
+    assert blank["missing_reasons"] == {"Daily Allowance": "NEED_DESTINATION"}
+    away = client.post("/api/v1/spend-check/trip", json={**dates, "destination": "Tokyo"}).json()
+    assert away["missing_reasons"] == {"Daily Allowance": "PLACE_NOT_LISTED"}
+    junior = zoned_api(1).post("/api/v1/spend-check/trip", json={**dates, "destination": "Ipoh"}).json()
+    assert junior["missing_reasons"] == {"Daily Allowance": "GRADE_NOT_LISTED"} and junior["total_up_to"] == 0

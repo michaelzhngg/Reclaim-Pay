@@ -45,6 +45,7 @@ class TripIn(BaseModel):
 
 class TripOut(TripEstimate):
     currency: str = "MYR"
+    missing_reasons: dict[str, str] = Field(default_factory=dict)  # category -> the verdict that left it out
 
 
 def _policy_categories(db: Session) -> list[tuple[str, str]]:
@@ -97,4 +98,9 @@ def plan_trip(db: Session, grade: int | None, body: TripIn) -> TripOut:
     rules, places = store.active_limits(db)
     est = estimate_trip(rules, places, grade=grade, overseas=body.overseas, destination=body.destination,
                         depart=body.depart, return_date=body.return_date)
-    return TripOut(**est.model_dump(), currency=_currency(rules))
+    reasons = {
+        category: check_spend(rules, places, category=category, grade=grade, overseas=body.overseas,
+                              destination=body.destination, amount=None).verdict.value
+        for category in est.missing
+    }
+    return TripOut(**est.model_dump(), currency=_currency(rules), missing_reasons=reasons)
