@@ -87,7 +87,7 @@ class MismatchedPayout(BaseModel):
     reim_id: UUID
     claim_ref: str
     employee_name: str
-    payee_name: str
+    payee_name: str = ""
     amount: float
     currency: str
     created_at: datetime
