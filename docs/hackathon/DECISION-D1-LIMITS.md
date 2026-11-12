@@ -1,7 +1,7 @@
 # Decision needed: are the default auto-pay limits right?
 
 **Answers:** PLAN.md open question 4, "Are the default limits right (RM50 / 100 / 200, two people above RM1,000)?"
-**Owner:** Filbert. **Decided by:** the team, before the pilot starts.
+**Owner:** Filbert. **Decide by:** the team, before the pilot starts.
 
 ## Short answer
 
@@ -65,8 +65,9 @@ expect a RM 240 hotel night to be paid instantly, and it never is, even for a Tr
   limit. Your limit is shown on your dashboard." The dashboard's trust card already shows each employee
   their limit and how to raise it. No code change, no new risk, and it covers all three trust levels.
 - **B. Raise the Trusted limit to RM 300.** It helps only Trusted employees, and only for one-night stays
-  between RM 200 and 250 and single equipment items between RM 200 and 300. A multi-night stay that
-  totals more than RM 250 still goes to HR, because of the defect below.
+  between RM 200 and 250 and single equipment items between RM 200 and 300. A multi-night stay totalling
+  between RM 250 and RM 300 still goes to HR because of the defect below. Above RM 300 the trust limit
+  and the daily cap send it to HR anyway.
 - **C. Make the trust limit a share of the category amount** (for example New 50%, Standard 100%,
   Trusted 120%). The most consistent option, but it changes `decide()` and the trust card. Not before
   the pilot.
@@ -80,7 +81,10 @@ expect a RM 240 hotel night to be paid instantly, and it never is, even for a Tr
 - **Per claim: up by RM 100.** The largest single auto-paid claim goes from RM 200 to RM 300. One bad
   claim then costs up to RM 300 before recovery.
 - **Less than it looks.** At RM 300 the Trusted limit equals the daily cap. A RM 240 hotel night is
-  auto-paid only if the employee had no more than RM 60 auto-paid earlier that day.
+  auto-paid only if the employee had no more than RM 60 auto-paid earlier that day. The expected-loss
+  stop also starts to bind: a RM 300 claim with risk score 19 (the highest score that can still auto-pay)
+  has an expected loss of (0.01 + 19/200) × 300 × 0.5 = RM 15.75, which reaches the RM 15 review cost,
+  so it goes to HR. At RM 200 the most it can reach is RM 10.50.
 - **Two-person review above RM 1,000 doesn't interact.** Auto-pay never reaches RM 1,000.
 
 B is low risk, but it is still a limit change made without data, which is the thing this note argues
