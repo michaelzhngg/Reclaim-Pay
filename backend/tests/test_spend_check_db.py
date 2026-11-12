@@ -127,7 +127,7 @@ def test_employees_never_see_suggested_limits_or_draft_policies(pg_db, hr):
     finally:
         app.dependency_overrides.clear()
     assert cats == ["Meals"]
-    assert meal["verdict"] == "NO_LIMIT" and meal["cap"] is None
+    assert meal["verdict"] == "LIMITS_PENDING" and meal["cap"] is None and meal["limit_total"] is None
     assert gym["verdict"] == "NOT_COVERED"
 
 
@@ -223,3 +223,30 @@ def test_zone_place_follows_policy_matching_for_punctuation_and_longer_names(pg_
         app.dependency_overrides.clear()
     assert (dashed["zone"], dashed["zone_place"], dashed["limit_total"]) == ("1", "Kuala Lumpur", 75)
     assert (airport["zone"], airport["zone_place"], airport["limit_total"]) == ("3", "Kuala Lumpur Airport", 50)
+
+
+def test_a_trip_says_when_limits_are_still_suggestions(pg_db, hr):
+    p = _policy(pg_db, hr, "Unconfirmed policy", ("Meals",))
+    store.replace_proposed(pg_db, p.policy_id, [LimitRule(category="Meals", unit=LimitUnit.PER_DAY, amount=50)], [])
+    pg_db.commit()
+    app, client = _client(pg_db, _user(pg_db))
+    try:
+        trip = client.post("/api/v1/spend-check/trip", json={"depart": "2026-11-12", "return_date": "2026-11-13"}).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert trip["limits_pending"] is True and trip["lines"] == [] and trip["total_up_to"] == 0
+
+
+def test_a_single_zone_category_lists_the_places_it_covers(pg_db, hr):
+    p = _policy(pg_db, hr, "Split policy", ("Allowance (Zone 1)",))
+    rule = LimitRule(category="Allowance (Zone 1)", unit=LimitUnit.PER_DAY, amount=90, zone="1")
+    places = [ZonePlace(zone="1", place="Kuala Lumpur"), ZonePlace(zone="1", place="Ipoh"), ZonePlace(zone="2", place="*")]
+    store.confirm_all(pg_db, p.policy_id, [rule], places, hr.user_id, NOW)
+    pg_db.commit()
+    app, client = _client(pg_db, _user(pg_db))
+    try:
+        out = client.post("/api/v1/spend-check/check", json={"category": "Allowance (Zone 1)"}).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert out["verdict"] == "LIMIT_ONLY" and out["limit_total"] == 90 and out["zone_implied"] is True
+    assert out["zone_places"] == ["Ipoh", "Kuala Lumpur"] and out["zone_place"] is None

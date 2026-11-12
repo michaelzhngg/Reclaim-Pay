@@ -523,7 +523,8 @@ export interface SignalQuality {
 
 export type SpendVerdict =
   | "WITHIN" | "OVER" | "ACTUAL_COST" | "NEEDS_PRE_APPROVAL" | "LIMIT_ONLY" | "NO_LIMIT"
-  | "NEED_DESTINATION" | "PLACE_NOT_LISTED" | "GRADE_NOT_LISTED" | "NOT_COVERED";
+  | "NEED_DESTINATION" | "PLACE_NOT_LISTED" | "GRADE_NOT_LISTED" | "NOT_COVERED"
+  | "WRONG_TRIP_TYPE" | "OTHER_ZONE" | "LIMITS_PENDING";
 
 /** GET /spend-check/categories. Built from the employee's own grade and CONFIRMED limits only. */
 export interface CategoryOption {
@@ -549,6 +550,12 @@ export interface SpendCheckResult {
   currency: string;
   /** The listed place that set `zone`, or "*" for the policy's default zone. */
   zone_place: string | null;
+  /** Every limit for the category is in one zone, so no destination was needed. */
+  zone_implied: boolean;
+  /** When `zone_implied`: the places that zone covers, ["*"] for everywhere not listed. */
+  zone_places: string[];
+  /** WRONG_TRIP_TYPE: "DOMESTIC" or "OVERSEAS", the trips the limits are for. OTHER_ZONE: a category that covers the zone. */
+  hint: string | null;
 }
 
 export interface TripLine {
@@ -574,6 +581,8 @@ export interface TripEstimate {
   missing_reasons: Record<string, SpendVerdict>;
   currency: string;
   zone_place: string | null;
+  /** Nothing counted because HR hasn't confirmed the policy's suggested limits yet. */
+  limits_pending: boolean;
 }
 
 /** POST /spend-check/ask */

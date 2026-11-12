@@ -78,6 +78,17 @@ def active_limits(db: Session) -> tuple[list[LimitRule], list[ZonePlace]]:
     return rules, places
 
 
+def pending_categories(db: Session) -> list[str]:
+    """Categories whose policy has suggested limits for them but none confirmed yet."""
+    pending = []
+    for category, policy in policy_for_category(db).items():
+        limits, _ = list_rows(db, policy.policy_id)
+        mine = [r for r in limits if same_category(r.category, category)]
+        if mine and all(_status(r.status) == LimitStatus.PROPOSED.value for r in mine):
+            pending.append(category)
+    return pending
+
+
 def _rule_key(rule: LimitRule, *, with_amount: bool = True) -> tuple:
     exclude = {"source_section", "source_quote", "category"} | (set() if with_amount else {"amount"})
     d = rule.model_dump(exclude=exclude)

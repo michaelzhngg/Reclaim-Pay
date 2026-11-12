@@ -127,9 +127,9 @@ def test_overseas_allowance_by_grade():
     assert c.verdict == Verdict.LIMIT_ONLY and c.cap.amount == 220
 
 
-def test_overseas_hotel_has_no_amount_in_this_policy():
+def test_overseas_hotel_says_the_amount_is_for_domestic_trips():
     c = _reclaim(category="Accommodations", grade=5, overseas=True, destination="Tokyo")
-    assert c.verdict == Verdict.NO_LIMIT
+    assert c.verdict == Verdict.WRONG_TRIP_TYPE and c.hint == "DOMESTIC"
 
 
 def test_unknown_category_has_no_limit():
@@ -216,9 +216,10 @@ def test_a_typed_place_outside_every_zone_is_not_asked_for_again():
     assert _zoned("Kota Kinabalu").verdict == Verdict.PLACE_NOT_LISTED
 
 
-def test_an_empty_destination_is_still_asked_for():
-    assert _zoned(None).verdict == Verdict.NEED_DESTINATION
-    assert _zoned("  ").verdict == Verdict.NEED_DESTINATION
+def test_a_category_with_one_zone_needs_no_destination():
+    for blank in (None, "  "):
+        c = _zoned(blank)
+        assert c.verdict == Verdict.LIMIT_ONLY and c.zone_implied and c.zone is not None
 
 
 def test_a_place_outside_every_zone_is_missing_from_the_trip_estimate():
@@ -310,3 +311,69 @@ def test_a_category_with_only_a_pre_approval_rule_is_listed_in_other_limits():
                       depart=date(2026, 11, 12), return_date=date(2026, 11, 14))
     assert e.lines == [] and [(r.category, r.kind) for r in e.other_limits] == [("Equipment", LimitKind.PRE_APPROVAL)]
     assert e.total_up_to == 0
+
+
+ZONE_SPLIT = [
+    LimitRule(category="Domestic Daily Allowance (Zone 1)", unit=LimitUnit.PER_DAY, amount=90, grade_min=6, grade_max=7,
+              scope=TravelScope.DOMESTIC, zone="1"),
+    LimitRule(category="Domestic Daily Allowance (Zone 2)", unit=LimitUnit.PER_DAY, amount=75, grade_min=6, grade_max=7,
+              scope=TravelScope.DOMESTIC, zone="2"),
+    LimitRule(category="Overseas Daily Allowance", unit=LimitUnit.PER_DAY, amount=240, grade_min=6, grade_max=7,
+              scope=TravelScope.OVERSEAS, zone="2"),
+]
+ZONE_PLACES = [ZonePlace(zone="1", place="Kuala Lumpur"), ZonePlace(zone="1", place="Johor Bahru"),
+               ZonePlace(zone="2", place="*")]
+
+
+def _split(category, overseas=False, destination=None):
+    return check_spend(ZONE_SPLIT, ZONE_PLACES, category=category, grade=6, overseas=overseas,
+                       destination=destination, amount=None)
+
+
+def test_a_zone_split_category_shows_its_limit_without_a_destination():
+    c = _split("Domestic Daily Allowance (Zone 1)")
+    assert c.verdict == Verdict.LIMIT_ONLY and c.limit_total == 90 and c.zone == "1" and c.zone_implied
+
+
+def test_a_domestic_allowance_on_an_overseas_trip_says_so():
+    c = _split("Domestic Daily Allowance (Zone 1)", overseas=True)
+    assert c.verdict == Verdict.WRONG_TRIP_TYPE and c.hint == "DOMESTIC"
+
+
+def test_a_place_in_the_other_zone_names_the_right_category():
+    c = _split("Domestic Daily Allowance (Zone 1)", destination="Kuantan")
+    assert c.verdict == Verdict.OTHER_ZONE and c.zone == "2" and c.hint == "Domestic Daily Allowance (Zone 2)"
+    c = _split("Domestic Daily Allowance (Zone 2)", destination="Kuala Lumpur")
+    assert c.verdict == Verdict.OTHER_ZONE and c.hint == "Domestic Daily Allowance (Zone 1)"
+
+
+def test_a_typed_destination_in_the_right_zone_still_works():
+    assert _split("Domestic Daily Allowance (Zone 2)", destination="Kuantan").limit_total == 75
+    assert _split("Overseas Daily Allowance", overseas=True, destination="Tokyo").limit_total == 240
+
+
+def test_the_overseas_allowance_needs_no_destination():
+    c = _split("Overseas Daily Allowance", overseas=True)
+    assert c.verdict == Verdict.LIMIT_ONLY and c.limit_total == 240
+
+
+def _trip(overseas=False, destination=None):
+    return estimate_trip(ZONE_SPLIT, ZONE_PLACES, grade=6, overseas=overseas, destination=destination,
+                         depart=date(2026, 11, 12), return_date=date(2026, 11, 13))
+
+
+def test_a_domestic_trip_counts_only_the_zone_of_its_destination():
+    e = _trip(destination="Kuala Lumpur")
+    assert [(l.category, l.subtotal) for l in e.lines] == [("Domestic Daily Allowance (Zone 1)", 180)]
+    assert e.missing == []
+
+
+def test_a_domestic_trip_without_a_destination_never_counts_both_zones():
+    e = _trip()
+    assert e.lines == [] and sorted(e.missing) == ["Domestic Daily Allowance (Zone 1)", "Domestic Daily Allowance (Zone 2)"]
+
+
+def test_an_overseas_trip_counts_the_overseas_allowance_without_a_destination():
+    e = _trip(overseas=True)
+    assert [(l.category, l.subtotal) for l in e.lines] == [("Overseas Daily Allowance", 480)]
+    assert e.missing == []

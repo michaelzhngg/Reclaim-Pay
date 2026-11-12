@@ -12,7 +12,7 @@ const pre: LimitRule = { ...cap, category: "Equipment", kind: "PRE_APPROVAL", un
 const base: SpendCheckResult = {
   verdict: "WITHIN", category: "Accommodations", quantity: 1, zone: null, cap, pre_approval: null,
   limit_total: 400, reimbursable_up_to: 380, employee_pays: null, policy_title: "Demo travel policy", currency: "MYR",
-  zone_place: null,
+  zone_place: null, zone_implied: false, zone_places: [], hint: null,
 };
 
 describe("verdictMessage", () => {
@@ -109,7 +109,7 @@ describe("trip wording", () => {
     total_up_to: 600, has_actual_cost: true,
     missing: ["Intercity Transport", "Parking", "Laundry"],
     missing_reasons: { "Intercity Transport": "NEED_DESTINATION", Parking: "PLACE_NOT_LISTED", Laundry: "GRADE_NOT_LISTED" },
-    currency: "MYR", zone_place: "Ipoh",
+    currency: "MYR", zone_place: "Ipoh", limits_pending: false,
   };
 
   it("sums up the trip", () => {
@@ -197,5 +197,33 @@ describe("asking the policy", () => {
 
   it("explains a message with several questions", () => {
     expect(askErrorMessage("ONE_QUESTION", 422)).toBe(ONE_QUESTION_MESSAGE);
+  });
+});
+
+
+describe("inputs that don't fit the limits", () => {
+  it("a domestic limit on an overseas trip says how to see it", () => {
+    const r = { ...base, verdict: "WRONG_TRIP_TYPE" as const, cap: null, limit_total: null, hint: "DOMESTIC" };
+    expect(verdictMessage(r).text).toBe(
+      "This limit is only for domestic trips. If this trip is domestic, untick Travelling overseas. Otherwise HR checks the cost against the policy wording.",
+    );
+  });
+
+  it("a place in another zone names the category to pick", () => {
+    const r = { ...base, verdict: "OTHER_ZONE" as const, zone: "2", hint: "Domestic Daily Allowance (Zone 2)" };
+    expect(verdictMessage(r)).toEqual({
+      tone: "warn",
+      text: "That place is in zone 2, and this limit is for other places. Pick Domestic Daily Allowance (Zone 2) instead.",
+    });
+  });
+
+  it("unconfirmed limits say HR hasn't confirmed them", () => {
+    expect(verdictMessage({ ...base, verdict: "LIMITS_PENDING" as const }).text)
+      .toBe("HR hasn't confirmed the limits for this yet. Ask HR before you spend.");
+  });
+
+  it("an assumed zone lists the places it covers", () => {
+    expect(zoneText("1", null, ["Ipoh", "Kuala Lumpur"])).toBe("For zone 1 places: Ipoh, Kuala Lumpur.");
+    expect(zoneText("2", null, ["*"])).toBe("For zone 2 places: everywhere not listed in the policy.");
   });
 });

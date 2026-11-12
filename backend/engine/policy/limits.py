@@ -84,6 +84,8 @@ class Verdict(str, Enum):
     NEED_DESTINATION = "NEED_DESTINATION"
     PLACE_NOT_LISTED = "PLACE_NOT_LISTED"  # a destination was given but no zone lists it
     GRADE_NOT_LISTED = "GRADE_NOT_LISTED"
+    WRONG_TRIP_TYPE = "WRONG_TRIP_TYPE"    # limits exist, but only for the other of domestic or overseas
+    OTHER_ZONE = "OTHER_ZONE"              # the destination is in a zone this category has no limit for
 
 
 class SpendCheck(BaseModel):
@@ -96,6 +98,8 @@ class SpendCheck(BaseModel):
     limit_total: float | None = None
     reimbursable_up_to: float | None = None
     employee_pays: float | None = None
+    zone_implied: bool = False   # every limit for this category is in one zone, so no destination was needed
+    hint: str | None = None      # WRONG_TRIP_TYPE: the scope the limits are for; OTHER_ZONE: a category that covers the zone
 
 
 class TripLine(BaseModel):
@@ -190,24 +194,52 @@ def applicable_rules(rules: list[LimitRule], *, category: str, grade: int | None
     return sorted(hits, key=_rank)
 
 
+def _only_zone(rules: list[LimitRule]) -> str | None:
+    """The zone when every rule names the same one, else None."""
+    zones = {_norm(r.zone) for r in rules if r.zone is not None}
+    return rules[0].zone if len(zones) == 1 and all(r.zone is not None for r in rules) else None
+
+
+def _category_for_zone(rules: list[LimitRule], *, category: str, grade: int | None,
+                       scope: TravelScope, zone: str) -> str | None:
+    """Another category with a limit for this zone, preferring the one whose name shares most words."""
+    words = set(_norm(category).split())
+    names = {r.category for r in rules if not same_category(r.category, category) and _grade_ok(r, grade)
+             and r.scope in (TravelScope.ANY, scope) and r.zone is not None and _norm(r.zone) == _norm(zone)}
+    return max(sorted(names), key=lambda n: len(words & set(_norm(n).split())), default=None)
+
+
 def check_spend(rules: list[LimitRule], places: list[ZonePlace], *, category: str, grade: int | None,
-                overseas: bool, destination: str | None, amount: float | None, quantity: int = 1) -> SpendCheck:
+                overseas: bool, destination: str | None, amount: float | None, quantity: int = 1,
+                imply_zone: bool = True) -> SpendCheck:
     quantity = max(1, quantity)
     scope = TravelScope.OVERSEAS if overseas else TravelScope.DOMESTIC
     zone = zone_for(places, destination)
     base = {"category": category, "quantity": quantity, "zone": zone}
 
-    in_scope = [r for r in rules if same_category(r.category, category) and r.scope in (TravelScope.ANY, scope)]
-    if not in_scope:
+    in_category = [r for r in rules if same_category(r.category, category)]
+    in_scope = [r for r in in_category if r.scope in (TravelScope.ANY, scope)]
+    if not in_category:
         return SpendCheck(verdict=Verdict.NO_LIMIT, **base)
+    if not in_scope:
+        other = TravelScope.DOMESTIC if overseas else TravelScope.OVERSEAS
+        return SpendCheck(verdict=Verdict.WRONG_TRIP_TYPE, hint=other.value, **base)
+    # Grade first: asking for a destination is pointless when no row lists this grade anyway.
+    mine = [r for r in in_scope if _grade_ok(r, grade)]
+    if not mine:
+        return SpendCheck(verdict=Verdict.GRADE_NOT_LISTED, **base)
+    only = _only_zone(mine)
+    if zone is None and only is not None and imply_zone and not (destination and destination.strip()):
+        zone = only
+        base.update(zone=zone, zone_implied=True)
     hits = applicable_rules(in_scope, category=category, grade=grade, scope=scope, zone=zone)
     if not hits:
-        # Grade first: asking for a destination is pointless when no row lists this grade anyway.
-        if not any(_grade_ok(r, grade) for r in in_scope):
-            return SpendCheck(verdict=Verdict.GRADE_NOT_LISTED, **base)
-        if zone is None and any(r.zone is not None for r in in_scope):
+        if zone is None and any(r.zone is not None for r in mine):
             typed = bool(destination and destination.strip())
             return SpendCheck(verdict=Verdict.PLACE_NOT_LISTED if typed else Verdict.NEED_DESTINATION, **base)
+        if zone is not None and any(r.zone is not None for r in mine):
+            hint = _category_for_zone(rules, category=category, grade=grade, scope=scope, zone=zone)
+            return SpendCheck(verdict=Verdict.OTHER_ZONE, hint=hint, **base)
         return SpendCheck(verdict=Verdict.NO_LIMIT, **base)
 
     cap = next((r for r in hits if r.kind == LimitKind.CAP), None)
@@ -251,10 +283,18 @@ def estimate_trip(rules: list[LimitRule], places: list[ZonePlace], *, grade: int
     lines: list[TripLine] = []
     other: list[LimitRule] = []
     missing: list[str] = []
+    # Zone-split categories (one per zone) would all count without a destination, so only the
+    # catch-all zone is assumed, and only abroad, where the listed places don't apply.
+    catch_all = next((p.zone for p in places if p.place.strip() == "*"), None)
     for category in _categories(rules):
+        only = _only_zone([r for r in rules if same_category(r.category, category) and _grade_ok(r, grade)])
+        imply = overseas and only is not None and catch_all is not None and _norm(only) == _norm(catch_all)
         c = check_spend(rules, places, category=category, grade=grade, overseas=overseas,
-                        destination=destination, amount=None)
-        if c.verdict in (Verdict.NEED_DESTINATION, Verdict.PLACE_NOT_LISTED, Verdict.GRADE_NOT_LISTED):
+                        destination=destination, amount=None, imply_zone=imply)
+        if c.verdict == Verdict.WRONG_TRIP_TYPE or (c.verdict == Verdict.OTHER_ZONE and c.hint):
+            continue  # the other trip type, or another category, covers it
+        if c.verdict in (Verdict.NEED_DESTINATION, Verdict.PLACE_NOT_LISTED, Verdict.GRADE_NOT_LISTED,
+                         Verdict.OTHER_ZONE):
             missing.append(category)
             continue
         cap = c.cap

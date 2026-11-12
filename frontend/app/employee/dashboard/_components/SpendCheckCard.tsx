@@ -170,7 +170,7 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
 
   const message = result ? verdictMessage(result) : null;
   const rule = result?.cap ?? result?.pre_approval;
-  const costZone = result ? zoneText(result.zone, result.zone_place) : null;
+  const costZone = result ? zoneText(result.zone, result.zone_place, result.zone_places) : null;
   const tripZone = trip ? zoneText(trip.zone, trip.zone_place) : null;
   const hint = MODES.find((m) => m.mode === mode)!.hint;
 
@@ -202,7 +202,7 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
 
       {options && mode === "cost" && (
         <form onSubmit={onCost} noValidate className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className={LABEL}>
+          <label className={`${LABEL} lg:col-span-2`}>
             What for
             <Select required value={category} onChange={(e) => editCost(setCategory)(e.target.value)} className={FIELD}>
               <option value="">Pick a category</option>

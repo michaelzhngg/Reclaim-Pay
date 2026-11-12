@@ -14,6 +14,7 @@ export const GUIDANCE_NOTE = "Guidance, not an approval. The decision is made wh
 export type SpendTone = "ok" | "warn" | "info";
 
 const PLACE_NOT_LISTED = "We couldn't match that place to a zone in the policy. Ask HR which rate applies.";
+const LIMITS_PENDING = "HR hasn't confirmed the limits for this yet. Ask HR before you spend.";
 const NO_RESPONSE = "Couldn't reach Reclaim. Check your connection and try again.";
 
 const COUNT: Record<LimitUnit, [string, string] | null> = {
@@ -83,16 +84,37 @@ export function verdictMessage(r: SpendCheckResult): { tone: SpendTone; text: st
       return { tone: "warn", text: "The policy doesn't list a limit for your grade. Ask HR before you spend." };
     case "NOT_COVERED":
       return { tone: "warn", text: "This isn't in any company policy, so it may not be reimbursed. Ask HR first." };
+    case "LIMITS_PENDING":
+      return { tone: "info", text: LIMITS_PENDING };
+    case "WRONG_TRIP_TYPE":
+      return r.hint === "OVERSEAS"
+        ? { tone: "info", text: "This limit is only for overseas trips. If this trip is overseas, tick Travelling overseas." }
+        : {
+          tone: "info",
+          text: "This limit is only for domestic trips. If this trip is domestic, untick Travelling overseas. Otherwise HR checks the cost against the policy wording.",
+        };
+    case "OTHER_ZONE": {
+      const where = r.zone ? `That place is in zone ${r.zone}, and this limit is for other places.` : "This limit is for other places.";
+      return { tone: "warn", text: r.hint ? `${where} Pick ${r.hint} instead.` : `${where} Ask HR which rate applies.` };
+    }
   }
 }
 
 /** "Zone 2 rate (everywhere else)", so an employee can spot a wrong place match. null when no zoned rate applied. */
-export function zoneText(zone: string | null, place: string | null): string | null {
-  if (zone === null || place === null) return null;
+export function zoneText(zone: string | null, place: string | null, places: string[] = []): string | null {
+  if (zone === null) return null;
+  if (places.length > 0) {
+    const list = places[0] === "*" ? "everywhere not listed in the policy" : `${places.join(", ")}`;
+    return `For zone ${zone} places: ${list}.`;
+  }
+  if (place === null) return null;
   return `Zone ${zone} rate (${place === "*" ? "everywhere else" : place})`;
 }
 
 export function tripSummary(est: TripEstimate): string {
+  if (est.lines.length === 0 && est.limits_pending) {
+    return "HR hasn't confirmed this policy's daily and nightly limits yet. Ask HR before you spend.";
+  }
   if (est.lines.length === 0) {
     return est.nights === 0
       ? "A same-day trip has no overnight stay, so no lodging limit applies."
@@ -116,6 +138,7 @@ const MISSING_NOTE: Partial<Record<SpendVerdict, (categories: string) => string>
   NEED_DESTINATION: (c) => `Add where you're going to include ${c}.`,
   PLACE_NOT_LISTED: (c) => `Not included: ${c}. ${PLACE_NOT_LISTED}`,
   GRADE_NOT_LISTED: (c) => `Not included: ${c}. The policy doesn't list a limit for your grade. Ask HR.`,
+  OTHER_ZONE: (c) => `Not included: ${c}. Its limits are for places in another zone. Ask HR which rate applies.`,
 };
 
 export function tripNotes(est: TripEstimate): string[] {

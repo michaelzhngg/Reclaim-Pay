@@ -12,6 +12,8 @@ from engine.policy.limits import (
 from engine.services import policy_limits_store as store
 
 NOT_COVERED = "NOT_COVERED"
+LIMITS_PENDING = "LIMITS_PENDING"  # HR hasn't confirmed this category's suggested limits yet
+MAX_ZONE_PLACES = 6
 
 
 class CategoryOption(BaseModel):
@@ -35,6 +37,7 @@ class SpendCheckOut(SpendCheck):
     policy_title: str | None = None
     currency: str = "MYR"
     zone_place: str | None = None  # the listed place that set the zone, "*" for the policy's default zone
+    zone_places: list[str] = Field(default_factory=list)  # when the zone was assumed: places it covers, ["*"] for everywhere else
 
 
 class TripIn(BaseModel):
@@ -48,6 +51,7 @@ class TripOut(TripEstimate):
     currency: str = "MYR"
     missing_reasons: dict[str, str] = Field(default_factory=dict)  # category -> the verdict that left it out
     zone_place: str | None = None
+    limits_pending: bool = False  # nothing counted because HR hasn't confirmed the policy's suggested limits
 
 
 def _policy_categories(db: Session) -> list[tuple[str, str]]:
@@ -69,6 +73,12 @@ def _zone_place(places: list[ZonePlace], destination: str | None, zone: str | No
     listed = sorted((p for p in places if p.place.strip() != "*" and p.zone == zone),
                     key=lambda p: len(p.place), reverse=True)
     return next((p.place for p in listed if zone_for([p], destination) == zone), "*")
+
+
+def _places_in(places: list[ZonePlace], zone: str) -> list[str]:
+    names = [p.place for p in places if p.zone == zone]
+    named = sorted((n for n in names if n.strip() != "*"), key=str.casefold)
+    return named[:MAX_ZONE_PLACES] if named else ["*"] if names else []
 
 
 def _currency(rules: list[LimitRule]) -> str:
@@ -100,11 +110,16 @@ def check_cost(db: Session, grade: int | None, body: SpendCheckIn) -> SpendCheck
     result = check_spend(rules, places, category=match[0], grade=grade, overseas=body.overseas,
                          destination=body.destination, amount=body.amount, quantity=body.quantity)
     rule = result.cap or result.pre_approval
+    verdict = result.verdict.value
+    if verdict == "NO_LIMIT" and any(same_category(c, match[0]) for c in store.pending_categories(db)):
+        verdict = LIMITS_PENDING
     # Name the zone only when a zoned rule set the rate; an overseas or flat rate ignores it.
     zoned = rule is not None and rule.zone is not None
-    return SpendCheckOut(**{**result.model_dump(), "verdict": result.verdict.value},
+    implied = zoned and result.zone_implied
+    return SpendCheckOut(**{**result.model_dump(), "verdict": verdict},
                          policy_title=match[1], currency=rule.currency if rule else _currency(rules),
-                         zone_place=_zone_place(places, body.destination, result.zone) if zoned else None)
+                         zone_place=_zone_place(places, body.destination, result.zone) if zoned and not implied else None,
+                         zone_places=_places_in(places, result.zone) if implied else [])
 
 
 def plan_trip(db: Session, grade: int | None, body: TripIn) -> TripOut:
@@ -115,9 +130,10 @@ def plan_trip(db: Session, grade: int | None, body: TripIn) -> TripOut:
 
     def check(category: str) -> SpendCheck:
         return check_spend(rules, places, category=category, grade=grade, overseas=body.overseas,
-                           destination=body.destination, amount=None)
+                           destination=body.destination, amount=None, imply_zone=False)
 
     reasons = {category: check(category).verdict.value for category in est.missing}
     zoned = any((cap := check(line.category).cap) is not None and cap.zone is not None for line in est.lines)
     return TripOut(**est.model_dump(), currency=_currency(rules), missing_reasons=reasons,
-                   zone_place=_zone_place(places, body.destination, est.zone) if zoned else None)
+                   zone_place=_zone_place(places, body.destination, est.zone) if zoned else None,
+                   limits_pending=not est.lines and not est.missing and bool(store.pending_categories(db)))
