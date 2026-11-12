@@ -194,3 +194,33 @@ def test_a_check_firing_twice_on_one_document_counts_once(pg_db):
     after = _cam(pg_db)
     assert after.fired - before.fired == 1 and after.false_alarm - before.false_alarm == 1
 
+
+def test_simultaneous_first_reviews_update_instead_of_failing(pg_db, monkeypatch):
+    from main import app
+
+    pg_db.exec(text("DELETE FROM agent_actions"))
+    first, second, emp = _user(pg_db), _user(pg_db), _user(pg_db, UserRole.Employee)
+    r = _claim(pg_db, emp)
+    # The first reviewer's row lands after the second request looked and found nothing.
+    pg_db.add(SignalReview(reim_id=r.reim_id, signal_code="NO_CAMERA_METADATA", document_key="doc-1",
+                           verdict=SignalVerdict.CONFIRMED, reviewed_by=first.user_id, created_at=NOW, updated_at=NOW))
+    pg_db.commit()
+    real, calls = svc._existing_review, []
+
+    def missed_once(*args, **kwargs):
+        calls.append(1)
+        return None if len(calls) == 1 else real(*args, **kwargs)
+
+    monkeypatch.setattr(svc, "_existing_review", missed_once)
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: second
+    try:
+        res = TestClient(app).put(f"/api/v1/reimbursements/{r.reim_id}/signal-reviews",
+                                  json={"signal_code": "NO_CAMERA_METADATA", "document_id": "doc-1", "verdict": "FALSE_ALARM"})
+    finally:
+        app.dependency_overrides.clear()
+    assert res.status_code == 200 and res.json()["verdict"] == "FALSE_ALARM" and len(calls) == 2
+    rows = svc.reviews_for(pg_db, r.reim_id)
+    assert len(rows) == 1 and rows[0].reviewed_by == second.user_id
+    (logged,) = _logged(pg_db)
+    assert logged.payload["previous"] == {"verdict": "CONFIRMED", "reviewed_by": str(first.user_id)}

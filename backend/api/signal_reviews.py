@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 
 from api import deps
@@ -25,7 +26,12 @@ def _claim(db: Session, reim_id: UUID) -> Reimbursement:
 def review_signal(reim_id: UUID, body: svc.SignalReviewIn, db: Session = Depends(deps.get_db),
                   current_user: User = Depends(deps.get_current_hr_user)):
     try:
-        row = svc.record_review(db, _claim(db, reim_id), current_user, body, datetime.now(timezone.utc))
+        try:
+            row = svc.record_review(db, _claim(db, reim_id), current_user, body, datetime.now(timezone.utc))
+        except IntegrityError:
+            # Another HR user saved the first answer at the same moment; retrying updates their row instead.
+            db.rollback()
+            row = svc.record_review(db, _claim(db, reim_id), current_user, body, datetime.now(timezone.utc))
     except svc.ReviewError as e:
         db.rollback()
         raise HTTPException(status_code=_STATUS[e.code], detail=e.code)
