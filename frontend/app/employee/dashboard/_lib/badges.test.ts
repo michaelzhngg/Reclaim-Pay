@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { TrustInfo } from "@/lib/api/reclaim-pay-types";
 import { trustVariants } from "@/src/mocks/reclaimPayFixtures";
-import { badgeArcLabel, badgeLevels, badgeProgress, badgeStatusLine, resolveLevels } from "./badges";
+import { badgeArcLabel, badgeLevels, badgeProgress, badgeStatusLine, badgeAt, lockedBadgeHint, resolveLevels } from "./badges";
 import { correctionRuleLine, EXPLAINER_INTRO, EXPLAINER_OPEN_NOTICE_LINE, recentChangeLines } from "./copy";
 
 const levels: TrustInfo["levels"] = [
@@ -104,5 +104,23 @@ describe("fairness", () => {
       ].filter(line => line !== reason);
       for (const line of copy) expect(line).not.toMatch(banned);
     }
+  });
+});
+
+describe("badge carousel", () => {
+  it("marks each badge as current, unlocked or locked", () => {
+    expect(badgeAt(silver, "NEW")).toEqual({ tier: "NEW", limit: 50, state: "unlocked" });
+    expect(badgeAt(silver, "STANDARD")).toEqual({ tier: "STANDARD", limit: 100, state: "current" });
+    expect(badgeAt(silver, "TRUSTED")).toEqual({ tier: "TRUSTED", limit: 200, state: "locked" });
+  });
+  it("tells the employee how many approved claims reach a locked badge", () => {
+    expect(lockedBadgeHint(silver, "TRUSTED")).toBe("4 more approved claims to reach Gold (MYR 200).");
+    expect(lockedBadgeHint({ ...silver, claims_to_next_tier: 1 }, "TRUSTED")).toBe("1 more approved claim to reach Gold (MYR 200).");
+    expect(lockedBadgeHint(bronze, "TRUSTED")).toBe("Reach Silver first, then 7 more approved claims to reach Gold (MYR 200).");
+    expect(lockedBadgeHint(silver, "NEW")).toBeNull();
+    expect(lockedBadgeHint(gold, "TRUSTED")).toBeNull();
+  });
+  it("explains the wait once the claims are met but the limit is held back", () => {
+    expect(lockedBadgeHint(held, "STANDARD")).toBe(`You have the approved claims for Silver (MYR 100). ${reason}`);
   });
 });

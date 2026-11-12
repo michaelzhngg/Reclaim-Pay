@@ -90,6 +90,53 @@ export function badgeStatusLine(info: TrustInfo): string {
     : `You have the approved claims for ${next}.`;
 }
 
+export type BadgeState = "current" | "unlocked" | "locked";
+
+export interface BadgeSlot {
+  tier: TrustTier;
+  limit: number;
+  state: BadgeState;
+}
+
+/** A badge as seen from the employee's current level: theirs, already passed, or still locked. */
+export function badgeAt(info: TrustInfo, tier: TrustTier): BadgeSlot {
+  const levels = resolveLevels(info);
+  const diff = TIER_ORDER.indexOf(tier) - TIER_ORDER.indexOf(info.trust_tier);
+  return {
+    tier,
+    limit: levels.find(l => l.tier === tier)!.auto_limit,
+    state: diff === 0 ? "current" : diff < 0 ? "unlocked" : "locked",
+  };
+}
+
+/**
+ * How to reach a locked badge. The next badge uses the live count:
+ * "4 more approved claims to reach Gold (MYR 200)." A badge further up says which comes first:
+ * "Reach Silver first, then 7 more approved claims to reach Gold (MYR 200)."
+ */
+export function lockedBadgeHint(info: TrustInfo, tier: TrustTier): string | null {
+  if (badgeAt(info, tier).state !== "locked") return null;
+  if (tier === info.next_tier) return nextBadgeHint(info);
+  const levels = resolveLevels(info);
+  const next = info.next_tier ?? TIER_ORDER[TIER_ORDER.indexOf(info.trust_tier) + 1];
+  const gap = Math.max(1, threshold(levels, tier) - threshold(levels, next));
+  const target = `${badgeName(tier)} (${formatLimit(info.currency || "MYR", badgeAt(info, tier).limit)})`;
+  return `Reach ${badgeName(next)} first, then ${claimsText(gap)} to reach ${target}.`;
+}
+
+/**
+ * Shown when the employee taps the next badge: "4 more approved claims to reach Gold (MYR 200)."
+ * Null at the top level, where there is no next badge.
+ */
+export function nextBadgeHint(info: TrustInfo): string | null {
+  const next = nextBadgeText(info);
+  if (isTopTier(info) || !next) return null;
+  const { done, total } = badgeProgress(info);
+  const left = total - done;
+  if (left > 0) return `${claimsText(left)} to reach ${next}.`;
+  return [`You have the approved claims for ${next}.`, trustReasonLine(info)].filter(Boolean).join(" ");
+}
+
 /** Accessible name for the arc: "3 of 7 approved claims toward Gold". */
 export function badgeArcLabel(info: TrustInfo): string {
   const p = badgeProgress(info);
