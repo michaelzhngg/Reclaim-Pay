@@ -23,11 +23,12 @@ async function fetchRecoveries(): Promise<HRRecovery[]> {
   return recoveries;
 }
 
-export default function RecoveriesTab({ onOpenAudit }: { onOpenAudit: () => void }) {
+export default function RecoveriesTab({ onOpenAudit, onLoaded }: { onOpenAudit: () => void; onLoaded?: () => void }) {
   const { toast } = useToast();
   const { data, isLoading, error, retry, refresh } = useTabData(
     fetchRecoveries,
     "Couldn't load recoveries. Check your connection and try again.",
+    onLoaded,
   );
   const [previewing, setPreviewing] = useState<HRRecovery | null>(null);
   const [waiving, setWaiving] = useState<HRRecovery | null>(null);

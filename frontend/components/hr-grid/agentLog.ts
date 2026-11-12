@@ -18,6 +18,8 @@ const ACTION_LABEL: Record<string, string> = {
   HR_APPROVAL: "HR approved",
   PAYEE_LINKED: "PayPal account linked",
   SIGNAL_REVIEWED: "Check rated",
+  WEBHOOK_DEAD_LETTER: "PayPal event dead-lettered",
+  WEBHOOK_RETRY: "PayPal event retried",
 };
 
 const VERDICT_LABEL: Record<string, string> = { CONFIRMED: "Real problem", FALSE_ALARM: "False alarm" };

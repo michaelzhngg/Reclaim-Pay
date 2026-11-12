@@ -24,7 +24,7 @@ const POLL_MS = 5000;
 
 const STATUS_OPTIONS = Object.keys(STATUS_META) as PayoutStatus[];
 
-export default function LedgerTab() {
+export default function LedgerTab({ onLoaded }: { onLoaded?: () => void }) {
   const [rows, setRows] = useState<PayoutLedgerRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [ledgerLoaded, setLedgerLoaded] = useState(false);
@@ -49,6 +49,10 @@ export default function LedgerTab() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (ledgerLoaded) onLoaded?.();
+  }, [ledgerLoaded, onLoaded]);
 
   const inFlight = hasInFlight(rows);
 

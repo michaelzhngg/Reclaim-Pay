@@ -10,7 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import type { ClaimSummary, DashboardStats } from "@/lib/api/types";
 import type { Recovery, TrustInfo } from "@/lib/api/reclaim-pay-types";
 
-import StatSummary       from "./_components/StatSummary";
+import PayoutPanel       from "./_components/PayoutPanel";
 import RecentClaimsTable from "./_components/RecentClaimsTable";
 import PayPalStatusChip  from "./_components/PayPalStatusChip";
 import AccountStatus     from "./_components/AccountStatus";
@@ -36,7 +36,7 @@ export default function EmployeeDashboardPage() {
   // null while loading, so the empty state never flashes before data arrives
   const [claims, setClaims] = useState<ClaimSummary[] | null>(null);
   const [today, setToday] = useState("");
-  // undefined while loading, null when the endpoint failed: both cards then stay hidden
+  // undefined while loading, null when the endpoint failed: the badge and notices then stay hidden
   const [trust, setTrust] = useState<TrustInfo | null | undefined>(undefined);
   const [recoveries, setRecoveries] = useState<Recovery[] | null | undefined>(undefined);
   const [linkedRecoveryId, setLinkedRecoveryId] = useState<string | null>(null);
@@ -101,10 +101,10 @@ export default function EmployeeDashboardPage() {
       {/* Inline, after the first claim, so it never covers content. */}
       <PushInlinePrompt hasSubmittedClaim={!!claims && claims.length > 0} className="mb-6" />
 
-      {/* Fast-track and overpayment notices sit under the PayPal chip, except on
-          first run, where they follow the upload prompt so it stays in view on phones. */}
+      {/* Overpayment notices sit under the PayPal chip, except on first run,
+          where they follow the upload prompt so it stays in view on phones. */}
       {!isEmpty && (
-        <AccountStatus trust={trust} recoveries={recoveries} linkedRecoveryId={linkedRecoveryId} className="mb-6 md:mb-10" />
+        <AccountStatus recoveries={recoveries} linkedRecoveryId={linkedRecoveryId} className="mb-6 md:mb-10" />
       )}
 
       {isEmpty ? (
@@ -129,8 +129,8 @@ export default function EmployeeDashboardPage() {
         </section>
       ) : (
         <>
-          {/* ── 2. Totals: one lead figure, two quieter ones ── */}
-          <StatSummary stats={stats} />
+          {/* ── 2. Instant-payout badge and totals in one panel ── */}
+          <PayoutPanel trust={trust} stats={stats} className="mb-6 md:mb-10" />
 
           {/* ── 3. Recent Claims ──────────────────── */}
           <RecentClaimsTable claims={claims} />
@@ -138,7 +138,10 @@ export default function EmployeeDashboardPage() {
       )}
 
       {isEmpty && (
-        <AccountStatus trust={trust} recoveries={recoveries} linkedRecoveryId={linkedRecoveryId} className="mt-6 max-w-xl md:max-w-none" />
+        <>
+          <PayoutPanel trust={trust} stats={null} showTotals={false} className="mt-6 max-w-xl" />
+          <AccountStatus recoveries={recoveries} linkedRecoveryId={linkedRecoveryId} className="mt-6 max-w-xl md:max-w-none" />
+        </>
       )}
 
       {/* ── 4. Check before you spend: after the claims, which stay this page's main job ── */}

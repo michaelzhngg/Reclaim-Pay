@@ -494,7 +494,6 @@ export interface DocumentChangeLogEntry {
 export interface AnalyzeRequest {
   settlement_id: string;
   document_ids?: string[];
-  is_auto_reimburse_enabled?: boolean;
 }
 
 /** Response for POST /api/v1/reimbursements/analyze. */

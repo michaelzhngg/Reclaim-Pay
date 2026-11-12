@@ -727,7 +727,8 @@ function CaptureReceiptContent() {
 
     if ("error" in result) {
       setStage("form");
-      setSubmitError(result.error);
+      // Back on the capture screen, which shows fileError (the submit error only shows on the verification step).
+      setFileError(result.error);
       return;
     }
 
@@ -813,12 +814,10 @@ function CaptureReceiptContent() {
       }
     }
 
-    // Run compliance analysis
-    const isAutoReimburseEnabled = localStorage.getItem("reclaim_auto_reimburse") === "true";
+    // Run compliance analysis. Whether a claim may auto-pay is decided on the server.
     const analyzeResult = await analyzeCompliance({
       settlement_id: settlementId,
       document_ids: documentIds,
-      is_auto_reimburse_enabled: isAutoReimburseEnabled,
     });
 
     if ("error" in analyzeResult) {
@@ -926,6 +925,8 @@ function CaptureReceiptContent() {
 
     if ("error" in result) {
       setSubmitError(result.error);
+      // The submit error only shows on the verification step; the capture screen shows fileError.
+      if (stage === "form") setFileError(result.error);
       return false;
     }
     setDraftSaved(true);

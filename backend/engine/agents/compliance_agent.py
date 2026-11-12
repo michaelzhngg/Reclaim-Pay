@@ -39,7 +39,7 @@ from engine.risk import queries
 from engine.risk.autonomy import breaker_should_trip, decide, limit_for, trust_tier
 from engine.risk.shield.fingerprint import amount_and_date
 from engine.risk.shield.market_price import channel3_search
-from engine.risk.shield.run import PriceCheck, ShieldDoc, run_shield, split_related
+from engine.risk.shield.run import PriceCheck, ShieldDoc, observed_signals, run_shield, split_related
 from engine.risk.timeline import SENT_TO_HR, decision_copy, employee_safe, make_step
 from engine.risk.types import (
     AutonomyDecision,
@@ -602,8 +602,26 @@ def _shield_docs(state: ComplianceWorkflowState, session: Session) -> List[Shiel
             change_summary=detect_changes(extracted, edited) if edited else {},
             stored_signals=[RiskSignal.model_validate(s) for s in (d.shield or {}).get("provenance", [])],
             fingerprint=fingerprint,
+            forensics=(d.shield or {}).get("forensics"),
         ))
     return out
+
+
+def _observations(state: ComplianceWorkflowState, session: Session) -> List[dict]:
+    """Observe-mode image forensics findings for HR. Stored beside the decision, never fed to decide()."""
+    mode = settings.IMAGE_FORENSICS_MODE
+    ids = _receipt_doc_ids(state)
+    if mode != "observe" or not ids:
+        return []
+    try:
+        # Savepoint: a failed read here must not poison the transaction that saves the claim.
+        with session.begin_nested():
+            docs = session.exec(select(SupportingDocument).where(SupportingDocument.document_id.in_(ids))).all()
+        shield_docs = [ShieldDoc(document_id=str(d.document_id), forensics=(d.shield or {}).get("forensics")) for d in docs]
+        return [s.model_dump(mode="json") for s in observed_signals(shield_docs, mode)]
+    except Exception:
+        logger.exception("[SAVE_REIMBURSEMENT] Could not read image forensics findings")
+        return []
 
 
 def _claim_lite(state: ComplianceWorkflowState, now: datetime) -> ClaimLite:
@@ -647,6 +665,7 @@ def receipt_shield(
         limit_for(config, trust_tier(history)),
         emit,
         price_check=_price_check(state),
+        forensics_mode=settings.IMAGE_FORENSICS_MODE,
     )
     logger.info("[RECEIPT_SHIELD] %d signal(s): %s", len(signals), [s.code.value for s in signals])
     return {"signals": [s.model_dump(mode="json") for s in signals]}
@@ -765,6 +784,11 @@ def save_reimbursement(
         emit(make_step("autonomy.decide", "done", SENT_TO_HR))
         raise
     auto_pay = decision.tier == AutonomyTier.AUTO_PAY
+    # Read after decide() and stored next to it, so an observe-mode finding can't reach the decision.
+    autonomy_record = decision.model_dump(mode="json")
+    observations = _observations(state, session)
+    if observations:
+        autonomy_record["observations"] = observations
     # Only decide() can approve. Every other tier, an AI rejection included, waits for HR.
     final_status = ReimbursementStatus.APPROVED if auto_pay else ReimbursementStatus.REVIEW
     reviewed_at = now if auto_pay else None
@@ -814,7 +838,7 @@ def save_reimbursement(
         summary=final_summary,
         tier=decision.tier.value,
         risk_score=decision.risk_score,
-        autonomy=decision.model_dump(mode="json"),
+        autonomy=autonomy_record,
         audit_selected=decision.audit_selected,
     )
 

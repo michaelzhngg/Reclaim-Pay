@@ -169,7 +169,10 @@ def test_unknown_payer_gets_a_plain_failure(client, pg_db, monkeypatch):
     assert res.status_code == 401 and res.json() == FAILURE
     assert len(pg_db.exec(select(User)).all()) == len(before)
     [action] = _actions(pg_db)
-    assert action.actor == "unknown" and action.payload == {"outcome": "rejected", "reason": "unknown_payer"}
+    assert action.actor == "unknown" and action.payload == {
+        "outcome": "rejected", "reason": "unknown_payer",
+        "verified": True, "verified_account": None, "email_verified": None,
+    }
 
 
 def test_email_match_is_never_used(client, pg_db, monkeypatch):

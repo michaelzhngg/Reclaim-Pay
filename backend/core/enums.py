@@ -32,6 +32,14 @@ class PayoutStatus(str, enum.Enum):
     REVERSED = "REVERSED"
 
 
+class WebhookEventStatus(str, enum.Enum):
+    RECEIVED = "RECEIVED"
+    PROCESSED = "PROCESSED"
+    IGNORED = "IGNORED"
+    FAILED = "FAILED"
+    DEAD_LETTER = "DEAD_LETTER"
+
+
 class RecoveryStatus(str, enum.Enum):
     NOTICE_SENT = "NOTICE_SENT"
     DISPUTED = "DISPUTED"
@@ -58,6 +66,26 @@ class AgentActionType(str, enum.Enum):
     PAYPAL_SIGNIN = "PAYPAL_SIGNIN"
     POLICY_LIMITS_CHANGED = "POLICY_LIMITS_CHANGED"
     SIGNAL_REVIEWED = "SIGNAL_REVIEWED"
+    POLICY_UPLOADED = "POLICY_UPLOADED"
+    POLICY_DEPRECATED = "POLICY_DEPRECATED"
+    POLICY_DELETED = "POLICY_DELETED"
+    POLICY_BUDGETS_CHANGED = "POLICY_BUDGETS_CHANGED"
+    WEBHOOK_DEAD_LETTER = "WEBHOOK_DEAD_LETTER"
+    WEBHOOK_RETRY = "WEBHOOK_RETRY"
+
+
+# Action types that record an HR settings change (D3 change history).
+AUTONOMY_SETTING_ACTIONS = (
+    AgentActionType.CONFIG_CHANGED,
+    AgentActionType.KILL_SWITCH,
+    AgentActionType.BREAKER_TRIPPED,
+)
+POLICY_SETTING_ACTIONS = (
+    AgentActionType.POLICY_UPLOADED,
+    AgentActionType.POLICY_DEPRECATED,
+    AgentActionType.POLICY_DELETED,
+    AgentActionType.POLICY_BUDGETS_CHANGED,
+)
 
 
 class JudgmentResult(str, enum.Enum):

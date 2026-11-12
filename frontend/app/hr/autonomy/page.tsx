@@ -34,6 +34,8 @@ import {
 import LimitsForm from "./_components/LimitsForm";
 import { KillSwitchDialog, SaveDialog } from "./_components/Dialogs";
 import SignalQualityTable from "./_components/SignalQualityTable";
+import { ChangeHistory } from "../hr_components/ChangeHistory";
+import { SETTINGS_HISTORY_TYPES } from "./_lib/settingsHistory";
 import { AUTONOMY_CHANGED_EVENT } from "../hr_components/AutonomyBanner";
 
 // AG Charts draws on a canvas, so it only renders in the browser.
@@ -548,6 +550,14 @@ export default function AutonomyPage() {
         </div>
 
         <SignalQualityTable />
+
+        <ChangeHistory
+          title="Change history"
+          description="Every change to these limits, the kill switch, the circuit breaker and policies: who, when, and why."
+          types={SETTINGS_HISTORY_TYPES}
+          currency={currency}
+          refreshKey={`${settings.version}-${settings.enabled}`}
+        />
       </div>
 
       <SaveDialog

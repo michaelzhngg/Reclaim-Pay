@@ -18,6 +18,7 @@ from core.enums import (
     RecoveryStatus,
     AgentActionType,
     LimitStatus,
+    WebhookEventStatus,
 )
 from core.enums import SignalVerdict
 
@@ -1042,4 +1043,212 @@ class AgentAction(SQLModel, table=True):
     )
     created_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+# ---------------------------------------------------------------------------
+# 21. ledger reconciliation
+# ---------------------------------------------------------------------------
+
+class ReconciliationRun(SQLModel, table=True):
+    """One comparison of our payout ledger with PayPal's transaction search."""
+
+    __tablename__ = "reconciliation_runs"
+
+    run_id: UUID = Field(default_factory=uuid4, primary_key=True)
+    trigger: str = Field(
+        default="schedule",
+        sa_column=Column(String, nullable=False)
+    )
+    started_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False, index=True)
+    )
+    finished_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True))
+    )
+    days: int = Field(
+        default=3,
+        sa_column=Column(Integer, nullable=False)
+    )
+    window_start: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    window_end: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    state: str = Field(
+        sa_column=Column(String, nullable=False)
+    )
+    reconciled: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False)
+    )
+    total: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False)
+    )
+    pending: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False)
+    )
+    differences_new: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False)
+    )
+    differences_open: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False)
+    )
+    data_through: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True))
+    )
+    mock: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False)
+    )
+    message: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text)
+    )
+    error: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String)
+    )
+    triggered_by: Optional[UUID] = Field(
+        default=None,
+        foreign_key="employees.user_id"
+    )
+
+
+class ReconciliationDifference(SQLModel, table=True):
+    """A payout missing from PayPal or a PayPal payment with no matching payout.
+
+    One open row per subject. A later run that matches it closes the row; HR can dismiss it.
+    """
+
+    __tablename__ = "reconciliation_differences"
+    __table_args__ = (
+        Index(
+            "uq_reconciliation_differences_open_payout",
+            "payout_id",
+            unique=True,
+            postgresql_where=text("resolved_at IS NULL AND payout_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_reconciliation_differences_open_transaction",
+            "transaction_id",
+            unique=True,
+            postgresql_where=text("resolved_at IS NULL AND transaction_id IS NOT NULL"),
+        ),
+        Index("ix_reconciliation_differences_open", "resolved_at", "kind"),
+    )
+
+    difference_id: UUID = Field(default_factory=uuid4, primary_key=True)
+    kind: str = Field(
+        sa_column=Column(String, nullable=False)
+    )
+    payout_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="payouts.payout_id",
+        index=True
+    )
+    reim_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="reimbursements.reim_id",
+        index=True
+    )
+    transaction_id: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String, index=True)
+    )
+    amount: float = Field(
+        sa_column=Column(Numeric(12, 2), nullable=False)
+    )
+    currency: str = Field(
+        sa_column=Column(String(3), nullable=False)
+    )
+    employee_name: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String)
+    )
+    occurred_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    first_seen_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    last_seen_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    first_run_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="reconciliation_runs.run_id"
+    )
+    last_run_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="reconciliation_runs.run_id"
+    )
+    resolved_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True))
+    )
+    resolution: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String)
+    )
+    resolved_by: Optional[UUID] = Field(
+        default=None,
+        foreign_key="employees.user_id"
+    )
+
+# ---------------------------------------------------------------------------
+# 23. paypal_webhook_events
+# ---------------------------------------------------------------------------
+
+class PayPalWebhookEvent(SQLModel, table=True):
+    """Verified PayPal deliveries, keyed by PayPal's event ID. The dead-letter queue is a status here."""
+    __tablename__ = "paypal_webhook_events"
+    __table_args__ = (Index("ix_paypal_webhook_events_status_updated_at", "status", "updated_at"),)
+
+    event_id: str = Field(
+        sa_column=Column(String(255), primary_key=True)
+    )
+    event_type: str = Field(
+        sa_column=Column(String(128), nullable=False, index=True)
+    )
+    # Payout item ID or invoice ID, best effort, for support lookup.
+    resource_id: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(255), index=True)
+    )
+    status: WebhookEventStatus = Field(
+        default=WebhookEventStatus.RECEIVED,
+        sa_column=Column(String, nullable=False, index=True)
+    )
+    attempts: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0")
+    )
+    error: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text)
+    )
+    payload: dict = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    processed_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True))
     )

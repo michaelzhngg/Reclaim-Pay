@@ -1,3 +1,6 @@
+from decimal import Decimal
+from typing import Literal
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -50,6 +53,17 @@ class Settings(BaseSettings):
     PAYPAL_ALLOW_UNVERIFIED_SANDBOX: bool = False
     # The only identity mock mode's fake PayPal reports at sign-in (the seeded demo employee). Empty turns it off.
     PAYPAL_MOCK_SIGNIN_PAYER_ID: str = "DEMOMOCKS123"
+    # Funding alert: HR is warned when the PayPal balance covers fewer than this many days of payouts.
+    FUNDING_ALERT_DAYS: int = 3
+    # Webhook handling: attempts before PayPal retries stop and HR owns the dead letter.
+    WEBHOOK_MAX_ATTEMPTS: int = 5
+    WEBHOOK_LEASE_MINUTES: int = 15
+    # Maintenance job: refresh non-final payouts untouched for this long, on this interval.
+    PAYOUT_STUCK_HOURS: int = 24
+    MAINTENANCE_INTERVAL_SECONDS: int = 3600
+    MAINTENANCE_JOB_ENABLED: bool = True
+    # The balance mock mode reports, in PAYPAL_CURRENCY.
+    PAYPAL_MOCK_BALANCE: Decimal = Decimal("25000.00")
     BACKEND_PUBLIC_URL: str = "http://localhost:8000"
     FRONTEND_PUBLIC_URL: str = "http://localhost:3000"
 
@@ -57,6 +71,10 @@ class Settings(BaseSettings):
     CHANNEL3_API_KEY: str = ""
     CHANNEL3_CATEGORIES: str = "Equipment,Office Supplies,IT Equipment"
     FX_TO_USD: float = 0.0
+
+    # Image forensics on uploaded receipts (pasted-in numbers). off: not run. observe: stored and shown to HR
+    # as information, 0 points, never feeds decide(). score: a MEDIUM signal like any other (never HIGH).
+    IMAGE_FORENSICS_MODE: Literal["off", "observe", "score"] = "observe"
 
     # Autonomous reimbursement — kill switch (set to false to force all claims through HR)
     AUTO_REIMBURSE_ENABLED: bool = True

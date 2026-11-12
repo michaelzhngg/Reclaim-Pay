@@ -43,6 +43,8 @@ class SignalCode(str, Enum):
     PRICE_ABOVE_MARKET = "PRICE_ABOVE_MARKET"
     NEAR_THRESHOLD = "NEAR_THRESHOLD"
     NO_CAMERA_METADATA = "NO_CAMERA_METADATA"
+    # Observe-only by default (IMAGE_FORENSICS_MODE): stored and shown to HR, kept out of decide().
+    IMAGE_FORENSICS = "IMAGE_FORENSICS"
 
 
 class HardStop(str, Enum):

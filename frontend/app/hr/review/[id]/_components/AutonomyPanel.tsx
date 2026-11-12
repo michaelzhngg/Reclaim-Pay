@@ -63,6 +63,7 @@ export function AutonomyPanel({
   const breakdown = scoreBreakdown(d);
   const stops = d.hard_stops ?? [];
   const signals = sortSignals(d.signals ?? []);
+  const observations = d.observations ?? [];
   const progress = approvalProgress(autonomy.approvals, autonomy.tier);
   const score = Math.max(0, Math.min(100, Math.round(autonomy.riskScore)));
   const showAiSummary = aiSummary && aiSummary !== d.explanation;
@@ -143,6 +144,23 @@ export function AutonomyPanel({
                   reimId={reimId}
                   review={reviewFor(reviews, s)}
                   viewerId={viewerId}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {observations.length > 0 && (
+          <div>
+            <h4 className={SUBHEAD}>Image checks (not scored)</h4>
+            <div className="flex flex-col gap-3">
+              {observations.map((s, i) => (
+                <SignalEvidence
+                  key={`${s.code}-${i}`}
+                  id={`observation-${i}`}
+                  signal={s}
+                  currency={autonomy.currency}
+                  observed
                 />
               ))}
             </div>

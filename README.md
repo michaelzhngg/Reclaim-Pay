@@ -58,7 +58,10 @@ The Receipt Shield is six fixed checks, plus one optional price check. None of t
 | Totals that don't add up | Compares line items with the printed total. | Generated and edited receipts often get the sums wrong. |
 | Split claims | Flags claims by one employee at one merchant on one day that are each under the limit but together over it, and claims just under a limit. | One bill can't be divided to slip past a cap. |
 | Edits | Flags amounts changed after the AI read them, and files saved by editing software. | Shows HR exactly what changed. |
+| Image check | Looks for a pasted-in or typed-over area, such as a changed total, by finding blocks with far less camera noise than the rest of the photo, plus a strict JPEG error-level check. Runs once at upload, well under a second for a phone photo. Observe-only by default (`IMAGE_FORENSICS_MODE=observe`): HR sees the finding marked "not scored", and it adds no points and changes no lane. | Edited photos reach HR with the suspect area named, without a new check that can misfire moving any claim the night it ships. |
 | Channel3 price check | Optional, and off without an API key. Flags an equipment line priced over 1.5 times the median of at least 3 market offers. | Inflated equipment prices reach HR with a market comparison. |
+
+Red-team suite: every PR runs 66 fake receipts across 7 attack families, plus 28 honest ones, through the shield and the lane decision. The build fails if any of the 42 must-catch fakes gets through or a family's catch rate drops. The other 24 fakes are known gaps, and 2 honest receipts are wrongly flagged today. Both lists are in [`backend/tests/redteam/README.md`](backend/tests/redteam/README.md).
 
 On the review page, HR marks each signal as a real problem or a false alarm. The Autonomy page then shows how accurate each check has been. A check's precision appears only after 10 rated cases, so a 1-of-1 "100%" never shows.
 
@@ -77,6 +80,7 @@ On the review page, HR marks each signal as a real problem or a false alarm. The
 | Kill switch | Stops all auto-pay at once. HR must give a reason, which is logged. | A person can stop the agent at any time. |
 | Circuit breaker | Pauses auto-pay for 60 minutes and alerts HR if 6 of the last 20 decisions are high-risk, or if over 50% of the daily budget (RM1,000 by default) was auto-paid in the last hour. | A fraud spike stops itself, even if nobody is watching. |
 | Hash-chained log | Keeps a tamper-evident record: each agent action stores a hash of the previous one, and the screen shows "Log intact" or "Log altered". | Editing a past entry breaks the chain. The chain can't detect deletion of the newest rows. |
+| Payouts: funding check | When HR opens Payouts, compares the PayPal balance with the average daily payout over the last 14 days and with approved claims not yet paid. If it covers fewer than 3 days, or can't cover what is owed, HR also gets an in-app alert, at most once a day. It is not a scheduled check. | HR can top up before a payout fails for lack of funds. Reading the balance needs "Transaction search" ticked under the PayPal app's features. |
 | Payouts: ledger | Lists every payout with status, and matches paid payouts to the company's PayPal ledger by amount and time ("Reconciled N of M"). | Finance can check the agent's record against PayPal's. |
 | Payouts: audit queue | Lists auto-paid claims picked for audit, with a "Record overpayment" action. | Auto-pay still gets a human check afterwards. |
 | Payouts: recoveries | Tracks each recovery, with invoice preview, send and waive. | Every collection step is a visible HR decision. |
@@ -124,6 +128,7 @@ The AI can never move money by itself, because no path in the product lets it.
 - **Receipts are data.** The prompts mark receipt text as untrusted, and a separate check scans that text for instructions.
 - **Only the payout service sends money,** and only after auto-pay from `decide()` or the required HR approvals.
 - **The one AI step near a PayPal call is the recovery note,** and that invoice goes out only after HR clicks send.
+- **Claim endpoints are rate-limited per employee:** analysis 5 a minute and 200 a day, receipt upload 10 a minute and 300 a day, draft saves 30 a minute, receipt edits 60 a minute. A throttled request gets a 429 with a `Retry-After` header and a plain message. The limits are in `backend/api/rate_limit.py`.
 
 ```mermaid
 flowchart TD

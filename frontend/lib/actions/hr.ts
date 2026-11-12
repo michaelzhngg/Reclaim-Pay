@@ -237,13 +237,18 @@ export async function getHRHistory(): Promise<HistoryClaim[]> {
     });
 }
 
-/** Fetch a single reimbursement by reim_id and map to ClaimBundle for detail view. */
+/**
+ * Fetch a single reimbursement by reim_id and map to ClaimBundle for detail view.
+ * Returns null when the claim doesn't exist (404, or an ID that isn't a UUID: 400/422).
+ * Throws on any other failure, so the page can offer a retry instead of "not found".
+ */
 export async function getHRClaimBundle(reimId: string): Promise<ClaimBundle | null> {
   const fixture = triageReimbursements.find((r) => r.reim_id === reimId);
   return withFixture(fixture ? mapToBundle(fixture) : null, async () => {
     const result = await apiGet<TriageSource>(`${API_PREFIX}/reimbursements/${reimId}`);
-    if (!result.data) return null;
-    return mapToBundle(result.data);
+    if (result.data) return mapToBundle(result.data);
+    if (result.status === 404 || result.status === 400 || result.status === 422) return null;
+    throw new Error(result.error ?? "Couldn't load the claim");
   });
 }
 

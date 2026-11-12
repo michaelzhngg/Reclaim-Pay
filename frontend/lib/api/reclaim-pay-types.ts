@@ -21,7 +21,8 @@ export type SignalCode =
   | "HUMAN_EDIT_MEDIUM"
   | "PRICE_ABOVE_MARKET"
   | "NEAR_THRESHOLD"
-  | "NO_CAMERA_METADATA";
+  | "NO_CAMERA_METADATA"
+  | "IMAGE_FORENSICS";
 
 export type HardStop =
   | "AUTONOMY_PAUSED"
@@ -61,6 +62,8 @@ export interface AutonomyDecision {
   explanation: string;
   audit_selected: boolean;
   config_version: number;
+  /** Observe-only findings (image forensics): stored beside the decision, never part of it. HR-only. */
+  observations?: RiskSignal[];
 }
 
 /** Step ids in the order the backend runs them. */
@@ -350,6 +353,10 @@ export type AgentActionType =
   | "KILL_SWITCH"
   | "BREAKER_TRIPPED"
   | "PAYOUT_CREATED"
+  | "POLICY_UPLOADED"
+  | "POLICY_DEPRECATED"
+  | "POLICY_DELETED"
+  | "POLICY_BUDGETS_CHANGED"
   | (string & {});
 
 /** One entry of the hash-chained agent log. */
@@ -357,6 +364,8 @@ export interface AgentAction {
   action_id: number;
   action_type: AgentActionType;
   actor: string;
+  /** The actor's display name, when the actor is a user who still exists. Older backends omit it. */
+  actor_name?: string | null;
   reim_id: string | null;
   payload: Record<string, unknown>;
   prev_hash?: string;
@@ -368,6 +377,72 @@ export interface AgentAction {
 export interface AgentActionsResult {
   chain_valid: boolean;
   actions: AgentAction[];
+}
+
+export type WebhookEventStatus = "RECEIVED" | "PROCESSED" | "IGNORED" | "FAILED" | "DEAD_LETTER";
+
+/** One row of the PayPal webhook ledger. The payload is never returned by the list endpoint. */
+export interface WebhookEvent {
+  event_id: string;
+  event_type: string;
+  resource_id: string | null;
+  status: WebhookEventStatus;
+  attempts: number;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+  processed_at: string | null;
+}
+
+export interface PayoutSweepReport {
+  checked: number;
+  refreshed: number;
+  changed: number;
+  still_open: number;
+  unrefreshable: number;
+  errors: number;
+  mock: boolean;
+  truncated: boolean;
+}
+
+export interface WebhookSweepReport {
+  checked: number;
+  processed: number;
+  dead_lettered: number;
+  errors: number;
+  truncated: boolean;
+}
+
+/** POST /payouts/maintenance/run */
+export interface MaintenanceReport {
+  started_at: string;
+  finished_at: string;
+  locked: boolean;
+  payouts: PayoutSweepReport;
+  webhooks: WebhookSweepReport;
+}
+
+/** GET /payouts/stuck */
+export interface StuckPayout {
+  payout_id: string;
+  reim_id: string;
+  claim_ref: string;
+  employee_name: string;
+  amount: number;
+  currency: string;
+  status: PayoutStatus;
+  provider_batch_id: string | null;
+  created_at: string;
+  updated_at: string;
+  age_hours: number;
+  refreshable: boolean;
+}
+
+export interface StuckPayouts {
+  older_than_hours: number;
+  checked_at: string;
+  mock: boolean;
+  payouts: StuckPayout[];
 }
 
 /** Formats an amount the way the backend writes it in notifications, e.g. "MYR 48.00". */
