@@ -6,6 +6,8 @@ The long-form source for most of this is [`DEVPOST.md`](DEVPOST.md). Its "Before
 
 **Team (12 Nov, evening):** the team reports that the form was submitted on 11 Nov. The repo holds no copy of the submitted text, so this file may differ from what Devpost shows. Since then the hosting text here was changed from the home server to Render, which matches `render.yaml`. Placeholders a person must fill are in square brackets.
 
+**Team (13 Nov):** updated for everything merged to `main` up to `db3d21a`: webhook replay ledger and dead-letter list (G3), daily reconciliation (G4), company-paid vendor bookings in mock mode (F2), contractors and currency payouts in mock mode (F5), locked spending caps, month-end report, HR invitations and employee editing, password reset, email notifications and dark theme. If the form is already submitted, paste the changed sections into Devpost's edit view before the deadline.
+
 ---
 
 # 1. Project overview
@@ -21,6 +23,12 @@ Reclaim Pay: AI expense claims, paid safely through PayPal
 ```
 An AI agent that reads expense receipts, spots fakes, and pays safe claims straight to employees' verified PayPal. Anything risky goes to HR with the evidence ready.
 ```
+
+## Thumbnail (JPG, PNG or GIF, 5 MB max, 3:2 ratio)
+
+Upload [`screenshots/00-thumbnail.png`](screenshots/00-thumbnail.png) (1800 x 1200, 3:2). It shows the wordmark, the line "Expense claims, paid to your PayPal." and the paid MYR 48 claim from the live site.
+
+**Team:** the thumbnail page source is not in the repo. To change the text, ask for it to be re-rendered.
 
 ---
 
@@ -51,13 +59,15 @@ A colleague submits a cropped copy of your receipt: it's matched to yours and go
 **Paying safely with PayPal**
 - **Four lanes:** auto-pay, quick HR approval, HR review, or two-person review, chosen by a risk score and 13 hard stops (unverified payee, over a limit, kill switch on, any high-risk signal, and more).
 - **Connect PayPal:** employees link their account through Log in with PayPal, so money only goes to a verified payer ID. Changing the account pauses auto-pay for 72 hours, which blocks a common account takeover trick.
-- **No double payment:** each payout's batch ID comes from the claim and attempt number, so a retry can't pay twice.
-- **Signed webhooks** confirm every payout, with a status refresh as a backup.
+- **No double payment:** each payout's batch ID comes from the claim and attempt number, so a retry can't pay twice. The employee's caps and the company's daily budget are locked while a claim is decided, so two claims at the same moment can't both slip under one cap.
+- **Signed webhooks** confirm every payout, with a status refresh as a backup. Each event ID is processed once, a failed event is retried up to 5 times and then parked in a dead-letter list HR can retry, and an hourly sweep re-checks any payout stuck for 24 hours.
+- **Company-paid bookings (mock mode):** an employee books a hotel or travel vendor and the company pays the vendor from its PayPal account, so nobody pays out of pocket. The same rule engine decides it, a new vendor account always goes to HR, and bookings are never batch-approved.
+- **Contractors and overseas staff (mock mode):** HR sets a contract with country, currency, rate and billable categories, and the contractor gets a limited portal for claims and invoices. Claims are converted at a locked FX quote for the rule engine, always go to HR until the contractor is Trusted, and are paid in the contract currency, one PayPal batch per currency. An MYR payout to a non-Malaysian account is refused before PayPal is called, because Malaysian accounts can only send MYR to Malaysian accounts.
 
 **Stopping fake receipts (the Receipt Shield)**
 - Hidden instructions aimed at the AI, including ones split by invisible characters.
 - Duplicates across all employees, even cropped or re-saved, by file hash and visual hash.
-- AI-image markers (C2PA), editing software and missing camera data.
+- Editing software and missing camera data, plus an early check for AI-image markers (C2PA) that we're still strengthening.
 - Totals that don't add up, split bills and amounts sitting just under a limit.
 - HR marks each signal as a real problem or a false alarm, and the Autonomy page shows how accurate each check has been. A check's precision appears only after 10 rated cases.
 
@@ -68,21 +78,25 @@ A colleague submits a cropped copy of your receipt: it's matched to yours and go
 - Policy limits as data: in Policy Studio, the AI reads an uploaded policy and proposes limits per category (unit, grade, zone or place, pre-approval thresholds). HR confirms or edits each row, and only confirmed limits are used. Each category takes its limits from the newest active policy, and Save is blocked while a limit edit is unconfirmed.
 - Policy questions: employees' questions with the date only and no name, the parts of the policy asked about most, and the questions the policy couldn't answer, which show where the policy has gaps.
 - A kill switch, a circuit breaker that pauses auto-pay when suspicious claims pile up, and a tamper-evident, hash-chained log of everything the agent does.
-- A payouts ledger with every PayPal payout, plus a check that compares payouts with the company's PayPal transaction history.
+- A payouts ledger with every PayPal payout, plus a check that compares payouts with the company's PayPal transaction history. A daily job repeats that check, stores every run and difference on a Reconciliation tab, and tells HR only about new differences.
+- A month-end report for finance: amount reimbursed, auto-pay rate, suspicious claims caught, amount recovered, and spend by category and team. Every number comes from SQL and links to its claims, and if the AI summary states a number that isn't in the figures, a template summary replaces it.
+- HR adds employees by invitation, so the employee sets their own password from an emailed link, and edits their details, role and access. Every change is logged, and HR can't lock the company out of its last HR account.
 
 **Fair to employees**
 - Nobody is rejected on the AI's word. Only a person can reject a claim.
 - Employees never see risk scores or which check fired, so honest staff aren't made to feel accused and fraudsters can't learn the checks.
 - A "Check before you spend" card checks one cost against the employee's own grade's confirmed limits, estimates the most a trip can be reimbursed, and answers policy questions. Each answer quotes the policy word for word, its numbers must appear in that quote, the question or the employee's own limits, questions are capped at 20 in any 24 hours, and policy text is treated as untrusted.
 - Overpayments get a notice and a 5-day dispute window, then a deduction from the next claim. A PayPal invoice goes out only after HR previews and approves it.
+- Employees get an email when money arrives, a payout fails, a notice is issued or their trust level changes, and a reminder a day before a dispute window closes.
+- A dark theme with a Light, Dark or System choice.
 
 ## How we built it
 
 - **Frontend:** Next.js, React and Tailwind for the employee and HR portals. AG Grid for HR tables, AG Charts for the back-test, Bryntum Calendar for the employee calendar.
 - **Backend:** FastAPI streams a live timeline while LangGraph agents read the receipt and judge it against the policy with Google Gemini 3.6 Flash, falling back to Gemini 3.1 Flash Lite through OpenRouter if a call fails. Policies live in PostgreSQL with pgvector for search.
 - **The safety boundary:** the AI produces a verdict and text, nothing else. Its only tools are a date lookup and a policy search. A plain, deterministic function, `decide()`, is the only code that can choose auto-pay, and the payout service only pays claims approved by that function or by HR. Receipt text is labeled as untrusted data before any model sees it.
-- **PayPal:** Payouts (REST) for paying claims, Log in with PayPal for verifying payees, signed webhooks for status, the PayPal Agent Toolkit for recovery invoices, and the PayPal Server SDK for Transaction Search reconciliation. Everything runs on the PayPal sandbox.
-- **Shipping:** Docker images on Render, an API service and a web service that deploy from `main` on each commit, a 91-request Postman collection run with Newman, and pytest and vitest suites that pin every rule threshold.
+- **PayPal:** Payouts (REST) for paying claims, Log in with PayPal for verifying payees, signed webhooks for status, the PayPal Agent Toolkit for recovery invoices, and the PayPal Server SDK for Transaction Search reconciliation. Everything runs on the PayPal sandbox, and vendor bookings and contractor payouts run in mock mode.
+- **Shipping:** Docker images on Render, an API service and a web service that deploy from `main` on each commit, plus a daily reconciliation cron. A 91-request Postman collection runs with Newman, and pytest and vitest suites pin every rule threshold. A red-team suite of 66 fake receipts runs on every PR. Email goes through Resend.
 
 Reclaim began in April 2026 as our expense review prototype. Everything about PayPal, the rule engine, the Receipt Shield and HR's controls is new for this hackathon.
 
@@ -91,8 +105,9 @@ Reclaim began in April 2026 as our expense review prototype. Everything about Pa
 - **Prompt injection through receipts.** No single defense was enough, so we built three: receipt text is wrapped as data, a fixed scanner looks for instructions after stripping invisible characters, and any injection signal forces two-person review.
 - **Duplicates that survive cropping.** A visual hash catches a cropped, re-saved copy, but receipts from one app look alike. A false match accuses someone of fraud, so a visual match must also agree on amount and date.
 - **Not leaking which check fired.** Hiding warnings wasn't enough, because a missing detail also tells the employee something. Every check now looks the same in the employee's view.
-- **Double payment.** Retries, duplicate webhooks and status refreshes can race. One update path never moves a final status backwards, and batch IDs only advance after a confirmed failure.
-- **Fitting PayPal's tools to the job.** The Server SDK doesn't cover Payouts, so payouts use our own REST client. The Agent Toolkit's invoice tool lacked fields we needed, so we send our full payload through the toolkit's client. Transaction Search can lag by hours, so reconciliation says "pending" instead of raising a false mismatch. Malaysian accounts can only send MYR to other Malaysian accounts [7], which moved overseas payouts to the roadmap.
+- **Double payment.** Retries, duplicate webhooks and status refreshes can race. One update path never moves a final status backwards, and batch IDs only advance after a confirmed failure. Each webhook event ID is stored once, after its signature is checked, so a replay is recognised and an attacker can't fill the list with fake IDs.
+- **Caps under load.** Two claims decided at the same moment could both read the same spending totals and both pass a cap. Database locks now hold the employee's totals, and the company budget for an auto-pay candidate, until the claim is saved.
+- **Fitting PayPal's tools to the job.** The Server SDK doesn't cover Payouts, so payouts use our own REST client. The Agent Toolkit's invoice tool lacked fields we needed, so we send our full payload through the toolkit's client. Transaction Search can lag by hours, so reconciliation says "pending" instead of raising a false mismatch. Malaysian accounts can only send MYR to other Malaysian accounts [7], so contractor payouts are funded from a balance in the contract currency, split into one batch per currency, and an MYR payout abroad is refused before any PayPal call.
 
 ## Accomplishments that we're proud of
 
@@ -107,18 +122,19 @@ Reclaim began in April 2026 as our expense review prototype. Everything about Pa
 - The parts of an agent that move money work best as plain rules. The AI's value is reading messy documents and explaining them.
 - Fraud detection is also a fairness problem. Every flag needs an answer to "what if this is wrong?", which is why a flag sends a claim to a person instead of rejecting it.
 - What you show the person being checked is part of the security design.
-- Provenance signals are useful but weak alone. A C2PA marker disappears when a file is re-saved, so a receipt needs several independent checks.
+- Provenance signals are useful but weak alone. A C2PA marker disappears when a file is re-saved, and in our own live test an AI-made receipt got through the marker check. A receipt needs several independent checks.
 - PayPal's constraints should shape the design early. Currency rules and reporting lag changed our roadmap and our reconciliation logic.
 
 ## What's next for Reclaim Pay
 
 - **Go live:** move to live PayPal Payouts with one pilot company and tune the trust thresholds on pilot data.
 - **Fix the category budget check:** it sums per-unit amounts such as nights and meals, so a claim can go to HR with every unit inside policy.
+- **Strengthen AI-receipt detection:** keep the C2PA marker through upload, and add checks that don't rely on it, such as matching each receipt against the real payment.
 - **Close policy gaps:** send the questions the policy couldn't answer to HR as suggested policy edits.
 - **Learn from HR's reviews:** feed signal accuracy back into the Receipt Shield weights.
-- **Remove out-of-pocket spending:** travel advances, company-paid bookings, and matching receipts against the company's real PayPal transactions, which gives evidence an image generator can't fake.
+- **Remove out-of-pocket spending:** take company-paid bookings past mock mode with PayPal merchant onboarding, match the vendor's receipt to the paid booking, add travel advances, and match receipts against the company's real PayPal transactions, which gives evidence an image generator can't fake.
 - **Meet people where they are:** claims by chat (Telegram, then WhatsApp), team budgets and a policy simulator.
-- **Grow:** contractor and overseas payouts in other currencies, then multi-company support.
+- **Grow:** take contractor and overseas payouts past mock mode on real non-MYR PayPal balances, then multi-company support.
 
 *All payments use the PayPal sandbox. No real money moves. Demo merchants are fictional and the back-test history is seeded demo data.*
 
@@ -159,6 +175,8 @@ docker
 render
 ```
 
+**Team:** the list is at Devpost's 25-tag limit. Resend now sends our email; to list it, swap it in for `openai` or `langchain`.
+
 ## "Try it out" links
 
 ```
@@ -170,24 +188,25 @@ https://github.com/michaelzhngg/Reclaim-Pay
 
 ## Image gallery (JPG, PNG or GIF, 5 MB max, 3:2 ratio, up to 15)
 
-Captured from the live site on 4 Nov, 1800 x 1200 (3:2), all under 5 MB. They are in [`screenshots/`](screenshots/), numbered in the order to upload them. `screenshots/spare/` has extras if you want more (up to 15).
+Re-captured from the live site on 13 Nov in the new UI, 1800 x 1200 (3:2), all under 1 MB. They are in [`screenshots/`](screenshots/), numbered in the order to upload them. `screenshots/spare/` has extras. The 4 Nov set in the old UI is kept in `screenshots/oldscreenshots/` for reference; don't upload it.
 
 | # | File | Caption |
 |---|---|---|
-| 1 | `01-landing.png` | Reclaim Pay: automation where it's safe, judgment where it matters |
+| 1 | `01-landing.png` | Reclaim Pay: reimbursements reasoned by AI, paid via PayPal |
 | 2 | `02-paid-claim-money-in-paypal.png` | A clean RM48 taxi claim, checked and paid: "MYR 48.00 arrived in your PayPal account" |
-| 3 | `03-live-agent-timeline.png` | The employee watches each check run live: policy, hidden instructions, duplicates, image source, totals |
-| 4 | `04-claim-sent-to-hr-employee-view.png` | When a check fires, the employee only sees "Sent to HR for review", never which check |
-| 5 | `05-hr-triage-two-person-lane.png` | HR triage queue: every claim sorted into one of four lanes, with risk bars and signal chips |
-| 6 | `06-evidence-hidden-instructions.png` | A receipt tried to instruct the AI. HR sees the exact text found, and two people must approve |
-| 7 | `07-evidence-cropped-duplicate.png` | A cropped, re-saved copy of another employee's receipt, matched and linked to the original claim |
-| 8 | `08-autonomy-backtest.png` | Move a limit and see the trade-off between automation and losses before saving. Kill switch on the same page |
-| 9 | `09-agent-log-chain-intact.png` | The agent's whole story for one claim, from decision to payout to "Paid", in a tamper-evident log |
-| 10 | `10-overpayment-notice.png` | Overpayments get a notice and a dispute window before anything is recovered |
-| 11 | `11-connect-paypal.png` | Payouts go only to an account the employee verified through Log in with PayPal |
-| 12 | `12-employee-dashboard-trust-card.png` | Trust card: instant payout limit and progress to the next level |
+| 3 | `03-claim-with-hr-employee-view.png` | While a claim is with HR, the employee sees it as pending, never which check fired |
+| 4 | `04-hr-triage-two-person-lane.png` | HR's claims queue: every claim sorted into one of four lanes, with risk bars and signal chips |
+| 5 | `05-evidence-hidden-instructions.png` | A receipt tried to instruct the AI. HR sees why it was routed and the score, and two people must approve |
+| 6 | `06-autonomy-backtest.png` | Move a limit and see the trade-off between automation and losses before saving. Kill switch on the same page |
+| 7 | `07-agent-log-chain-intact.png` | Every agent and HR action in a tamper-evident, hash-chained log: "Chain intact" |
+| 8 | `08-overpayment-notice.png` | Overpayments get a notice and a dispute window before anything is recovered |
+| 9 | `09-connect-paypal.png` | Payouts go only to an account the employee verified through Log in with PayPal |
+| 10 | `10-employee-dashboard-trust-card.png` | Trust badge: instant payout limit and progress to the next level |
+| 11 | `11-check-before-you-spend.png` | Check before you spend: the employee's own limit, quoted from the policy, before they pay |
+| 12 | `12-month-end-report.png` | Month-end report for finance: every figure comes from SQL and links to its claims |
+| 13 | `13-payouts-paypal-balance.png` | Payouts: the PayPal balance, how many days it covers, and every payout with its status |
 
-**Team:** screenshot 6 also shows a "Possible duplicate (same employee)" signal. That is from my own test run, which uploaded the same receipt twice. Re-take it (`node capture.mjs` flow) after the demo data is reset. Skip `spare/payouts-ledger-says-paypal-unreachable.png` until Transaction Search works, and note that the calendar shows Bryntum's "Trial Version" watermark. No client IDs, secrets or full emails appear in any image (the PayPal email is masked).
+**Team:** two shots from the 4 Nov set have no new-UI version yet, because the live demo data was reset and capturing them means submitting claims: the live agent timeline (old #3) and the cropped duplicate evidence (old #7). Run S1, S4 and S5 on the live site (or on a local mock-mode stack), then capture them as #14 and #15. Spares: `spare/policy-questions.png`, `spare/payouts-webhooks.png` and `spare/contractors-empty.png` (no contractors on the live site yet). No client IDs, secrets or full emails appear in any image (the PayPal email is masked).
 
 ## Video demo link (YouTube, public or unlisted, under 3:00)
 
@@ -217,7 +236,17 @@ Turn captions on. Keep it under 2:55 to leave margin.
 
 ## Upload a file (optional, 35 MB max)
 
-**Team:** the judge kit (demo receipts, policy, Postman collection and a 3-page guide PDF) is on hold until the team has photographed real receipts. It will be rebuilt then and uploaded here.
+Upload [`reclaim-pay-real-receipts.zip`](reclaim-pay-real-receipts.zip) (0.2 MB). It holds three photos of real receipts from the team, plus a `README.txt` describing each one:
+
+| File | Receipt |
+|---|---|
+| `01-fuel-shell-sepang-RM15.00-2026-04-09.jpeg` | Phone photo of a Shell fuel receipt, RM15.00 |
+| `04-flight-airasia-ak701-kul-to-sin-agoda-MYR89.07-2025-12-19-photo.jpeg` | Image of an Agoda receipt for AirAsia AK701, MYR 89.07 |
+| `05-meal-nasi-kandar-al-hajeera-sepang-RM27.40-2026-11-13.jpeg` | Phone photo of a restaurant receipt, seven items, RM27.40 |
+
+The PDF receipts (02, 03, 06, 07 in `docs/real-receipt/`) are left out on purpose: in a live test on 13 Nov the AI couldn't read the KLIA Transit PDF and found no amount in the Agoda PDF, while photos were read correctly.
+
+**Team:** the originals are in `docs/real-receipt/`. The fuel photo shows a car number plate and the card's last four digits, the Agoda receipt shows Michael's full name, email and booking number, and the Grab receipt shows Christian's name and email, the driver's name and the card's last four digits. This upload is judges-only, but don't commit these files or the zip to the public repo unless those details are blurred first.
 
 ## If it existed before, what already existed and what you built or changed
 
@@ -248,6 +277,15 @@ What we built during the submission period (from 2 November 2026), all visible i
 14. Check before you spend: a cost check, trip estimate and quoted policy answers for employees, and a policy questions page for HR
 15. Signal reviews, with a per-signal accuracy table on the Autonomy page
 16. Decision engine clean-up: one source for the trust thresholds, a demo-data notice on the Autonomy page, and a decision note on the default limits
+17. Spending caps and the company budget locked while a claim is decided
+18. An image check for pasted-in totals (observe-only), a red-team receipt suite on every PR, and per-employee rate limits on claim submission
+19. A webhook replay ledger, retries and dead-letter list, and an hourly sweep for stuck payouts
+20. A daily reconciliation job with stored runs and differences, and a PayPal balance warning on Payouts
+21. Company-paid vendor bookings (mock mode)
+22. A month-end report for finance
+23. HR invitations, employee editing, password reset and session cut-off
+24. Email notifications through Resend, a dark theme and compact HR grids
+25. Contractors and overseas payouts (mock mode): contracts, a contractor portal and invoices, FX quotes, one PayPal batch per currency, and a refusal before PayPal for MYR payouts abroad
 ```
 
 **Team:** the paste-ready public text in DEVPOST.md leaves out the UM Hackathon name. This field is judges-only and asks directly, so name it here.
@@ -256,11 +294,11 @@ What we built during the submission period (from 2 November 2026), all visible i
 
 ```
 PayPal developer platform (all sandbox):
-- PayPal Payouts API (REST, /v1/payments/payouts): sends each approved expense claim to the employee's verified PayPal account. The batch ID is built from the claim and attempt number, so a retry can never pay twice.
+- PayPal Payouts API (REST, /v1/payments/payouts): sends each approved expense claim to the employee's verified PayPal account. The batch ID is built from the claim and attempt number, so a retry can never pay twice. In mock mode, the same path pays vendors directly for company-paid bookings, and pays contractors in their contract currency with one batch per currency.
 - Log in with PayPal (OAuth and userinfo): "Connect PayPal" proves the employee owns the payout account and stores their verified payer ID, so money never goes to a typed-in address. It also powers "Sign in with PayPal" for employees.
-- PayPal Webhooks with signature verification: PAYMENT.PAYOUTS-ITEM.* events move a claim to paid, and INVOICING.INVOICE.PAID marks a recovery as settled. A status refresh covers late webhooks.
+- PayPal Webhooks with signature verification: PAYMENT.PAYOUTS-ITEM.* events move a claim to paid, and INVOICING.INVOICE.PAID marks a recovery as settled. A status refresh covers late webhooks. Each verified event ID is stored once, so replays are skipped, and failed events are retried and then dead-lettered for HR to retry.
 - PayPal Invoicing through the PayPal Agent Toolkit (Python): after an audit finds an overpayment and the dispute window closes, HR previews and approves a recovery invoice, which is created and sent through the toolkit's client and send-invoice tool.
-- PayPal Server SDK (Python): Transaction Search, used to compare our payout ledger with the company's own PayPal transactions.
+- PayPal Server SDK (Python): Transaction Search, used to compare our payout ledger with the company's own PayPal transactions, on demand and in a daily job that records every difference.
 
 AI models and services:
 - Google Gemini 3.6 Flash (Gemini API): the main model. It reads receipt images into structured fields, extracts rules from the company's policy PDF, judges each claim against the policy, writes the explanation HR reads, and drafts the note on recovery invoices.
@@ -279,7 +317,7 @@ How they fit together: the AI reads receipts and judges them against policy, the
 - Bryntum Calendar (trial): the employee calendar of claims and payouts
 - Postman (with Newman): a 91-request API collection covering login, payouts, autonomy settings, the kill switch, approvals, recoveries and permission checks
 - Channel3: an optional market-price check on equipment receipts (built, and off in the demo without an API key)
-- Render: hosts the live site, with an API service and a web service that deploy from main on each commit
+- Render: hosts the live site, with an API service and a web service that deploy from main on each commit, and a cron service that runs the daily PayPal reconciliation
 ```
 
 **Team:** add APIMatic only if someone used the Context Plugin (see below). Render is in the list because production moved there on 4 and 5 Nov (`render.yaml`, commits `80c76be` and `916c852`): `reclaim-pay-api` at api.reclaimai.dev and `reclaim-pay-web` at reclaimai.dev. The repo doesn't show whether the submitted form listed it.
@@ -314,11 +352,12 @@ As HR (5 minutes):
 2. Open any claim to see the evidence panel explaining why it was routed.
 3. Autonomy: change a limit and watch the back-test update. You don't need to save.
 4. Payouts: walk through Ledger, Audit queue, Recoveries and Agent log, and check the "Log intact" badge.
+5. Reports: open a month-end report and click a figure to see the claims behind it.
 
 As an employee:
-5. Sign in as employee@example.com. Submit demo/receipts/s1_ride.jpg from the repo and watch the live timeline. Then submit demo/receipts/s4_injection.jpg, and sign in as HR to see what was caught.
-6. Settings: see the Connect PayPal card. Calendar: see past claims and payouts.
-7. Sign in as e04@seed.reclaim.my to see an overpayment notice.
+6. Sign in as employee@example.com. Submit demo/receipts/s1_ride.jpg from the repo and watch the live timeline. Then submit demo/receipts/s4_injection.jpg, and sign in as HR to see what was caught.
+7. Settings: see the Connect PayPal card and the Dark theme under Appearance. Calendar: see past claims and payouts.
+8. Sign in as e04@seed.reclaim.my to see an overpayment notice.
 
 Notes:
 - All payments use the PayPal sandbox. No real money moves.
