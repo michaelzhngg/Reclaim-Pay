@@ -659,13 +659,13 @@ export default function ReviewPage() {
         </div>
 
         {/* ═══ RIGHT ═══ */}
-        {/* Scrolls on its own when taller than the screen, so the decision buttons stay reachable.
-            The padding and matching negative margin keep the cards' hairline shadows from being clipped. */}
+        {/* Scrolls on its own so the decision buttons stay reachable; 7rem is the 4rem top bar plus both 1.5rem gaps.
+            shrink-0 stops the cards squashing instead of scrolling; padding plus negative margin keeps their shadows unclipped. */}
         <div
           role="region"
           aria-label="Claim analysis and decision"
           tabIndex={0}
-          className="flex flex-col gap-6 rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:sticky lg:top-6 lg:h-fit lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto lg:overscroll-contain lg:-m-2 lg:p-2"
+          className="flex flex-col gap-6 rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:sticky lg:top-6 lg:h-fit lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:overscroll-contain lg:-m-2 lg:p-2 lg:*:shrink-0"
         >
 
           <AutonomyPanel
