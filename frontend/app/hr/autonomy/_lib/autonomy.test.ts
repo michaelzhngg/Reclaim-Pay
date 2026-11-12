@@ -4,6 +4,7 @@ import {
   breakerActive,
   breakerLine,
   budgetPercent,
+  demoNotice,
   diffConfig,
   latestReason,
   toChartData,
@@ -128,5 +129,16 @@ describe("status wording", () => {
     expect(breakerActive("2026-11-04T06:20:00Z", now)).toBe(true);
     expect(breakerActive("2026-11-04T05:20:00Z", now)).toBe(false);
     expect(breakerActive(null, now)).toBe(false);
+  });
+});
+
+describe("demoNotice", () => {
+  it("warns when the replay used demo claims", () =>
+    expect(demoNotice({ demo_claims: 120 })).toBe("These numbers come from demo claims. Don't change limits based on them."));
+
+  it("says nothing for real claims or an older backend", () => {
+    expect(demoNotice({ demo_claims: 0 })).toBeNull();
+    expect(demoNotice({})).toBeNull();
+    expect(demoNotice(null)).toBeNull();
   });
 });
