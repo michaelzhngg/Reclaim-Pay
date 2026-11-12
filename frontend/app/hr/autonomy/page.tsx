@@ -32,6 +32,7 @@ import {
 } from "./_lib/autonomy";
 import LimitsForm from "./_components/LimitsForm";
 import { KillSwitchDialog, SaveDialog } from "./_components/Dialogs";
+import SignalQualityTable from "./_components/SignalQualityTable";
 import { AUTONOMY_CHANGED_EVENT } from "../hr_components/AutonomyBanner";
 
 // AG Charts draws on a canvas, so it only renders in the browser.
@@ -535,6 +536,8 @@ export default function AutonomyPage() {
             </div>
           </section>
         </div>
+
+        <SignalQualityTable />
       </div>
 
       <SaveDialog
