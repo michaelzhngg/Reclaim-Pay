@@ -766,7 +766,11 @@ export default function ReviewPage() {
         {/* ═══ RIGHT ═══ */}
         <div className="flex flex-col gap-6 lg:sticky lg:top-6 lg:h-fit">
 
-          <AutonomyPanel autonomy={bundle.autonomy} aiSummary={bundle.summary} aiVerdict={verdictLabel(bundle.overall_judgment as ReimbursementRaw["judgment"])} />
+          <AutonomyPanel
+            autonomy={bundle.autonomy}
+            aiSummary={bundle.kind === "VENDOR_BOOKING" ? "" : bundle.summary}
+            aiVerdict={bundle.kind === "VENDOR_BOOKING" ? "" : verdictLabel(bundle.overall_judgment as ReimbursementRaw["judgment"])}
+          />
 
           {/* Financial Totals */}
           <Card title="Financial Summary">
