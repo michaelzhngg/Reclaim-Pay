@@ -441,6 +441,8 @@ export interface SpendCheckResult {
   employee_pays: number | null;
   policy_title: string | null;
   currency: string;
+  /** The listed place that set `zone`, or "*" for the policy's default zone. */
+  zone_place: string | null;
 }
 
 export interface TripLine {
@@ -465,6 +467,7 @@ export interface TripEstimate {
   /** Category to the verdict that left it out: NEED_DESTINATION, PLACE_NOT_LISTED or GRADE_NOT_LISTED. */
   missing_reasons: Record<string, SpendVerdict>;
   currency: string;
+  zone_place: string | null;
 }
 
 /** POST /spend-check/ask */

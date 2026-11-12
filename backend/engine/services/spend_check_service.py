@@ -6,8 +6,8 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from engine.policy.limits import (
-    LimitRule, LimitUnit, SpendCheck, TravelScope, TripEstimate,
-    check_spend, estimate_trip, same_category,
+    LimitRule, LimitUnit, SpendCheck, TravelScope, TripEstimate, ZonePlace,
+    check_spend, estimate_trip, same_category, zone_for,
 )
 from engine.services import policy_limits_store as store
 
@@ -34,6 +34,7 @@ class SpendCheckOut(SpendCheck):
     verdict: str  # a Verdict value, or NOT_COVERED
     policy_title: str | None = None
     currency: str = "MYR"
+    zone_place: str | None = None  # the listed place that set the zone, "*" for the policy's default zone
 
 
 class TripIn(BaseModel):
@@ -46,6 +47,7 @@ class TripIn(BaseModel):
 class TripOut(TripEstimate):
     currency: str = "MYR"
     missing_reasons: dict[str, str] = Field(default_factory=dict)  # category -> the verdict that left it out
+    zone_place: str | None = None
 
 
 def _policy_categories(db: Session) -> list[tuple[str, str]]:
@@ -58,6 +60,15 @@ def _grade_ok(rule: LimitRule, grade: int | None) -> bool:
         return True
     return grade is not None and (rule.grade_min is None or grade >= rule.grade_min) and (
         rule.grade_max is None or grade <= rule.grade_max)
+
+
+def _zone_place(places: list[ZonePlace], destination: str | None, zone: str | None) -> str | None:
+    """Which place put the destination in this zone, so an employee can spot a wrong match."""
+    if zone is None:
+        return None
+    listed = sorted((p for p in places if p.place.strip() != "*" and p.zone == zone),
+                    key=lambda p: len(p.place), reverse=True)
+    return next((p.place for p in listed if zone_for([p], destination) == zone), "*")
 
 
 def _currency(rules: list[LimitRule]) -> str:
@@ -90,7 +101,8 @@ def check_cost(db: Session, grade: int | None, body: SpendCheckIn) -> SpendCheck
                          destination=body.destination, amount=body.amount, quantity=body.quantity)
     rule = result.cap or result.pre_approval
     return SpendCheckOut(**{**result.model_dump(), "verdict": result.verdict.value},
-                         policy_title=match[1], currency=rule.currency if rule else _currency(rules))
+                         policy_title=match[1], currency=rule.currency if rule else _currency(rules),
+                         zone_place=_zone_place(places, body.destination, result.zone))
 
 
 def plan_trip(db: Session, grade: int | None, body: TripIn) -> TripOut:
@@ -103,4 +115,5 @@ def plan_trip(db: Session, grade: int | None, body: TripIn) -> TripOut:
                               destination=body.destination, amount=None).verdict.value
         for category in est.missing
     }
-    return TripOut(**est.model_dump(), currency=_currency(rules), missing_reasons=reasons)
+    return TripOut(**est.model_dump(), currency=_currency(rules), missing_reasons=reasons,
+                   zone_place=_zone_place(places, body.destination, est.zone))

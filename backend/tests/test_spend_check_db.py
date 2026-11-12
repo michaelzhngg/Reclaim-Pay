@@ -179,3 +179,18 @@ def test_unlisted_place_is_told_apart_from_no_destination(zoned_api):
     assert away["missing_reasons"] == {"Daily Allowance": "PLACE_NOT_LISTED"}
     junior = zoned_api(1).post("/api/v1/spend-check/trip", json={**dates, "destination": "Ipoh"}).json()
     assert junior["missing_reasons"] == {"Daily Allowance": "GRADE_NOT_LISTED"} and junior["total_up_to"] == 0
+
+
+def test_results_name_the_place_that_set_the_zone(reclaim_api):
+    client = reclaim_api(4)
+    ipoh = client.post("/api/v1/spend-check/check",
+                       json={"category": "Daily Trip Allowance", "destination": "Ipoh, Perak"}).json()
+    assert ipoh["zone"] == "1" and ipoh["zone_place"] == "Ipoh"
+    elsewhere = client.post("/api/v1/spend-check/check",
+                            json={"category": "Daily Trip Allowance", "destination": "Kuching"}).json()
+    assert elsewhere["zone"] == "2" and elsewhere["zone_place"] == "*"
+    trip = client.post("/api/v1/spend-check/trip",
+                       json={"destination": "Kuching", "depart": "2026-11-20", "return_date": "2026-11-21"}).json()
+    assert trip["zone"] == "2" and trip["zone_place"] == "*"
+    blank = client.post("/api/v1/spend-check/check", json={"category": "Intercity Transport"}).json()
+    assert blank["zone_place"] is None

@@ -78,6 +78,13 @@ export function verdictMessage(r: SpendCheckResult): { tone: SpendTone; text: st
   }
 }
 
+/** "Zone 2 rate (everywhere else)": shown with a result so an employee can spot a wrong place match. */
+export function zoneText(zone: string | null, place: string | null): string | null {
+  if (zone === null) return null;
+  if (place === null) return `Zone ${zone} rate`;
+  return `Zone ${zone} rate (${place === "*" ? "everywhere else" : place})`;
+}
+
 export function tripSummary(est: TripEstimate): string {
   if (est.lines.length === 0) return "No daily or nightly limit in the policy applies to this trip.";
   const span = est.nights > 0

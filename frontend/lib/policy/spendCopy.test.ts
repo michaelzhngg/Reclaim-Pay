@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LimitRule, SpendCheckResult, TripEstimate } from "@/lib/api/reclaim-pay-types";
 import {
-  GUIDANCE_NOTE, askErrorMessage, spendErrorMessage, tripLineText, tripNotes, tripSummary, verdictMessage,
+  GUIDANCE_NOTE, askErrorMessage, spendErrorMessage, tripLineText, tripNotes, tripSummary, verdictMessage, zoneText,
 } from "./spendCopy";
 
 const cap: LimitRule = {
@@ -12,6 +12,7 @@ const pre: LimitRule = { ...cap, category: "Equipment", kind: "PRE_APPROVAL", un
 const base: SpendCheckResult = {
   verdict: "WITHIN", category: "Accommodations", quantity: 1, zone: null, cap, pre_approval: null,
   limit_total: 400, reimbursable_up_to: 380, employee_pays: null, policy_title: "Demo travel policy", currency: "MYR",
+  zone_place: null,
 };
 
 describe("verdictMessage", () => {
@@ -89,7 +90,7 @@ describe("trip wording", () => {
     total_up_to: 600, has_actual_cost: true,
     missing: ["Intercity Transport", "Parking", "Laundry"],
     missing_reasons: { "Intercity Transport": "NEED_DESTINATION", Parking: "PLACE_NOT_LISTED", Laundry: "GRADE_NOT_LISTED" },
-    currency: "MYR",
+    currency: "MYR", zone_place: "Ipoh",
   };
 
   it("sums up the trip", () => {
@@ -131,5 +132,14 @@ describe("error wording", () => {
     );
     expect(askErrorMessage("Rate limit exceeded: 10 per 1 minute", 429)).toBe("Too many questions in a minute. Wait a moment and try again.");
     expect(askErrorMessage("QA_UNAVAILABLE", 503)).toBe("Couldn't answer right now. Try again in a few minutes, or ask HR.");
+  });
+});
+
+describe("zoneText", () => {
+  it("names the place that set the zone so a wrong match is easy to spot", () => {
+    expect(zoneText("1", "Ipoh")).toBe("Zone 1 rate (Ipoh)");
+    expect(zoneText("2", "*")).toBe("Zone 2 rate (everywhere else)");
+    expect(zoneText("2", null)).toBe("Zone 2 rate");
+    expect(zoneText(null, null)).toBeNull();
   });
 });
