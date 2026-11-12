@@ -7,29 +7,30 @@ from typing import Optional
 from urllib.parse import quote, urlencode
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from jose import jwt, JWTError
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from api import deps
-from api.rate_limit import PAYPAL_CONNECT_LIMIT, limiter
+from api.rate_limit import PAYPAL_CONNECT_LIMIT, PAYPAL_WEBHOOK_RETRY_LIMIT, limiter
 from core import security
 from core.config import settings
-from core.enums import AgentActionType
-from core.models import User
+from core.enums import AgentActionType, WebhookEventStatus
+from core.models import PayPalWebhookEvent, User, Vendor
 from engine.services.action_log import record_action
 from engine.services.payout_service import notify
+from engine.services.payee_link import PAYEE_COOLDOWN_HOURS, cooldown_until, link_update  # noqa: F401
 from engine.services.paypal_client import PayPalError, PayPalUser, get_paypal_client, mask_email  # noqa: F401
-from engine.services.payout_status import apply_item_update, next_status, reim_status_for  # noqa: F401
-from engine.services.recovery_service import mark_recovered
+from engine.services.webhook_events import (
+    InvalidWebhook, WebhookNotFound, WebhookNotRetryable, event_id_of, ingest_event, retry_event,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Mirrors AutonomyConfig.payee_cooldown_hours until the autonomy store exists.
-PAYEE_COOLDOWN_HOURS = 72
+# Mirrors AutonomyConfig.payee_cooldown_hours; the shared module owns the value.
 _STATE_TTL = timedelta(minutes=10)
 _STATE_PURPOSE = "paypal_link"
 _SIGNIN_STATE_PURPOSE = "paypal_signin"
@@ -84,24 +85,6 @@ def read_signin_state(token: str, binding: str, secret: str, now: datetime) -> N
         raise ValueError("state not bound to this browser")
 
 
-def link_update(current_payer_id: str | None, ever_linked: bool, user: PayPalUser, now: datetime) -> dict:
-    update = {
-        "paypal_payer_id": user.payer_id,
-        "paypal_email": user.email,
-        "paypal_verified": user.verified,
-        "paypal_linked_at": now,
-    }
-    if current_payer_id == user.payer_id:
-        return update
-    # Any change after the first link (including unlink, then link another account) pauses auto-pay.
-    update["payout_destination_changed_at"] = now if ever_linked else None
-    return update
-
-
-def cooldown_until(changed_at: datetime | None, hours: int) -> datetime | None:
-    return changed_at + timedelta(hours=hours) if changed_at else None
-
-
 def build_connect_url(web_url: str, client_id: str, redirect_uri: str, state: str) -> str:
     query = urlencode({
         "flowEntry": "static",
@@ -135,6 +118,32 @@ class PayPalStatus(BaseModel):
     linked_at: Optional[datetime] = None
     cooldown_until: Optional[datetime] = None
     link_changes_paused_until: Optional[datetime] = None
+
+
+class WebhookEventOut(BaseModel):
+    event_id: str
+    event_type: str
+    resource_id: Optional[str] = None
+    status: WebhookEventStatus
+    attempts: int
+    error: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    processed_at: Optional[datetime] = None
+
+
+def _event_out(row: PayPalWebhookEvent) -> WebhookEventOut:
+    return WebhookEventOut(
+        event_id=row.event_id,
+        event_type=row.event_type,
+        resource_id=row.resource_id,
+        status=WebhookEventStatus(row.status),
+        attempts=row.attempts,
+        error=row.error,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+        processed_at=row.processed_at,
+    )
 
 
 class SigninStart(BaseModel):
@@ -200,8 +209,11 @@ async def paypal_callback(
     taken = db.exec(
         select(User).where(User.paypal_payer_id == paypal_user.payer_id, User.user_id != user_id)
     ).first()
-    if taken:
-        logger.warning("[PAYPAL_LINK] Payer already linked to another employee; user=%s", user_id)
+    vendor_taken = db.exec(
+        select(Vendor).where(Vendor.paypal_payer_id == paypal_user.payer_id)
+    ).first()
+    if taken or vendor_taken:
+        logger.warning("[PAYPAL_LINK] Payer already linked to another payee; user=%s", user_id)
         return failed("payer_already_linked")
 
     update = link_update(employee.paypal_payer_id, employee.paypal_linked_at is not None, paypal_user, now)
@@ -358,6 +370,11 @@ async def paypal_webhook(request: Request, db: Session = Depends(deps.get_db)):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
+    try:
+        event_id = event_id_of(event)
+    except InvalidWebhook as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
     if not settings.PAYPAL_MOCK_MODE:
         try:
             verified = await get_paypal_client().verify_webhook(request.headers, event, settings.PAYPAL_WEBHOOK_ID)
@@ -365,23 +382,48 @@ async def paypal_webhook(request: Request, db: Session = Depends(deps.get_db)):
             logger.exception("[PAYPAL_WEBHOOK] Signature verification call failed")
             verified = False
         if not verified:
-            logger.warning("[PAYPAL_WEBHOOK] Rejected event id=%s: signature not verified", event.get("id"))
+            logger.warning("[PAYPAL_WEBHOOK] Rejected event id=%s: signature not verified", event_id)
             raise HTTPException(status_code=400, detail="Webhook signature not verified")
 
     event_type = event.get("event_type", "")
-    resource = event.get("resource") or {}
-    logger.info("[PAYPAL_WEBHOOK] Received %s id=%s", event_type, event.get("id"))
+    logger.info("[PAYPAL_WEBHOOK] Received %s id=%s", event_type, event_id)
+    try:
+        result = ingest_event(db, event)
+    except InvalidWebhook as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
-    if event_type.startswith("PAYMENT.PAYOUTS-ITEM."):
-        errors = resource.get("errors")
-        apply_item_update(
-            db,
-            resource.get("payout_item_id"),
-            (resource.get("payout_item") or {}).get("sender_item_id"),
-            resource.get("transaction_status", ""),
-            errors.get("name") if isinstance(errors, dict) else None,
-        )
-    elif event_type == "INVOICING.INVOICE.PAID":
-        mark_recovered(db, resource.get("id") or (resource.get("invoice") or {}).get("id", ""))
+    if result.outcome == "failed":
+        raise HTTPException(status_code=500, detail="Webhook handling failed")
+    return {"status": result.outcome}
 
-    return {"status": "ok"}
+
+@router.get("/events", response_model=list[WebhookEventOut])
+def list_webhook_events(
+    status: Optional[WebhookEventStatus] = Query(default=WebhookEventStatus.DEAD_LETTER),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    query = select(PayPalWebhookEvent)
+    if status is not None:
+        query = query.where(PayPalWebhookEvent.status == status.value)
+    rows = db.exec(query.order_by(PayPalWebhookEvent.updated_at.desc()).limit(limit)).all()
+    return [_event_out(row) for row in rows]
+
+
+@router.post("/events/{event_id}/retry", response_model=WebhookEventOut)
+@limiter.shared_limit(PAYPAL_WEBHOOK_RETRY_LIMIT, scope="paypal-webhook-retry")
+def retry_webhook_event(
+    request: Request,
+    event_id: str,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    try:
+        retry_event(db, event_id, str(current_user.user_id))
+    except WebhookNotFound:
+        raise HTTPException(status_code=404, detail="Webhook event not found")
+    except WebhookNotRetryable as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    row = db.get(PayPalWebhookEvent, event_id)
+    return _event_out(row)

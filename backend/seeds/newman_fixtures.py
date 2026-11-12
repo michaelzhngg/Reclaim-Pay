@@ -20,12 +20,14 @@ from uuid import UUID
 
 os.environ.setdefault("SECRET_KEY", "newman-fixtures-sign-nothing")
 
-from sqlalchemy import cast, delete, or_, String
+from sqlalchemy import cast, delete, or_, String, update
 from sqlmodel import Session, create_engine, select
 
 from core.config import settings
 from core.enums import JudgmentResult, RecoveryStatus, ReimbursementStatus, UserRole
-from core.models import LineItem, Notification, Payout, Recovery, Reimbursement, ReimbursementSubCategory, User
+from core.models import (
+    LineItem, Notification, Payout, Recovery, Reimbursement, ReimbursementSubCategory, User, Vendor, VendorBooking,
+)
 
 EMPLOYEE_EMAIL = "newman-employee@example.com"
 LOCAL_DB_HOSTS = {"localhost", "127.0.0.1", "db"}
@@ -101,10 +103,12 @@ def down(db: Session) -> None:
         db.exec(delete(Notification).where(or_(*links)))
         db.exec(delete(Recovery).where(Recovery.recovery_id.in_(recoveries)))
         db.exec(delete(Payout).where(Payout.reim_id.in_(claim_ids)))
+        db.exec(delete(VendorBooking).where(VendorBooking.reim_id.in_(claim_ids)))
         db.exec(delete(LineItem).where(LineItem.reim_id.in_(claim_ids)))
         db.exec(delete(ReimbursementSubCategory).where(ReimbursementSubCategory.reim_id.in_(claim_ids)))
         db.exec(delete(Reimbursement).where(Reimbursement.reim_id.in_(claim_ids)))
     if employee:
+        db.exec(update(Vendor).where(Vendor.created_by == employee.user_id).values(created_by=None))
         db.exec(delete(Notification).where(Notification.user_id == employee.user_id))
         db.delete(employee)
     db.commit()

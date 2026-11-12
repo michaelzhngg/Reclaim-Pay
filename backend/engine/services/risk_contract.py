@@ -61,6 +61,7 @@ except ImportError:
         auto_paid_today: float
         auto_paid_last_hour: float
         breaker_active: bool
+        vendor_paid_today: float = 0.0
 
 
 AUTONOMY_TIERS = ("AUTO_PAY", "HR_QUICK", "HR_REVIEW", "DUAL_REVIEW")

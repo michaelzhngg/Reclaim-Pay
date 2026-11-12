@@ -5,16 +5,20 @@ import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, AlertTriangle, Clock, ShieldCheck, ShieldX, ChevronDown, ZoomIn, Pencil, FileText, ExternalLink, Download, X, Loader2, Send, CheckCircle2 } from "lucide-react";
 import type { ClaimBundle } from "@/lib/api/types";
 import { formatClaimRef, formatMoney } from "@/lib/format";
-import { MOCK_BUNDLES } from "../../hr_components/mockData";
 import { SuccessModal, isAwaitingSecondApproval } from "../../hr_components/SuccessModal";
 import { useAuth } from "@/context/AuthContext";
-import { getHRClaimBundle, updateReimbursementStatus } from "@/lib/actions/hr";
+import { updateReimbursementStatus } from "@/lib/actions/hr";
+import { useClaimBundle } from "@/lib/hooks/useClaimBundle";
+import { ClaimLoadFallback } from "../../hr_components/ClaimLoadFallback";
 import { FIXTURES_ON } from "@/lib/api/fixtures";
 import type { ReimbursementRaw } from "@/lib/api/types";
 import { approvalErrorMessage, approveBlockedReason } from "@/lib/hr/evidence";
 import { verdictLabel } from "@/components/hr-grid/rows";
 import { FIXTURE_HR_USER_ID } from "@/src/mocks/triageFixtures";
 import { AutonomyPanel } from "./_components/AutonomyPanel";
+import { getSignalReviews } from "@/lib/actions/signalReviews";
+import { canRateSignals } from "@/lib/hr/signalQuality";
+import type { SignalReview } from "@/lib/api/reclaim-pay-types";
 
 
 type Decision = "approve_full" | "approve_adjusted" | "reject" | null;
@@ -329,7 +333,8 @@ export default function ReviewPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const [bundle, setBundle] = useState<ClaimBundle | undefined | null>(undefined); // undefined = loading
+  const { load, retry, refresh } = useClaimBundle(id);
+  const bundle = load.state === "ready" ? load.bundle : null;
   const [approvals, setApprovals] = useState<Record<string, string>>({});
   const [decision, setDecision] = useState<Decision>(null);
   const [note, setNote] = useState("");
@@ -344,18 +349,18 @@ export default function ReviewPage() {
   const [payoutError, setPayoutError] = useState<string | null>(null);
   const [payoutInfo, setPayoutInfo] = useState<any>(null);
   const [reviewedStatus, setReviewedStatus] = useState<string | null>(null);
+  const [signalReviews, setSignalReviews] = useState<SignalReview[] | null>(null);
+  const [vendorBusy, setVendorBusy] = useState(false);
+  const [vendorError, setVendorError] = useState<string | null>(null);
+  const [verifyEmail, setVerifyEmail] = useState("");
+  const [showAccountChange, setShowAccountChange] = useState(false);
+  const [vendorEmail, setVendorEmail] = useState("");
 
   const didInitRef = useRef(false);
 
   useEffect(() => {
-    const fallback = MOCK_BUNDLES[id];
-    getHRClaimBundle(id)
-      .then((b) => {
-        setBundle(b ?? fallback ?? null);
-      })
-      .catch(() => {
-        setBundle(fallback ?? null);
-      });
+    // Loaded alongside the claim; a failure only hides earlier answers, it never blocks the decision.
+    getSignalReviews(id).then(setSignalReviews).catch(() => setSignalReviews([]));
   }, [id]);
 
   useEffect(() => {
@@ -374,20 +379,11 @@ export default function ReviewPage() {
     return () => document.removeEventListener("keydown", onKey);
   }, [lightbox]);
 
-  if (bundle === undefined) return (
-    <div className="flex items-center justify-center min-h-[60vh] gap-3 text-ink-muted">
-      <Loader2 className="w-5 h-5 animate-spin" />
-      <span className="text-sm">Loading claim...</span>
-    </div>
+  if (load.state !== "ready" || !bundle) return (
+    <ClaimLoadFallback load={load.state === "ready" ? { state: "missing" } : load} id={id} onRetry={retry} onBack={() => router.push("/hr/dashboard")} />
   );
 
-  if (!bundle) return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-      <p className="text-ink-muted">No bundle found for <code className="font-mono">{id}</code></p>
-      <button type="button" onClick={() => router.push("/hr/dashboard")} className="min-h-[44px] px-5 rounded-full bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer">Back to Dashboard</button>
-    </div>
-  );
-
+  const viewerId = FIXTURES_ON ? FIXTURE_HR_USER_ID : user?.user_id;
   // Two-person claims: the first approver can't also be the second.
   const approveBlocked = approveBlockedReason(bundle.autonomy ?? null, FIXTURES_ON ? FIXTURE_HR_USER_ID : user?.user_id);
   // Editing an amount picks "approve adjusted", which a blocked approver can't send.
@@ -433,6 +429,8 @@ export default function ReviewPage() {
       setDecision(null);
     }
     setShowSuccessModal(true);
+    // Reload the claim so approvals and amounts shown on the page match the action just taken.
+    refresh();
     // Stay on the page so the approver reads that a second approval is still needed.
     if (!awaiting) router.push("/hr/dashboard");
   }
@@ -451,6 +449,36 @@ export default function ReviewPage() {
     setReviewedStatus("DISBURSING");
   }
 
+  async function handleVerifyVendor() {
+    if (!bundle?.vendor_id) return;
+    setVendorBusy(true);
+    setVendorError(null);
+    const { verifyVendorAccount } = await import("@/lib/actions/bookings");
+    const res = await verifyVendorAccount(bundle.vendor_id, verifyEmail.trim() || undefined);
+    setVendorBusy(false);
+    if (!res.ok) {
+      setVendorError(approvalErrorMessage(res.error ?? "Could not verify the vendor account."));
+      return;
+    }
+    refresh();
+  }
+
+  async function handleChangeVendorAccount() {
+    if (!bundle?.vendor_id || !vendorEmail.trim()) return;
+    setVendorBusy(true);
+    setVendorError(null);
+    const { changeVendorAccount } = await import("@/lib/actions/bookings");
+    const res = await changeVendorAccount(bundle.vendor_id, vendorEmail.trim());
+    setVendorBusy(false);
+    if (!res.ok) {
+      setVendorError(approvalErrorMessage(res.error ?? "Could not change the vendor account."));
+      return;
+    }
+    setShowAccountChange(false);
+    setVendorEmail("");
+    refresh();
+  }
+
   return (
     <div className="relative min-h-full px-4 py-5 sm:px-6 md:p-10 pb-32 lg:pb-10">
       <div className="mb-6 md:mb-8">
@@ -458,7 +486,8 @@ export default function ReviewPage() {
           <ArrowLeft className="w-4 h-4" strokeWidth={2.25} aria-hidden="true" /> Back to Dashboard
         </button>
         <h1 className="font-display font-semibold text-2xl md:text-3xl text-ink">
-          Review Claim <span className="font-mono font-normal text-ink-muted text-lg md:text-xl">{formatClaimRef(bundle.id)}</span>
+          {bundle.kind === "VENDOR_BOOKING" ? "Review Vendor Booking" : "Review Claim"}{" "}
+          <span className="font-mono font-normal text-ink-muted text-lg md:text-xl">{formatClaimRef(bundle.id)}</span>
         </h1>
         <p className="text-sm text-ink-muted mt-1" suppressHydrationWarning>
   Submitted {new Date(bundle.submitted_at).toLocaleString("en-MY")} 
@@ -486,7 +515,89 @@ export default function ReviewPage() {
             </Card>
           )}
 
+          {/* Vendor booking details */}
+          {bundle.kind === "VENDOR_BOOKING" && (
+            <Card title="Vendor">
+              <div className="p-4 sm:p-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <Field label="Vendor" value={bundle.vendor_name || "Not set"} />
+                <Field label="Service start" value={bundle.service_start || "Not set"} />
+                <Field label="Service end" value={bundle.service_end || "Not set"} />
+                <Field label="PayPal account" value={bundle.vendor_paypal_masked || "Not set"} />
+                <Field label="Payout account" value={bundle.vendor_verified ? "Verified" : "Not verified"} />
+                {bundle.vendor_cooldown_until && (
+                  <Field label="Auto-pay paused until" value={bundle.vendor_cooldown_until} />
+                )}
+              </div>
+              <p className="px-4 sm:px-6 pb-4 text-xs text-ink-muted">
+                This is a company-paid booking. There is no receipt yet. The vendor is paid directly and no employee float is involved.
+              </p>
+              {!bundle.vendor_verified && (
+                <div className="px-4 sm:px-6 pb-5 flex flex-col gap-2">
+                  <input
+                    type="email"
+                    value={verifyEmail}
+                    onChange={(event) => setVerifyEmail(event.target.value)}
+                    placeholder="Vendor billing email (optional)"
+                    className="min-h-11 w-full rounded-control border border-line-strong bg-surface px-3 font-body text-sm text-ink"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleVerifyVendor}
+                    disabled={vendorBusy}
+                    className="inline-flex w-fit min-h-11 items-center gap-2 rounded-full bg-accent px-5 py-2.5 font-body text-sm font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-60"
+                  >
+                    {vendorBusy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+                    {vendorBusy ? "Verifying" : "Verify payout account"}
+                  </button>
+                  <p className="font-body text-xs text-ink-muted">
+                    Verification lets future bookings for this vendor skip the manual check. This booking still needs your decision.
+                  </p>
+                  {vendorError && (
+                    <p role="alert" className="font-body text-xs text-danger">{vendorError}</p>
+                  )}
+                </div>
+              )}
+              {bundle.vendor_verified && (
+                <div className="px-4 sm:px-6 pb-5 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAccountChange((open) => !open)}
+                    className="inline-flex w-fit min-h-11 items-center rounded-full border border-line-strong px-5 py-2.5 font-body text-sm font-semibold text-ink hover:bg-surface-muted"
+                  >
+                    Change payout account
+                  </button>
+                  <p className="font-body text-xs text-ink-muted">
+                    Changing the account pauses vendor auto-pay for {bundle.vendor_cooldown_hours ?? 72} hours.
+                  </p>
+                  {showAccountChange && (
+                    <div className="flex flex-col sm:flex-row gap-2 mt-1">
+                      <input
+                        type="email"
+                        value={vendorEmail}
+                        onChange={(event) => setVendorEmail(event.target.value)}
+                        placeholder="vendor-billing@example.com"
+                        className="min-h-11 flex-1 rounded-control border border-line-strong bg-surface px-3 font-body text-sm text-ink"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleChangeVendorAccount}
+                        disabled={vendorBusy || !vendorEmail.trim()}
+                        className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-5 py-2.5 font-body text-sm font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-60"
+                      >
+                        {vendorBusy ? "Saving" : "Save account"}
+                      </button>
+                    </div>
+                  )}
+                  {vendorError && (
+                    <p role="alert" className="font-body text-xs text-danger">{vendorError}</p>
+                  )}
+                </div>
+              )}
+            </Card>
+          )}
+
           {/* Official Document */}
+          {bundle.kind !== "VENDOR_BOOKING" && (
           <Card title="Official Document">
             <div className="p-4 sm:p-6">
               <div className="flex items-center gap-3 mb-4">
@@ -521,9 +632,10 @@ export default function ReviewPage() {
               </div>
             </div>
           </Card>
+          )}
 
           {/* Financial Breakdown */}
-          <Card title={<>Financial Breakdown <span className="ml-2 text-xs font-body font-normal text-ink-muted">{bundle.line_items.length} receipts</span></>}>
+          <Card title={<>Financial Breakdown <span className="ml-2 text-xs font-body font-normal text-ink-muted">{bundle.line_items.length} {bundle.kind === "VENDOR_BOOKING" ? "booking" : "receipts"}</span></>}>
             {/* Desktop Table */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
@@ -651,9 +763,22 @@ export default function ReviewPage() {
         </div>
 
         {/* ═══ RIGHT ═══ */}
-        <div className="flex flex-col gap-6 lg:sticky lg:top-6 lg:h-fit">
+        {/* Scrolls on its own so the decision buttons stay reachable; 7rem is the 4rem top bar plus both 1.5rem gaps.
+            shrink-0 stops the cards squashing instead of scrolling; padding plus negative margin keeps their shadows unclipped. */}
+        <div
+          role="region"
+          aria-label="Claim analysis and decision"
+          className="flex flex-col gap-6 lg:sticky lg:top-6 lg:h-fit lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:overscroll-contain lg:-m-2 lg:p-2 lg:*:shrink-0"
+        >
 
-          <AutonomyPanel autonomy={bundle.autonomy} aiSummary={bundle.summary} aiVerdict={verdictLabel(bundle.overall_judgment as ReimbursementRaw["judgment"])} />
+          <AutonomyPanel
+            autonomy={bundle.autonomy}
+            aiSummary={bundle.kind === "VENDOR_BOOKING" ? "" : bundle.summary}
+            aiVerdict={bundle.kind === "VENDOR_BOOKING" ? "" : verdictLabel(bundle.overall_judgment as ReimbursementRaw["judgment"])}
+            reimId={signalReviews && canRateSignals(bundle.claimant_id, viewerId) ? bundle.id : undefined}
+            reviews={signalReviews ?? []}
+            viewerId={viewerId}
+          />
 
           {/* Financial Totals */}
           <Card title="Financial Summary">

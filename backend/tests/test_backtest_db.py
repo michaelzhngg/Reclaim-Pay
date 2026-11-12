@@ -35,6 +35,8 @@ def test_default_config_reproduces_the_stored_tiers(seeded):
     assert r.bad_auto_paid_count + r.caught_bad_count == len(confirmed_bad)
     assert [p.auto_limit_standard for p in r.curve] == list(CURVE_LIMITS)
     assert r.assumptions[0] == "ignores daily budget and circuit breaker"
+    assert r.demo_claims == 120
+    assert r.assumptions[-1] == "all 120 claims are demo data, so don't change limits based on these results"
 
 
 def test_raising_the_limits_automates_more(seeded):
@@ -82,8 +84,8 @@ def test_backtest_endpoint_returns_the_documented_shape(api):
     body = res.json()
     assert set(body) == {"total_claims", "auto_paid_count", "automation_rate", "auto_paid_amount",
                          "bad_auto_paid_count", "projected_leakage", "caught_bad_count", "hr_reviews_avoided",
-                         "hr_hours_saved", "by_tier", "curve", "assumptions"}
-    assert body["total_claims"] == 120 and len(body["curve"]) == 8
+                         "hr_hours_saved", "by_tier", "curve", "assumptions", "demo_claims"}
+    assert body["total_claims"] == body["demo_claims"] == 120 and len(body["curve"]) == 8
     assert set(body["curve"][0]) == {"auto_limit_standard", "automation_rate", "projected_leakage"}
     assert set(body["by_tier"]) == {"AUTO_PAY", "HR_QUICK", "HR_REVIEW", "DUAL_REVIEW"}
 

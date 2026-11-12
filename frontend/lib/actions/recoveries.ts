@@ -77,7 +77,7 @@ function toOutcome(res: { data: Recovery | null; error: string | null }): Recove
 export async function getAuditQueue(): Promise<{ rows: AuditRow[] | null; error: string | null }> {
   if (FIXTURES_ON) return { rows: toAuditRows(fixtureAuditClaims(), fixtureHRRecoveries()), error: null };
   const [claims, recoveries] = await Promise.all([
-    apiGet<TriageSource[]>(`${API_PREFIX}/reimbursements/?audit_selected=true&limit=200`),
+    apiGet<TriageSource[]>(`${API_PREFIX}/reimbursements/?audit_selected=true&kind=CLAIM&limit=200`),
     apiGet<Recovery[]>(RECOVERIES_PATH),
   ]);
   if (claims.error || !claims.data) return { rows: null, error: claims.error ?? NO_RESPONSE };

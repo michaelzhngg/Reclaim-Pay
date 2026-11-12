@@ -301,6 +301,24 @@ function ClaimFormModal({
               Claim context
             </h3>
             <div className="grid grid-cols-2 gap-x-8 gap-y-2">
+              {claim.claimContext.vendorName && (
+                <div className="flex gap-2">
+                  <span className="text-ink-muted w-28 shrink-0">Vendor:</span>
+                  <span className="font-semibold">{claim.claimContext.vendorName}</span>
+                </div>
+              )}
+              {claim.claimContext.serviceStart && (
+                <div className="flex gap-2">
+                  <span className="text-ink-muted w-28 shrink-0">Service start:</span>
+                  <span className="font-semibold">{claim.claimContext.serviceStart}</span>
+                </div>
+              )}
+              {claim.claimContext.serviceEnd && (
+                <div className="flex gap-2">
+                  <span className="text-ink-muted w-28 shrink-0">Service end:</span>
+                  <span className="font-semibold">{claim.claimContext.serviceEnd}</span>
+                </div>
+              )}
               {claim.claimContext.purpose && (
                 <div className="flex gap-2">
                   <span className="text-ink-muted w-28 shrink-0">Purpose:</span>
@@ -335,7 +353,7 @@ function ClaimFormModal({
           {/* Line Items Table */}
           <section className="mb-8">
             <h3 className="font-body font-semibold text-sm text-ink mb-3 border-b border-line pb-1">
-              Expense line items ({claim.lineItems.length} {claim.lineItems.length === 1 ? "receipt" : "receipts"})
+              Expense line items ({claim.lineItems.length} {claim.isVendorBooking ? "booking" : claim.lineItems.length === 1 ? "receipt" : "receipts"})
             </h3>
             <table className="w-full border-collapse" style={{ fontSize: "12px" }}>
               <thead>

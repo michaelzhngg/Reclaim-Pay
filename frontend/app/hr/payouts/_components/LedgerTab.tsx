@@ -6,6 +6,7 @@ import { getLedger } from "@/lib/actions/paypal";
 import type { PayoutLedgerRow, PayoutStatus } from "@/lib/api/reclaim-pay-types";
 import ReconcileBadge from "@/components/hr-grid/ReconcileBadge";
 import { TabEmpty, TabError, TabLoading } from "@/components/hr-grid/TabStates";
+import { Select } from "@/components/ui/Select";
 import {
   STATUS_META,
   filterByStatus,
@@ -100,10 +101,10 @@ export default function LedgerTab({ onLoaded }: { onLoaded?: () => void }) {
 
         <label className="flex items-center gap-2 text-sm text-ink-muted">
           Status
-          <select
+          <Select
             value={status}
             onChange={(e) => setStatus(e.target.value as StatusFilter)}
-            className="min-h-[44px] bg-surface border border-line rounded-control px-3 text-sm font-medium text-ink focus-visible:outline-2 focus-visible:outline-accent cursor-pointer"
+            className="min-h-[44px] border-line text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent"
           >
             <option value="ALL">All statuses</option>
             {STATUS_OPTIONS.map((s) => (
@@ -111,7 +112,7 @@ export default function LedgerTab({ onLoaded }: { onLoaded?: () => void }) {
                 {STATUS_META[s].label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       </div>
 
