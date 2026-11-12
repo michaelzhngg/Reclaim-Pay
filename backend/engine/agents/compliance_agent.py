@@ -671,9 +671,7 @@ def receipt_shield(
     return {"signals": [s.model_dump(mode="json") for s in signals]}
 
 
-def _decide(state: ComplianceWorkflowState, session: Session, facts: ClaimFacts, now: datetime) -> AutonomyDecision:
-    uid = UUID(state["user_id"])
-    signals = [RiskSignal.model_validate(s) for s in state.get("signals", [])]
+def _decide_once(session: Session, facts: ClaimFacts, signals: List[RiskSignal], uid: UUID, now: datetime) -> AutonomyDecision:
     return decide(
         facts,
         signals,
@@ -683,6 +681,24 @@ def _decide(state: ComplianceWorkflowState, session: Session, facts: ClaimFacts,
         autonomy_store.get_config(session),
         now,
     )
+
+
+def _decide(state: ComplianceWorkflowState, session: Session, facts: ClaimFacts, now: datetime) -> AutonomyDecision:
+    """decide() on totals that no concurrent claim can change until save_reimbursement commits this one.
+
+    Takes the employee key, then the company key only for an AUTO_PAY candidate; never the reverse, so no deadlock.
+    """
+    uid = UUID(state["user_id"])
+    signals = [RiskSignal.model_validate(s) for s in state.get("signals", [])]
+    # The first read of the settings row may create and commit it, which would drop locks already held.
+    autonomy_store.get_config(session)
+    autonomy_store.lock_employee_budget(session, uid)
+    decision = _decide_once(session, facts, signals, uid, now)
+    if decision.tier != AutonomyTier.AUTO_PAY:
+        return decision
+    # The ledger above was read without the company lock, so decide again on a fresh one.
+    autonomy_store.lock_company_budget(session)
+    return _decide_once(session, facts, signals, uid, now)
 
 
 def _verdict_for_decide(judgment: JudgmentResult, line_items: List[dict], claimed: Decimal, approved: Decimal) -> str:
@@ -781,6 +797,7 @@ def save_reimbursement(
         )
         decision = _decide(state, session, facts, now)
     except Exception:
+        session.rollback()
         emit(make_step("autonomy.decide", "done", SENT_TO_HR))
         raise
     auto_pay = decision.tier == AutonomyTier.AUTO_PAY

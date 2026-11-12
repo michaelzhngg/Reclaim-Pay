@@ -322,7 +322,7 @@ We link features to each judge's company and role only. Don't mention judges' pe
 1. Do the Devpost rules allow an existing project, as long as it's substantially upgraded? Check the official rules page. — Darrell
 2. Can one project win several sponsor prizes? — Darrell
 3. Do we approve dropping AI-only rejections (a behavior change from the original version)? — Team
-4. Are the default limits right (RM50 / 100 / 200, two people above RM1,000)? — Team
+4. Are the default limits right (RM50 / 100 / 200, two people above RM1,000)? — Team. Analysis and options: [DECISION-D1-LIMITS.md](DECISION-D1-LIMITS.md)
 5. MYR or USD in the sandbox? — Chingiz, after the Day 0 test _(Answered: MYR)_
 6. Do we want an AG Grid Enterprise trial key, or stay on the free Community version? — Christian
 

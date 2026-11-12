@@ -15,6 +15,7 @@ request can never pay twice.
 import asyncio
 import logging
 import threading
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
@@ -22,8 +23,8 @@ from uuid import UUID
 from sqlmodel import Session, select
 
 from core.config import settings
-from core.models import User, Reimbursement, Payout, Notification
-from core.enums import AgentActionType, ReimbursementStatus, PayoutStatus
+from core.models import User, Reimbursement, Payout, Notification, Vendor, VendorBooking
+from core.enums import AgentActionType, ReimbursementStatus, PayoutStatus, is_vendor_booking
 from core.push_service import fire_and_forget_push
 from engine.services.action_log import record_action
 from engine.services.paypal_client import (
@@ -38,6 +39,41 @@ logger = logging.getLogger(__name__)
 
 _LIVE_STATUSES = {PayoutStatus.ACCEPTED, PayoutStatus.REQUESTED, PayoutStatus.SUCCEEDED}
 _PAYABLE_STATUSES = {ReimbursementStatus.APPROVED, ReimbursementStatus.DISBURSEMENT_FAILED}
+
+
+@dataclass(frozen=True)
+class Payee:
+    """Who receives the money. The requester stays on Payout.user_id for attribution."""
+    kind: str
+    payer_id: str
+    email: str | None
+    label: str
+    vendor_id: UUID | None = None
+
+
+def payee_for_reim(db: Session, reim: Reimbursement) -> Payee | None:
+    """The verified payee for a claim or a vendor booking, or None if there is not one."""
+    if is_vendor_booking(reim):
+        booking = db.exec(select(VendorBooking).where(VendorBooking.reim_id == reim.reim_id)).first()
+        vendor = db.get(Vendor, booking.vendor_id) if booking else None
+        if not vendor or not vendor.paypal_verified or not vendor.paypal_payer_id or not vendor.is_active:
+            return None
+        return Payee(
+            kind="VENDOR_BOOKING",
+            payer_id=vendor.paypal_payer_id,
+            email=vendor.paypal_email,
+            label=vendor.name,
+            vendor_id=vendor.vendor_id,
+        )
+    employee = db.get(User, reim.user_id)
+    if not employee or not employee.paypal_verified or not employee.paypal_payer_id:
+        return None
+    return Payee(
+        kind="CLAIM",
+        payer_id=employee.paypal_payer_id,
+        email=employee.paypal_email,
+        label=employee.name,
+    )
 
 
 def payout_plan(
@@ -78,11 +114,10 @@ def _plan(reim_id: UUID, db: Session):
     if not reim:
         return None, None, ("SKIP_NOT_APPROVED", None, 0), []
     existing = _existing_payouts(db, reim_id)
-    employee = db.get(User, reim.user_id)
-    payee_verified = bool(employee and employee.paypal_verified and employee.paypal_payer_id)
+    payee = payee_for_reim(db, reim)
     net_amount, _applied = offset_for_reim(db, reim)
-    plan = payout_plan(reim.status, net_amount, [p.status for p in existing], payee_verified)
-    return reim, employee, plan, existing
+    plan = payout_plan(reim.status, net_amount, [p.status for p in existing], payee is not None)
+    return reim, payee, plan, existing
 
 
 def _settle_without_payout(db: Session, reim: Reimbursement):
@@ -108,7 +143,7 @@ def _handle_skip(db: Session, reim: Reimbursement | None, action: str, existing:
         else:
             logger.warning("[AUTO_PAYOUT] Nothing approved on reim=%s, not marking it paid", reim.reim_id)
     elif action == "SKIP_NO_PAYEE" and reim is not None:
-        logger.info("[AUTO_PAYOUT] Skipping reim=%s — employee has no verified PayPal account", reim.reim_id)
+        logger.info("[AUTO_PAYOUT] Skipping reim=%s: the payee has no verified PayPal account", reim.reim_id)
     return None
 
 
@@ -122,7 +157,7 @@ def _mark_disbursing(db: Session, reim: Reimbursement):
 def _save_payout(
     db: Session,
     reim: Reimbursement,
-    employee: User,
+    payee: Payee,
     amount: Decimal,
     attempt: int,
     sender_batch_id: str,
@@ -132,6 +167,7 @@ def _save_payout(
     payout = Payout(
         reim_id=reim.reim_id,
         user_id=reim.user_id,
+        vendor_id=payee.vendor_id,
         amount=amount,
         currency=currency,
         status=PayoutStatus.ACCEPTED,
@@ -151,18 +187,27 @@ def _save_payout(
         "currency": currency,
         "sender_batch_id": sender_batch_id,
         "batch_id": created.batch_id,
+        **({"vendor_id": str(payee.vendor_id)} if payee.vendor_id else {}),
     })
-    notify(
-        db, reim.user_id, "info",
-        f"Payout initiated for claim {_claim_ref(reim.reim_id)}",
-        f"Sending {currency} {amount:,.2f} to your PayPal account ({mask_email(employee.paypal_email or '')})",
-        link=f"/employee/history?id={reim.reim_id}",
-    )
+    if payee.kind == "VENDOR_BOOKING":
+        notify(
+            db, reim.user_id, "info",
+            f"Vendor paid for booking {_claim_ref(reim.reim_id)}",
+            f"{currency} {amount:,.2f} was sent to {payee.label} ({mask_email(payee.email or '')})",
+            link=f"/employee/history?id={reim.reim_id}",
+        )
+    else:
+        notify(
+            db, reim.user_id, "info",
+            f"Payout initiated for claim {_claim_ref(reim.reim_id)}",
+            f"Sending {currency} {amount:,.2f} to your PayPal account ({mask_email(payee.email or '')})",
+            link=f"/employee/history?id={reim.reim_id}",
+        )
     if settings.PAYPAL_MOCK_MODE:
         _schedule_status_refresh(payout.payout_id)
 
-    logger.info("[AUTO_PAYOUT] Payout initiated: reim=%s payout=%s batch=%s",
-                reim.reim_id, payout.payout_id, created.batch_id)
+    logger.info("[AUTO_PAYOUT] Payout initiated: reim=%s payout=%s batch=%s payee=%s",
+                reim.reim_id, payout.payout_id, created.batch_id, payee.kind)
     return payout
 
 
@@ -195,8 +240,8 @@ def initiate_payout_sync(
     account, nothing left to pay, or not approved). Does NOT raise on PayPal
     failure — it leaves the reimbursement in its current status for HR retry.
     """
-    reim, employee, (action, amount, attempt), existing = _plan(reim_id, db)
-    if action != "CREATE":
+    reim, payee, (action, amount, attempt), existing = _plan(reim_id, db)
+    if action != "CREATE" or payee is None:
         return _handle_skip(db, reim, action, existing)
 
     _mark_disbursing(db, reim)
@@ -205,7 +250,7 @@ def initiate_payout_sync(
     try:
         coro = get_paypal_client().create_payout(
             sender_batch_id=sender_batch_id,
-            payer_id=employee.paypal_payer_id,
+            payer_id=payee.payer_id,
             amount=amount,
             currency=settings.PAYPAL_CURRENCY,
             note=_claim_ref(reim_id),
@@ -216,17 +261,17 @@ def initiate_payout_sync(
         else:
             created = asyncio.run(coro)
     except Exception:
-        logger.exception("[AUTO_PAYOUT] PayPal call failed for reim=%s — leaving for HR retry", reim_id)
+        logger.exception("[AUTO_PAYOUT] PayPal call failed for reim=%s - leaving for HR retry", reim_id)
         db.rollback()
         return None
 
-    return _save_payout(db, reim, employee, amount, attempt, sender_batch_id, created)
+    return _save_payout(db, reim, payee, amount, attempt, sender_batch_id, created)
 
 
 async def initiate_payout_async(reim_id: UUID, db: Session) -> Payout | None:
     """Async variant for use in FastAPI route handlers."""
-    reim, employee, (action, amount, attempt), existing = _plan(reim_id, db)
-    if action != "CREATE":
+    reim, payee, (action, amount, attempt), existing = _plan(reim_id, db)
+    if action != "CREATE" or payee is None:
         return _handle_skip(db, reim, action, existing)
 
     _mark_disbursing(db, reim)
@@ -235,7 +280,7 @@ async def initiate_payout_async(reim_id: UUID, db: Session) -> Payout | None:
     try:
         created = await get_paypal_client().create_payout(
             sender_batch_id=sender_batch_id,
-            payer_id=employee.paypal_payer_id,
+            payer_id=payee.payer_id,
             amount=amount,
             currency=settings.PAYPAL_CURRENCY,
             note=_claim_ref(reim_id),
@@ -246,4 +291,4 @@ async def initiate_payout_async(reim_id: UUID, db: Session) -> Payout | None:
         db.rollback()
         return None
 
-    return _save_payout(db, reim, employee, amount, attempt, sender_batch_id, created)
+    return _save_payout(db, reim, payee, amount, attempt, sender_batch_id, created)

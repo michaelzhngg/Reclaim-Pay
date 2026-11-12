@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlmodel import Session, select
 
 from api import deps
-from core.enums import UserRole
+from core.enums import AgentActionType, UserRole
 from core.models import AgentAction, User
 from engine.risk.types import TrustTier
 from engine.services import autonomy_store as store
@@ -61,6 +61,8 @@ class AgentActionOut(BaseModel):
     action_id: int
     action_type: str
     actor: str
+    # The actor's display name when the actor is a user who still exists; null for "agent".
+    actor_name: str | None = None
     reim_id: str | None
     payload: dict[str, Any]
     prev_hash: str
@@ -176,16 +178,40 @@ def get_status(
     )
 
 
+def _actor_names(db: Session, actors: set[str]) -> dict[str, str]:
+    ids = []
+    for actor in actors:
+        try:
+            ids.append(UUID(actor))
+        except ValueError:
+            continue  # "agent" and other non-user actors
+    if not ids:
+        return {}
+    rows = db.exec(select(User.user_id, User.name).where(User.user_id.in_(ids))).all()
+    return {str(user_id): name for user_id, name in rows}
+
+
 @router.get("/actions", response_model=AgentActionsOut)
 def get_actions(
     limit: int = Query(50, ge=1, le=500),
+    types: list[AgentActionType] | None = Query(None, description="Only these action types. Repeat the parameter for several."),
+    before: int | None = Query(None, ge=1, description="Only entries older than this action_id, for paging back."),
+    policy_id: UUID | None = Query(None, description="Only entries about this policy."),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_hr_user),
 ):
-    rows = db.exec(select(AgentAction).order_by(AgentAction.action_id.desc()).limit(limit)).all()
+    stmt = select(AgentAction)
+    if types:
+        stmt = stmt.where(AgentAction.action_type.in_([t.value for t in types]))
+    if before is not None:
+        stmt = stmt.where(AgentAction.action_id < before)
+    if policy_id is not None:
+        stmt = stmt.where(AgentAction.payload["policy_id"].astext == str(policy_id))
+    rows = db.exec(stmt.order_by(AgentAction.action_id.desc()).limit(limit)).all()
+    names = _actor_names(db, {a.actor for a in rows})
     return AgentActionsOut(
         chain_valid=verify_chain(db),
-        actions=[AgentActionOut(**action_to_dict(a)) for a in rows],
+        actions=[AgentActionOut(**action_to_dict(a), actor_name=names.get(a.actor)) for a in rows],
     )
 
 

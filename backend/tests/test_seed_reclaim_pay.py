@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlmodel import select
 
 from core.enums import JudgmentResult, RecoveryStatus, ReimbursementStatus, UserRole
-from core.models import Payout, Recovery, Reimbursement, User
+from core.models import Payout, ReconciliationDifference, Recovery, Reimbursement, User
 from engine.risk.autonomy import trust_tier
 from engine.risk.types import AutonomyDecision, AutonomyTier, Severity, TrustTier
 from seeds.seed_reclaim_pay import (
@@ -106,7 +106,18 @@ def test_seed_twice_and_reset_keep_counts_stable(pg_db):
 
     seed(pg_db, now=NOW)
     assert _counts(pg_db) == first
+    payout = pg_db.exec(select(Payout).join(
+        Reimbursement, Reimbursement.reim_id == Payout.reim_id
+    ).where(Reimbursement.ai_reasoning.op("->>")("demo_seed") == SEED_TAG)).first()
+    difference = ReconciliationDifference(
+        kind="MISSING_IN_PAYPAL", payout_id=payout.payout_id, reim_id=payout.reim_id,
+        amount=48.0, currency="MYR", occurred_at=NOW, first_seen_at=NOW, last_seen_at=NOW,
+    )
+    pg_db.add(difference)
+    pg_db.commit()
+    difference_id = difference.difference_id
     seed(pg_db, reset=True, now=NOW)
+    assert pg_db.get(ReconciliationDifference, difference_id) is None
     assert _counts(pg_db) == first
     seed(pg_db, reset=True, clear=True, now=NOW)
     assert _counts(pg_db) == first

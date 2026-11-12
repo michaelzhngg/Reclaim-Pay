@@ -71,6 +71,7 @@ The Receipt Shield runs on every claim. Five checks always run, and a sixth is o
 - **Totals:** adds up line items, tax and service charge against the printed total, which catches a common flaw in made-up receipts.
 - **Split and near-limit claims:** spots several claims at one merchant on one day that exceed the limit together, and amounts that sit just under it.
 - **Market price (optional):** compares equipment prices with market listings through Channel3. It stays off without an API key and is not part of the demo.
+- **Signal reviews:** on the review page, HR marks each signal as a real problem or a false alarm. The Autonomy page shows how accurate each check has been, and shows a check's precision only after 10 rated cases so a single answer can't pass for a rate.
 
 ### HR stays in control
 
@@ -78,7 +79,10 @@ The Receipt Shield runs on every claim. Five checks always run, and a sixth is o
 - **Batch approve:** one action clears the quick-approval lane, and it skips anything outside that lane or the approver's own claims.
 - **Two-person approval:** the rule for high-risk claims is approval by two different HR members, and approvers may not approve their own claims.
 - **Evidence panel:** shows why a claim was routed, the evidence behind each signal, and progress on the two approvals, so reviewers don't start from a blank page.
-- **Autonomy page with live back-test:** as HR changes a limit, Reclaim Pay replays past claims under the new settings and redraws the trade-off between automation and projected losses in AG Charts. Tiles show automation rate, HR hours saved, projected leakage and bad claims caught. HR sees the effect before saving, and each save records a reason. The demo replays 120 seeded claims.
+- **Autonomy page with live back-test:** as HR changes a limit, Reclaim Pay replays past claims under the new settings and redraws the trade-off between automation and projected losses in AG Charts. Tiles show automation rate, HR hours saved, projected leakage and bad claims caught. HR sees the effect before saving, and each save records a reason. The demo replays 120 seeded claims, and a notice above the figures says so whenever the replay includes demo claims.
+- **Signal accuracy:** a table on the Autonomy page shows, for each Receipt Shield check, how often HR rated its flags as real problems, so limits and weights can be tuned on evidence instead of guesses.
+- **Policy limits as data:** in Policy Studio, the AI reads an uploaded policy and proposes limits for each category: the unit, grade, zone or place, and pre-approval thresholds. HR confirms or edits each row, and only confirmed limits are used. Each category takes its limits from the newest active policy, the one claims are judged against. Save is blocked while a limit edit is unconfirmed.
+- **Policy questions:** HR sees employees' questions with the date only and no name, the parts of the policy asked about most, and the questions the policy couldn't answer, which show where the policy has gaps.
 - **Kill switch:** one control sends every new claim to HR until someone turns auto-pay back on.
 - **Circuit breaker:** auto-pay pauses for 60 minutes and all HR users are notified when 6 of the last 20 decisions carry a high-risk signal, or when more than half the daily budget has been auto-paid in the last hour.
 - **Payouts: ledger with reconciliation:** lists every payout and matches paid payouts against the company's PayPal records by amount and time through Transaction Search, showing "Reconciled N of M" and any mismatches.
@@ -94,6 +98,7 @@ The Receipt Shield runs on every claim. Five checks always run, and a sixth is o
 - **Money flow:** a simple strip shows where the money is, ending in the employee's PayPal account.
 - **Trust card:** shows the employee's level and current auto-pay limit, plus progress toward the next one.
 - **Calendar:** a Bryntum calendar of claims submitted and payouts received, with colors that reveal nothing about which lane a held claim is in.
+- **Check before you spend:** a dashboard card checks one cost against the employee's own grade's confirmed limits (within, over, needs pre-approval and so on), estimates the most a trip can be reimbursed, and answers questions about the policy. Each answer quotes the policy word for word, its numbers must appear in that quote, the question or the employee's own limits, and an answer the quote can't back becomes "ask HR". Employees can ask 20 questions in any 24 hours, and policy text is treated as untrusted. The card is guidance, not an approval.
 
 ### Recovering mistakes
 
@@ -205,12 +210,20 @@ Reclaim began in April 2026 as our own expense review product. It recommended de
 11. The HR triage queue and evidence panel, plus Payouts tabs for the ledger, audit queue, recoveries and agent log.
 12. Reconciliation against the company's PayPal records with the PayPal Server SDK.
 13. Signed webhooks, a public deployment, a Postman collection and seeded demo data.
+14. Policy limits as data: AI-proposed limits per category that HR confirms in Policy Studio, with only confirmed limits used.
+15. Check before you spend: a cost check, trip estimate and quoted policy answers for employees, and a policy questions page for HR.
+16. Signal reviews, with a per-signal accuracy table on the Autonomy page.
+17. Decision engine clean-up: one source for the trust thresholds, a demo-data notice on the Autonomy page, and a [decision note on the default limits](DECISION-D1-LIMITS.md).
 
 ---
 
 ## What's next
 
-**Make it real (next).** Apply for live PayPal Payouts and pilot with one company. Tune limits and signal weights on real claims, and fix a known gap: two claims processed at the same moment can pass a daily cap together. Add "ask before you spend", so employees can check the policy before paying, and an HR assistant that prepares batches but never sends money.
+**Make it real (next).** Apply for live PayPal Payouts and pilot with one company. Tune the trust thresholds and signal weights on pilot data, and fix a known gap: two claims processed at the same moment can pass a daily cap together. Add an HR assistant that prepares batches but never sends money.
+
+**Fix the category budget check (next).** It sums per-unit amounts such as nights and meals, so a claim can go to HR with every unit inside policy. The fix is to check claims against the confirmed per-unit limits.
+
+**Close policy gaps (next).** Send the questions the policy couldn't answer to HR as suggested policy edits. Feed signal accuracy back into the Receipt Shield weights.
 
 **Remove out-of-pocket spending (Q1 2027).** Travel advances that settle automatically, company-paid vendor bookings, and matching receipts against the company's real PayPal transactions. That last check gives us evidence an image generator can't fake.
 

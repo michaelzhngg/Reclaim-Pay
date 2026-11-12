@@ -9,12 +9,14 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from core.config import settings
 from core.enums import AgentActionType, RecoveryStatus, ReimbursementStatus, UserRole
 from core.models import AutonomySettings, Recovery, Reimbursement, User
+from engine.risk.autonomy import NEW_ISSUE_DAYS, TRUSTED_ISSUE_DAYS
 from engine.services.action_log import record_action
 from engine.services.risk_contract import (
     AUTONOMY_TIERS,
@@ -41,6 +43,9 @@ CONFIRMED_RECOVERY_STATUSES = (
 )
 # Fields on AutonomyConfig the server owns: `enabled` moves only through the kill switch.
 SERVER_OWNED_FIELDS = {"enabled", "version"}
+# Two-key advisory lock namespaces, a separate key space from the action log's single-key lock.
+EMPLOYEE_BUDGET_LOCK = 724243
+COMPANY_BUDGET_LOCK = 724244
 
 
 def _utc(dt: datetime) -> datetime:
@@ -71,22 +76,31 @@ def history_from_rows(rows: list[dict], issue_dates: list[datetime], now: dateti
     now = _utc(now)
     return EmployeeHistory(
         paid_claims=sum(1 for r in rows if str(r.get("status")) == ReimbursementStatus.PAID.value),
-        confirmed_issues_90d=sum(1 for d in issues if d >= now - timedelta(days=90)),
-        confirmed_issues_180d=sum(1 for d in issues if d >= now - timedelta(days=180)),
+        confirmed_issues_90d=sum(1 for d in issues if d >= now - timedelta(days=NEW_ISSUE_DAYS)),
+        confirmed_issues_180d=sum(1 for d in issues if d >= now - timedelta(days=TRUSTED_ISSUE_DAYS)),
         auto_paid_today=float(sum(Decimal(str(r["amount"])) for r in auto if _utc(r["updated_at"]) >= today)),
         auto_paid_month=float(sum(Decimal(str(r["amount"])) for r in auto if _utc(r["updated_at"]) >= month)),
     )
 
 
-def ledger_from_rows(rows: list[dict], now: datetime, breaker_until: datetime | None) -> AgentLedger:
-    """rows: company-wide claims with `status`, `tier`, `amount`, `updated_at`."""
+def ledger_from_rows(rows: list[dict], now: datetime, breaker_until: datetime | None,
+                     vendor_rows: list[dict] | None = None) -> AgentLedger:
+    """rows: company-wide claims with `status`, `tier`, `amount`, `updated_at`.
+    vendor_rows: vendor booking payments with `status`, `amount`, `updated_at`.
+    """
     now = _utc(now)
     today, hour_ago = _day_start(now), now - timedelta(hours=1)
     auto = [r for r in rows if _is_auto_paid(r)]
+    vendor_paid_today = sum(
+        Decimal(str(r["amount"])) for r in vendor_rows or []
+        if str(r.get("status")) in (ReimbursementStatus.DISBURSING.value, ReimbursementStatus.PAID.value)
+        and _utc(r["updated_at"]) >= today
+    )
     return AgentLedger(
         auto_paid_today=float(sum(Decimal(str(r["amount"])) for r in auto if _utc(r["updated_at"]) >= today)),
         auto_paid_last_hour=float(sum(Decimal(str(r["amount"])) for r in auto if _utc(r["updated_at"]) >= hour_ago)),
         breaker_active=breaker_until is not None and _utc(breaker_until) > now,
+        vendor_paid_today=float(vendor_paid_today),
     )
 
 
@@ -95,6 +109,14 @@ def payee_from_user(user: User) -> PayeeStatus:
         verified=bool(user.paypal_verified and user.paypal_payer_id),
         linked_at=user.paypal_linked_at,
         changed_at=user.payout_destination_changed_at,
+    )
+
+
+def payee_from_vendor(vendor) -> PayeeStatus:
+    return PayeeStatus(
+        verified=bool(vendor.paypal_verified and vendor.paypal_payer_id),
+        linked_at=vendor.paypal_linked_at,
+        changed_at=vendor.payout_destination_changed_at,
     )
 
 
@@ -110,6 +132,18 @@ def _claim_row(r: Reimbursement) -> dict:
 
 def _has_high_signal(autonomy: dict | None) -> bool:
     return any((s or {}).get("severity") == "HIGH" for s in (autonomy or {}).get("signals", []))
+
+
+def lock_employee_budget(db: Session, user_id: UUID) -> None:
+    """Serialise auto-pay decisions for one employee until this transaction commits or rolls back."""
+    # A 32-bit slice of the UUID: a collision only makes two employees wait for each other.
+    key = int.from_bytes(user_id.bytes[:4], "big", signed=True)
+    db.exec(text(f"SELECT pg_advisory_xact_lock({EMPLOYEE_BUDGET_LOCK}, {key})"))
+
+
+def lock_company_budget(db: Session) -> None:
+    """Serialise every claim that would spend the company daily budget until this transaction ends."""
+    db.exec(text(f"SELECT pg_advisory_xact_lock({COMPANY_BUDGET_LOCK}, 0)"))
 
 
 def settings_row(db: Session, for_update: bool = False) -> AutonomySettings:
@@ -144,6 +178,12 @@ def get_config(db: Session) -> AutonomyConfig:
     if not settings.AUTO_REIMBURSE_ENABLED:
         cfg = cfg.model_copy(update={"enabled": False})
     return cfg
+
+
+def payee_cooldown_hours(db: Session) -> int:
+    """Display-only read that never creates or commits the settings row."""
+    row = db.exec(select(AutonomySettings).where(AutonomySettings.id == SETTINGS_ID)).first()
+    return config_from_row(row).payee_cooldown_hours if row else AutonomyConfig().payee_cooldown_hours
 
 
 def is_enabled(db: Session) -> bool:
@@ -239,6 +279,7 @@ def confirmed_issues(db: Session, user_id: UUID) -> list[tuple[datetime, str, UU
     rejected = db.exec(
         select(Reimbursement).where(
             Reimbursement.user_id == user_id,
+            Reimbursement.kind == "CLAIM",
             Reimbursement.status == ReimbursementStatus.REJECTED.value,
             Reimbursement.reviewed_by.is_not(None),
         )
@@ -253,7 +294,13 @@ def _confirmed_issue_dates(db: Session, user_id: UUID) -> list[datetime]:
 
 
 def employee_history(db: Session, user_id: UUID, now: datetime) -> EmployeeHistory:
-    claims = db.exec(select(Reimbursement).where(Reimbursement.user_id == user_id)).all()
+    # Vendor bookings are company spend, not money the employee received; keep them out of trust and caps.
+    claims = db.exec(
+        select(Reimbursement).where(
+            Reimbursement.user_id == user_id,
+            Reimbursement.kind == "CLAIM",
+        )
+    ).all()
     return history_from_rows([_claim_row(r) for r in claims], _confirmed_issue_dates(db, user_id), now)
 
 
@@ -267,19 +314,35 @@ def payee_status(db: Session, user_id: UUID) -> PayeeStatus:
 def ledger_snapshot(db: Session, now: datetime) -> AgentLedger:
     claims = db.exec(
         select(Reimbursement).where(
+            Reimbursement.kind == "CLAIM",
             Reimbursement.tier == "AUTO_PAY",
             Reimbursement.status.in_(AUTO_PAID_STATUSES),
             Reimbursement.updated_at >= _day_start(now),
         )
     ).all()
-    return ledger_from_rows([_claim_row(r) for r in claims], now, settings_row(db).breaker_until)
+    vendor_rows = [
+        _claim_row(r) for r in db.exec(
+            select(Reimbursement).where(
+                Reimbursement.kind == "VENDOR_BOOKING",
+                Reimbursement.status.in_([
+                    ReimbursementStatus.DISBURSING.value,
+                    ReimbursementStatus.PAID.value,
+                ]),
+                Reimbursement.updated_at >= _day_start(now),
+            )
+        ).all()
+    ]
+    return ledger_from_rows([_claim_row(r) for r in claims], now, settings_row(db).breaker_until, vendor_rows)
 
 
 def recent_decisions(db: Session, n: int) -> list:
     """Newest first. AutonomyDecision models once engine.risk exists, stored dicts until then."""
     rows = db.exec(
         select(Reimbursement.autonomy)
-        .where(Reimbursement.tier.is_not(None))
+        .where(
+            Reimbursement.kind == "CLAIM",
+            Reimbursement.tier.is_not(None),
+        )
         .order_by(Reimbursement.created_at.desc())
         .limit(n)
     ).all()

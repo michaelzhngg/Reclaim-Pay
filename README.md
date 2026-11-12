@@ -63,6 +63,8 @@ The Receipt Shield is six fixed checks, plus one optional price check. None of t
 
 Red-team suite: every PR runs 66 fake receipts across 7 attack families, plus 28 honest ones, through the shield and the lane decision. The build fails if any of the 42 must-catch fakes gets through or a family's catch rate drops. The other 24 fakes are known gaps, and 2 honest receipts are wrongly flagged today. Both lists are in [`backend/tests/redteam/README.md`](backend/tests/redteam/README.md).
 
+On the review page, HR marks each signal as a real problem or a false alarm. The Autonomy page then shows how accurate each check has been. A check's precision appears only after 10 rated cases, so a 1-of-1 "100%" never shows.
+
 ### HR stays in control
 
 | Feature | What it does | Why it matters |
@@ -71,7 +73,10 @@ Red-team suite: every PR runs 66 fake receipts across 7 attack families, plus 28
 | Batch approve | Approves selected quick-approval claims in one action. | Low-risk claims don't each need their own review. |
 | Evidence panel | Shows why a claim was routed, the evidence for each signal, and approval progress. | HR decides from facts and doesn't have to re-investigate. |
 | Two-person approval | The rule for the riskiest lane: two different HR members approve, and HR can't approve their own claim. | A risky payment needs a second person's sign-off. |
-| Autonomy page | Lets HR edit limits and see a live back-test: each edit re-runs the rule engine on the last 90 days of claims and shows the automation rate and expected losses. Saved changes go in the log, with the reason HR gives. | HR sees the trade-off before saving. The demo's history is seeded test data. |
+| Autonomy page | Lets HR edit limits and see a live back-test: each edit re-runs the rule engine on the last 90 days of claims and shows the automation rate and expected losses. Saved changes go in the log, with the reason HR gives. A notice appears above the figures when the replay includes demo claims. | HR sees the trade-off before saving, and isn't misled by seeded test data. |
+| Signal accuracy | A per-signal table on the Autonomy page, built from HR's real-problem and false-alarm answers. Precision shows only after 10 rated cases. | HR can see which checks earn their flags before anyone tunes a weight. |
+| Policy limits | In Policy Studio (`/hr/policy`), the AI reads an uploaded policy and proposes limits per category: unit, grade, zone or place, and pre-approval thresholds. HR confirms or edits each row, and only confirmed limits are used. Each category takes its limits from the newest active policy, the one claims are judged against. Save is blocked while a limit edit is unconfirmed. | A model's reading of the policy never becomes a rule until a person has checked it. |
+| Policy questions | `/hr/policy/questions` lists employees' questions with the date only and no name, the policy sections asked about most, and the questions the policy couldn't answer. | The unanswered questions show where the policy has gaps. |
 | Kill switch | Stops all auto-pay at once. HR must give a reason, which is logged. | A person can stop the agent at any time. |
 | Circuit breaker | Pauses auto-pay for 60 minutes and alerts HR if 6 of the last 20 decisions are high-risk, or if over 50% of the daily budget (RM1,000 by default) was auto-paid in the last hour. | A fraud spike stops itself, even if nobody is watching. |
 | Hash-chained log | Keeps a tamper-evident record: each agent action stores a hash of the previous one, and the screen shows "Log intact" or "Log altered". | Editing a past entry breaks the chain. The chain can't detect deletion of the newest rows. |
@@ -89,6 +94,7 @@ Red-team suite: every PR runs 66 fake receipts across 7 attack families, plus 28
 | Live timeline | Shows each check as it runs, in employee-safe wording. | The wait is visible, so claims don't feel like a black box. |
 | Money flow | Shows the claim's path from approved to "in your PayPal". | Employees know where their money is. |
 | Badge panel | Shows the instant-pay limit as a Bronze (RM50), Silver (RM100) or Gold (RM200) badge, an arc with progress to the next badge, and the claim totals. Tapping the badge in the middle lists all badges, recent level changes and how instant payouts work. | The rules for faster payment are open. |
+| Check before you spend | A dashboard card checks one cost against the employee's own grade's confirmed limits (within, over, needs pre-approval and so on), estimates the most a trip can be reimbursed, and answers questions about the policy. Each answer quotes the policy word for word, and its numbers must appear in that quote, the question or the employee's own limits. An answer the quote can't back becomes "ask HR". Questions are capped at 20 in any 24 hours, and policy text is treated as untrusted. The card says it is guidance, not an approval. | Employees learn the limit before they pay, not after a claim lands with HR. |
 | Overpayment notice with dispute | Tells the employee what's owed and why, and gives them a form to dispute it. | Nothing is collected without notice and a chance to respond. |
 | Calendar | Shows claims and payouts on a Bryntum calendar (trial version, with its watermark). | Employees can see at a glance what was paid and when. |
 | Privacy rules | Hides risk scores, signal names and HR's explanations from employees, and shows two-person review as ordinary review. Employees do see the AI's verdict and confidence on their claim. | Honest staff aren't made to feel accused, and fraudsters can't easily learn the checks. |
@@ -243,6 +249,10 @@ The demo is shared, so please don't change the kill switch or run the S7 flood t
 - HR triage queue, evidence panel, Autonomy page with back-test, and all Payouts tabs, including PayPal reconciliation
 - Audit sampling and overpayment recovery, including PayPal invoices through the Agent Toolkit
 - Live timeline, money flow, trust card, overpayment notice with dispute, and calendar
+- Policy limits as data: AI-proposed limits per category that HR confirms in Policy Studio, and are the only ones used
+- Check before you spend: a cost check, trip estimate and quoted policy answers for employees, and a policy questions page for HR
+- Signal reviews: HR marks each Receipt Shield signal as a real problem or a false alarm, with a per-signal accuracy table on the Autonomy page
+- Decision engine clean-up: one source for the trust thresholds, a demo-data notice on the Autonomy page, and a [decision note on the default limits](docs/hackathon/DECISION-D1-LIMITS.md)
 - Demo kit (policy, receipts, 120-claim seed), Postman collection and public deployment
 
 ## Project status
@@ -299,7 +309,10 @@ docker compose exec backend python -m seeds.seed_reclaim_pay    # demo accounts 
 
 ## What's next
 
-- **Make it real (Nov to Dec 2026):** go live with PayPal for one pilot company, add "ask before you spend" policy answers, and add an HR assistant that prepares batches and never pays.
+- **Make it real (Nov to Dec 2026):** go live with PayPal for one pilot company, tune the trust thresholds on pilot data, and add an HR assistant that prepares batches and never pays.
+- **Fix the category budget check (next):** it sums per-unit amounts such as nights and meals, so a claim can go to HR with every unit inside policy. The fix is to check claims against the confirmed per-unit limits ([details](docs/hackathon/DECISION-D1-LIMITS.md)).
+- **Close policy gaps:** send the questions the policy couldn't answer to HR as suggested policy edits.
+- **Learn from HR's reviews:** feed signal accuracy back into the Receipt Shield weights.
 - **Remove out-of-pocket spending (Q1 2027):** travel advances, company-paid vendor bookings, and matching receipts against the real PayPal payment.
 - **Meet people where they are (Q2 2027):** claims by chat, team budgets and a policy simulator.
 - **Grow the market (H2 2027):** contractors and overseas staff, using the currencies PayPal Payouts supports.
