@@ -33,6 +33,23 @@ describe("actionSummary", () => {
     expect(actionSummary(action)).toBe(expected);
   });
 
+  it("lists what changed on an employee account", () => {
+    const changes = {
+      role: { from: "Employee", to: "HR" },
+      is_active: { from: true, to: false },
+      name: { from: "A", to: "B" },
+      department_id: { from: null, to: "d1" },
+    };
+    expect(actionLabel({ action_type: "EMPLOYEE_UPDATED", payload: {} })).toBe("Account updated");
+    expect(actionSummary({ action_type: "EMPLOYEE_UPDATED", payload: { changes } }))
+      .toBe("Deactivated, role Employee to HR, name changed, department changed");
+    expect(actionSummary({ action_type: "EMPLOYEE_UPDATED", payload: { changes: { is_active: { from: false, to: true } } } }))
+      .toBe("Reactivated");
+    expect(actionSummary({ action_type: "EMPLOYEE_UPDATED", payload: { changes: { user_code: { from: null, to: "E1" } } } }))
+      .toBe("Company ID changed");
+    expect(actionSummary({ action_type: "EMPLOYEE_UPDATED", payload: {} })).toBeNull();
+  });
+
   it("returns null rather than guessing at a malformed or unknown payload", () => {
     expect(actionSummary({ action_type: "PAYOUT_STATUS", payload: {} })).toBeNull();
     expect(actionSummary({ action_type: "DECISION", payload: { tier: "NOPE" } })).toBeNull();

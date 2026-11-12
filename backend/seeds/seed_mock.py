@@ -18,7 +18,7 @@ def seed():
         # Find the first Employee user to attach the reimbursement to
         user = db.exec(select(User)).first()
         if not user:
-            print("No users found. Create a user first (register via /api/v1/auth/register).")
+            print("No users found. Create a user first (HR adds people via POST /api/v1/employee/).")
             return
 
         # Check if we already seeded

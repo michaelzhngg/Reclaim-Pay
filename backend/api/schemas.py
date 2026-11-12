@@ -2,7 +2,7 @@ from typing import List, Literal, Optional
 from datetime import datetime, date
 from decimal import Decimal
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from core.enums import (
     UserRole,
@@ -29,10 +29,6 @@ class UserBase(BaseModel):
     privilege_level: PrivilegeLevel = PrivilegeLevel.Standard
     rank: Optional[int] = Field(default=1, ge=1)
     is_active: bool = True
-
-
-class UserCreate(UserBase):
-    password: str
 
 
 class UserUpdate(UserBase):
@@ -66,6 +62,53 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     email: Optional[str] = None
+
+
+class CreateEmployeeRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    email: EmailStr
+    user_code: Optional[str] = Field(default=None, max_length=40)
+    department_id: Optional[UUID] = None
+    role: UserRole = UserRole.Employee
+
+
+class UpdateEmployeeRequest(BaseModel):
+    """Send only the fields that change. Email, password, PayPal and bank details can't be changed here."""
+    model_config = ConfigDict(extra="forbid")
+
+    name: Optional[str] = Field(default=None, max_length=120)
+    user_code: Optional[str] = Field(default=None, max_length=40)
+    department_id: Optional[UUID] = None
+    role: Optional[UserRole] = None
+    is_active: Optional[bool] = None
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, v):
+        if v is None or not v.strip():
+            raise ValueError("Enter their full name.")
+        return v.strip()
+
+    @field_validator("role", "is_active")
+    @classmethod
+    def _not_null(cls, v):
+        if v is None:
+            raise ValueError("This field can't be empty.")
+        return v
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordTokenRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=200)
+    purpose: Literal["invite", "reset"]
+
+
+class SetPasswordRequest(PasswordTokenRequest):
+    # The policy's own byte limit gives the readable message; this only stops absurd bodies.
+    new_password: str = Field(max_length=1000)
 
 
 class UpdateProfileRequest(BaseModel):

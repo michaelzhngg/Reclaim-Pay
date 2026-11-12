@@ -45,10 +45,23 @@ def get_current_user(
     # Unlinking from a password session, or a role change, ends any PayPal session at once.
     if security.is_paypal_session(payload) and security.paypal_signin_rejection(user, payload.get("paypal_payer_id")):
         raise credentials_exception
+    if issued_before_password_change(payload, user.password_changed_at):
+        raise credentials_exception
     return user
 
 
-def get_session_claims(token: str = Depends(oauth2_scheme)) -> dict:
+def issued_before_password_change(claims: dict, changed_at: datetime | None) -> bool:
+    """A password set through invite or reset ends every session issued before it, including ones without iat."""
+    if changed_at is None:
+        return False
+    if changed_at.tzinfo is None:
+        changed_at = changed_at.replace(tzinfo=timezone.utc)
+    issued = claims.get("iat")
+    return not isinstance(issued, (int, float)) or issued < changed_at.timestamp()
+
+
+# Depends on get_current_user so no route can read claims from a session that has ended.
+def get_session_claims(token: str = Depends(oauth2_scheme), _user=Depends(get_current_user)) -> dict:
     try:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     except JWTError:
