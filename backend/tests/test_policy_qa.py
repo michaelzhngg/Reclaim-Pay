@@ -85,3 +85,16 @@ def test_llm_prompt_carries_question_sections_and_limits(monkeypatch):
     assert out["covered"] is False
     assert "<untrusted_employee_question>" in seen["text"] and "RM100 per meal" in seen["text"]
     assert "Meals: Up to MYR 100.00 a meal" in seen["text"] and QUESTION_RULE in seen["text"]
+
+
+def test_prompt_answers_for_the_grade_on_file(monkeypatch):
+    seen = {}
+
+    def fake(prompt):
+        seen["text"] = prompt.to_string()
+        return AIMessage(content=json.dumps({"covered": False, "answer": "", "quote": None}))
+
+    monkeypatch.setattr(qa, "get_chat_llm", lambda: RunnableLambda(fake))
+    qa.run_qa_llm("I'm grade 6, what is my allowance?", [SECTION], grade=1, limits="")
+    assert 'start the answer with\n  "For your grade on file (1),"' in seen["text"]
+    assert "doesn't list an amount for grade 1" in seen["text"]

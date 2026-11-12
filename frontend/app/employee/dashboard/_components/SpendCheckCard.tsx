@@ -3,9 +3,11 @@
 import { useEffect, useId, useState, type FormEvent } from "react";
 import type { CategoryOption, QaAnswer, SpendCheckResult, TripEstimate } from "@/lib/api/reclaim-pay-types";
 import { askPolicy, checkCost, getSpendCategories, planTrip } from "@/lib/actions/spendCheck";
+import { useAuth } from "@/context/AuthContext";
 import { parseAmount, quantityLabel } from "@/lib/policy/limits";
 import {
-  GUIDANCE_NOTE, tripLineText, tripNotes, tripSummary, verdictMessage, zoneText, type SpendTone,
+  GUIDANCE_NOTE, ONE_QUESTION_MESSAGE, askHint, hasSeveralQuestions, tripLineText, tripNotes, tripSummary,
+  verdictMessage, zoneText, type SpendTone,
 } from "@/lib/policy/spendCopy";
 
 type Mode = "cost" | "trip" | "ask";
@@ -41,6 +43,7 @@ function Guidance() {
 /** Employees check a cost, estimate a trip or ask the policy a question before they spend. */
 export default function SpendCheckCard({ className = "" }: { className?: string }) {
   const ids = useId();
+  const { user } = useAuth();
   // undefined while loading, null when the request failed
   const [options, setOptions] = useState<CategoryOption[] | null | undefined>(undefined);
   const [mode, setMode] = useState<Mode>("cost");
@@ -136,6 +139,10 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
       setError("Write a question between 5 and 500 characters.");
       return;
     }
+    if (hasSeveralQuestions(question)) {
+      setError(ONE_QUESTION_MESSAGE);
+      return;
+    }
     void run(async () => {
       const res = await askPolicy(question.trim());
       setAnswer(res.answer);
@@ -165,7 +172,7 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
   const hint = MODES.find((m) => m.mode === mode)!.hint;
 
   return (
-    <section aria-labelledby={`${ids}-heading`} className={`max-w-3xl rounded-card shadow-ambient bg-surface p-4 md:p-6 ${className}`}>
+    <section aria-labelledby={`${ids}-heading`} className={`rounded-card shadow-ambient bg-surface p-4 md:p-6 ${className}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h3 id={`${ids}-heading`} className="font-display text-lg font-semibold text-ink">Check before you spend</h3>
@@ -191,7 +198,7 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
       )}
 
       {options && mode === "cost" && (
-        <form onSubmit={onCost} noValidate className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <form onSubmit={onCost} noValidate className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className={LABEL}>
             What for
             <select required value={category} onChange={(e) => editCost(setCategory)(e.target.value)} className={FIELD}>
@@ -225,7 +232,7 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
           )}
           {chosen?.asks_destination && destinationField(editShared(setDestination))}
           {chosen?.asks_overseas && overseasField(editShared(setOverseas))}
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-2 lg:col-span-4">
             <button type="submit" disabled={busy || !category || amountBad || qtyBad} className={SUBMIT}>
               Check my limit
             </button>
@@ -234,7 +241,7 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
       )}
 
       {options && mode === "trip" && (
-        <form onSubmit={onTrip} noValidate className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <form onSubmit={onTrip} noValidate className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className={LABEL}>
             Leaving
             <input type="date" required value={depart} onChange={(e) => editTrip(setDepart)(e.target.value)} className={FIELD} />
@@ -251,7 +258,7 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
           </label>
           {tripAsksDestination && destinationField(editShared(setDestination))}
           {tripAsksOverseas && overseasField(editShared(setOverseas))}
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-2 lg:col-span-4">
             <button type="submit" disabled={busy || !depart || !ret || datesBad} className={SUBMIT}>Estimate my trip</button>
           </div>
         </form>
@@ -267,7 +274,7 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
               className={`${FIELD} h-auto py-2 placeholder:text-ink-muted`} />
           </label>
           <p id={`${ids}-ask-hint`} className="-mt-1 text-xs text-ink-muted">
-            <span className="tabular-nums">{question.length} of {MAX_QUESTION}</span> characters. Up to 20 questions a day.
+            <span className="tabular-nums">{question.length} of {MAX_QUESTION}</span> characters. {askHint(user?.rank)}
           </p>
           <div>
             <button type="submit" disabled={busy || question.trim().length === 0} className={SUBMIT}>Ask</button>
@@ -275,7 +282,7 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
         </form>
       )}
 
-      <div aria-live="polite" className="text-sm">
+      <div aria-live="polite" className="max-w-3xl text-sm">
         {busy && <p className="mt-4 text-ink-muted">{mode === "ask" ? "Reading the policy" : "Checking the policy"}</p>}
         {!busy && error && <p className="mt-4 text-danger">{error}</p>}
 

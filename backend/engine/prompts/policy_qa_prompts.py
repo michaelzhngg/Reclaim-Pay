@@ -9,6 +9,10 @@ Return JSON only: {{"covered": true or false, "answer": "...", "quote": "..."}}
 - State the per-unit limit as written. Don't multiply or add amounts.
 - quote: copy the sentence from the sections that supports your answer, word for word, at most 200 characters. Use null when covered is false.
 - When the employee's limits below contain the number, use that number.
+- Answer for the employee's grade on file below, even if the question names another grade, and start the answer with
+  "For your grade on file ({grade}),". If the sections answer the question only for other grades, set covered to true,
+  say the policy doesn't list an amount for grade {grade}, and quote the passage that lists the grades.
+  When the grade is "not set", skip that opening and say which grades the amount applies to.
 
 Employee's grade: {grade}
 Employee's confirmed limits:
