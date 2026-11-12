@@ -7,6 +7,7 @@ import { createVendorBooking, getVendors } from "@/lib/actions/bookings";
 import { getPolicies } from "@/lib/actions/policies";
 import type { ReimbursementRaw, VendorOption } from "@/lib/api/types";
 import { formatClaimRef, formatMoney } from "@/lib/format";
+import { Select } from "@/components/ui/Select";
 import { bookingResultCopy, isBookingPending } from "./_lib/resultCopy";
 
 const NEW_VENDOR = "__new__";
@@ -153,10 +154,10 @@ export default function BookVendorPage() {
       <form onSubmit={submit} className="mt-6 bg-surface shadow-ambient rounded-card p-5 md:p-7 flex flex-col gap-5">
         <label className="flex flex-col gap-1.5">
           <span className="font-body text-sm font-semibold text-ink">Vendor</span>
-          <select
+          <Select
             value={vendorId}
             onChange={(event) => setVendorId(event.target.value)}
-            className="min-h-11 rounded-control border border-line-strong bg-surface px-3 font-body text-sm text-ink"
+            className="min-h-11 border-line-strong font-body text-sm"
           >
             <option value="">Choose a vendor</option>
             {vendors.map((vendor) => (
@@ -165,7 +166,7 @@ export default function BookVendorPage() {
               </option>
             ))}
             <option value={NEW_VENDOR}>Add a new vendor</option>
-          </select>
+          </Select>
           {chosenVendor && !chosenVendor.paypal_ready && (
             <span className="font-body text-xs text-ink-muted">
               This vendor is new to Reclaim Pay. HR will check the payout account first.
@@ -204,16 +205,16 @@ export default function BookVendorPage() {
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="font-body text-sm font-semibold text-ink">Category</span>
-            <select
+            <Select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
-              className="min-h-11 rounded-control border border-line-strong bg-surface px-3 font-body text-sm text-ink"
+              className="min-h-11 border-line-strong font-body text-sm"
             >
               <option value="">Choose a category</option>
               {categories.map((name) => (
                 <option key={name} value={name}>{name}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="font-body text-sm font-semibold text-ink">Service start</span>
