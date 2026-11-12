@@ -1,6 +1,7 @@
 """Autonomy settings, kill switch, status, action log and back-test (HR), and the employee trust card."""
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
@@ -76,6 +77,24 @@ class BacktestIn(BaseModel):
     config: AutonomyConfig
 
 
+class TrustChangeOut(BaseModel):
+    at: datetime
+    from_tier: TrustTier
+    to_tier: TrustTier
+    from_limit: float
+    to_limit: float
+    # Only what the employee may see: never the check or signal behind a correction.
+    cause: Literal["approved_claims", "time_passed", "correction", "recovery"]
+    # The claim a correction or recovery was on; null for the other causes.
+    reim_id: UUID | None = None
+
+
+class TrustLevelOut(BaseModel):
+    tier: TrustTier
+    auto_limit: float
+    min_paid_claims: int
+
+
 class TrustInfoOut(BaseModel):
     trust_tier: TrustTier
     auto_limit: float
@@ -87,6 +106,12 @@ class TrustInfoOut(BaseModel):
     next_limit: float | None
     # Set while a recent correction keeps the employee at NEW.
     limited_until: datetime | None
+    # Up to 3 most recent tier changes, newest first.
+    changes: list[TrustChangeOut] = []
+    levels: list[TrustLevelOut] = []
+    # Days a correction holds the employee at NEW, and days without one that Trusted needs.
+    hold_days: int | None = None
+    trusted_clean_days: int | None = None
 
 
 def _now() -> datetime:

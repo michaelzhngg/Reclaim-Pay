@@ -1,14 +1,31 @@
+import { ChevronDown } from "lucide-react";
 import type { TrustInfo } from "@/lib/api/reclaim-pay-types";
-import { isTopTier, limitLine, tierLabel, trustLine, trustProgress, trustReasonLine } from "../_lib/copy";
+import {
+  EXPLAINER_INTRO,
+  EXPLAINER_OPEN_NOTICE_LINE,
+  EXPLAINER_TITLE,
+  correctionRuleLine,
+  isTopTier,
+  levelLines,
+  limitLine,
+  recentChangeLines,
+  tierLabel,
+  trustLine,
+  trustProgress,
+  trustReasonLine,
+} from "../_lib/copy";
 
 /**
- * How fast this employee's claims get paid. Shows the tier, the auto-pay limit
- * and the way to the next tier. Never shows risk scores or signal names.
+ * How fast this employee's claims get paid. Shows the tier, the auto-pay limit,
+ * the way to the next tier, recent level changes and how the levels work.
+ * Never shows risk scores or signal names.
  */
 export default function FastTrackCard({ info }: { info: TrustInfo }) {
   const limited = trustReasonLine(info);
   const top = isTopTier(info);
   const pct = Math.round(trustProgress(info) * 100);
+  const changes = recentChangeLines(info);
+  const levels = levelLines(info);
 
   return (
     <section
@@ -33,6 +50,40 @@ export default function FastTrackCard({ info }: { info: TrustInfo }) {
           <div className="h-full rounded-full bg-linear-to-r from-primary to-paypal-sky" style={{ width: `${pct}%` }} />
         </div>
       )}
+
+      {changes.length > 0 && (
+        <div className="mt-4 border-t border-line pt-3">
+          <h4 className="font-body text-sm font-semibold text-ink">Recent changes</h4>
+          <ul className="mt-1.5 space-y-1.5">
+            {changes.map((line, i) => (
+              <li key={i} className="font-body text-sm leading-relaxed text-pretty text-ink-muted">
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <details className="group mt-3 border-t border-line">
+        <summary className="flex min-h-11 list-none items-center justify-between gap-2 font-body text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+          {EXPLAINER_TITLE}
+          <ChevronDown className="h-4 w-4 shrink-0 group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="space-y-2 pb-1 font-body text-sm leading-relaxed text-pretty text-ink-muted">
+          <p>{EXPLAINER_INTRO}</p>
+          {levels.length > 0 && (
+            <ul className="space-y-1">
+              {levels.map(level => (
+                <li key={level.tier} className={level.current ? "font-semibold text-ink" : undefined}>
+                  {level.text}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p>{correctionRuleLine(info)}</p>
+          <p>{EXPLAINER_OPEN_NOTICE_LINE}</p>
+        </div>
+      </details>
     </section>
   );
 }

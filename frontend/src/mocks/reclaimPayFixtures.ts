@@ -7,6 +7,7 @@ import type {
   TimelineEvent,
   TimelineStatus,
   TimelineStepId,
+  TrustChange,
   TrustInfo,
 } from "@/lib/api/reclaim-pay-types";
 
@@ -282,20 +283,48 @@ export const timelineS4: TimelineEvent[] = sequence([
 
 // ─── Employee trust and recoveries ───────────────────────────────────────────
 
+const trustRules = {
+  levels: [
+    { tier: "NEW", auto_limit: 50, min_paid_claims: 0 },
+    { tier: "STANDARD", auto_limit: 100, min_paid_claims: 3 },
+    { tier: "TRUSTED", auto_limit: 200, min_paid_claims: 10 },
+  ],
+  hold_days: 90,
+  trusted_clean_days: 180,
+} satisfies Partial<TrustInfo>;
+
+const reachedStandard: TrustChange = {
+  at: "2026-10-20T03:00:00Z", from_tier: "NEW", to_tier: "STANDARD", from_limit: 50, to_limit: 100,
+  cause: "approved_claims", reim_id: null,
+};
+
 /** GET /autonomy/me states the fast-track card renders. `none` stands in for a 404. */
 export const trustVariants: Record<"standard" | "trusted" | "limited" | "none", TrustInfo | null> = {
   standard: {
     trust_tier: "STANDARD", auto_limit: 100, paid_claims: 5, next_tier: "TRUSTED",
     claims_to_next_tier: 5, reasons: [], currency: "MYR", next_limit: 200, limited_until: null,
+    changes: [reachedStandard], ...trustRules,
   },
   trusted: {
     trust_tier: "TRUSTED", auto_limit: 200, paid_claims: 14, next_tier: null,
     claims_to_next_tier: 0, reasons: [], currency: "MYR", next_limit: null, limited_until: null,
+    changes: [
+      { at: "2026-10-28T03:00:00Z", from_tier: "STANDARD", to_tier: "TRUSTED", from_limit: 100, to_limit: 200,
+        cause: "approved_claims", reim_id: null },
+      { ...reachedStandard, at: "2026-08-14T03:00:00Z" },
+    ],
+    ...trustRules,
   },
   limited: {
     trust_tier: "NEW", auto_limit: 50, paid_claims: 6, next_tier: "STANDARD", claims_to_next_tier: 0,
     reasons: ["Instant payouts are limited after a recent correction. They return to normal on 27 Jan 2027."],
     currency: "MYR", next_limit: 100, limited_until: "2027-01-27T00:00:00Z",
+    changes: [
+      { at: "2026-10-29T03:00:00Z", from_tier: "STANDARD", to_tier: "NEW", from_limit: 100, to_limit: 50,
+        cause: "recovery", reim_id: "1a2b3c4d-8e9f-4a0b-b1c2-d3e4f5a6b7c8" },
+      reachedStandard,
+    ],
+    ...trustRules,
   },
   none: null,
 };

@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
-import type { Recovery, TrustInfo } from "@/lib/api/reclaim-pay-types";
+import type { Recovery, TrustChange, TrustInfo } from "@/lib/api/reclaim-pay-types";
 import {
+  correctionRuleLine,
+  formatShortDate,
+  levelLines,
+  recentChangeLines,
+  trustChangeLine,
   deadlineLine,
   disputeErrorLine,
   statusLines,
@@ -106,5 +111,87 @@ describe("recovery status lines", () => {
     for (const code of ["WINDOW_CLOSED", "NOT_DISPUTABLE", "FAILED"] as const) {
       expect(disputeErrorLine(code)).not.toMatch(/[A-Z]{2,}_[A-Z]/);
     }
+  });
+});
+
+describe("recent level changes", () => {
+  const NOW = new Date("2026-11-12T08:00:00Z");
+  const info = { ...standard, hold_days: 90, trusted_clean_days: 180 };
+  const up: TrustChange = {
+    at: "2026-10-20T03:00:00Z", from_tier: "NEW", to_tier: "STANDARD", from_limit: 50, to_limit: 100,
+    cause: "approved_claims", reim_id: null,
+  };
+  const down: TrustChange = {
+    at: "2026-11-03T03:00:00Z", from_tier: "STANDARD", to_tier: "NEW", from_limit: 100, to_limit: 50,
+    cause: "correction", reim_id: "1a2b3c4d-0000-4000-8000-000000000000",
+  };
+
+  it("drops the year inside the current year only", () => {
+    expect(formatShortDate("2026-10-20T03:00:00Z", NOW, KL)).toBe("20 Oct");
+    expect(formatShortDate("2025-10-20T03:00:00Z", NOW, KL)).toBe("20 Oct 2025");
+  });
+  it("says when a level was reached", () => {
+    expect(trustChangeLine(up, info, NOW, KL)).toBe("You reached Standard on 20 Oct: instant payouts up to MYR 100.");
+  });
+  it("names the claim behind a correction and nothing else", () => {
+    expect(trustChangeLine(down, info, NOW, KL)).toBe(
+      "Your instant-payout limit went down to MYR 50 on 3 Nov after a correction on claim RC-1A2B3C4D.");
+  });
+  it("calls a recovery a payout we had to recover", () => {
+    expect(trustChangeLine({ ...down, cause: "recovery" }, info, NOW, KL)).toBe(
+      "Your instant-payout limit went down to MYR 50 on 3 Nov after a payout we had to recover on claim RC-1A2B3C4D.");
+  });
+  it("still reads when the claim is unknown", () => {
+    expect(trustChangeLine({ ...down, reim_id: null }, info, NOW, KL)).toBe(
+      "Your instant-payout limit went down to MYR 50 on 3 Nov after a correction.");
+  });
+  it("explains a limit that came back with time", () => {
+    const back = { ...up, cause: "time_passed" as const };
+    expect(trustChangeLine(back, info, NOW, KL)).toBe(
+      "You reached Standard on 20 Oct: instant payouts up to MYR 100. It had been 90 days since your last correction.");
+    expect(trustChangeLine({ ...back, from_tier: "STANDARD", to_tier: "TRUSTED", to_limit: 200 }, info, NOW, KL)).toBe(
+      "You reached Trusted on 20 Oct: instant payouts up to MYR 200. It had been 180 days since your last correction.");
+    expect(trustChangeLine(back, { currency: "MYR" }, NOW, KL)).toBe(
+      "You reached Standard on 20 Oct: instant payouts up to MYR 100.");
+  });
+  it("shows at most three, in the order given", () => {
+    const lines = recentChangeLines({ ...info, changes: [down, up, up, up] }, NOW, KL);
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toMatch(/^Your instant-payout limit went down/);
+  });
+  it("is empty for an older backend", () => {
+    expect(recentChangeLines(standard, NOW, KL)).toEqual([]);
+  });
+  it("never mentions a check, score or signal", () => {
+    for (const c of [up, down, { ...down, cause: "recovery" as const }, { ...up, cause: "time_passed" as const }]) {
+      expect(trustChangeLine(c, info, NOW, KL)).not.toMatch(/risk|score|signal|tier|flag/i);
+    }
+  });
+});
+
+describe("how instant payouts work", () => {
+  const info: TrustInfo = {
+    ...standard, hold_days: 90, trusted_clean_days: 180,
+    levels: [
+      { tier: "NEW", auto_limit: 50, min_paid_claims: 0 },
+      { tier: "STANDARD", auto_limit: 100, min_paid_claims: 3 },
+      { tier: "TRUSTED", auto_limit: 200, min_paid_claims: 10 },
+    ],
+  };
+
+  it("lists every level with its limit and marks the employee's own", () => {
+    expect(levelLines(info)).toEqual([
+      { tier: "NEW", text: "New: up to MYR 50. Everyone starts here.", current: false },
+      { tier: "STANDARD", text: "Standard: up to MYR 100, after 3 approved claims. This is your level.", current: true },
+      { tier: "TRUSTED", text: "Trusted: up to MYR 200, after 10 approved claims, with no correction in the last 180 days.", current: false },
+    ]);
+  });
+  it("lists nothing when the backend sends no levels", () => {
+    expect(levelLines(standard)).toEqual([]);
+  });
+  it("says one correction lowers the limit and for how long", () => {
+    expect(correctionRuleLine(info)).toBe(
+      "A correction means HR confirmed a problem with one of your claims, or we had to recover a payout. " +
+      "One correction moves you back to New for 90 days. Your approved claims still count after that.");
   });
 });
