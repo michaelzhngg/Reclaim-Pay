@@ -23,11 +23,12 @@ async function fetchQueue(): Promise<AuditRow[]> {
   return rows;
 }
 
-export default function AuditQueueTab() {
+export default function AuditQueueTab({ onLoaded }: { onLoaded?: () => void }) {
   const { toast } = useToast();
   const { data, isLoading, error, retry, refresh } = useTabData(
     fetchQueue,
     "Couldn't load the audit queue. Check your connection and try again.",
+    onLoaded,
   );
   const [target, setTarget] = useState<AuditRow | null>(null);
 
