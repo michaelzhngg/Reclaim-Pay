@@ -225,10 +225,10 @@ Timed outline, from PLAN.md section 6:
 Turn captions on. Keep it under 2:55 to leave margin.
 
 ```
-[video link: add after upload]
+https://youtu.be/g42HjYwkhSw
 ```
 
-**Team:** the repo has no video link. Paste the real one here and in the README.
+**Team:** the README links the same video.
 
 ---
 

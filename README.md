@@ -10,7 +10,7 @@
 
 [![Live demo](https://img.shields.io/badge/live_demo-reclaimai.dev-4647d3?style=for-the-badge)](https://reclaimai.dev) [![PayPal sandbox](https://img.shields.io/badge/PayPal-sandbox_only-0070e0?style=for-the-badge&logo=paypal&logoColor=white)](#project-status) [![License AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-0b0b1e?style=for-the-badge)](LICENSE)
 
-**[Try the live demo](https://reclaimai.dev)** · **[How it decides](#where-the-ai-stops)** · **[Run it locally](#run-locally)** · Video: `[video link: add after upload]`
+**[Try the live demo](https://reclaimai.dev)** · **[How it decides](#where-the-ai-stops)** · **[Run it locally](#run-locally)** · **[Watch the video](https://youtu.be/g42HjYwkhSw)**
 
 Built by **Team Bogosort** for PayPal's *Build What's Next with PayPal and AI* hackathon.
 
