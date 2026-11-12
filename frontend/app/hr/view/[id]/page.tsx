@@ -638,7 +638,7 @@ export default function ViewPage() {
         <div role="dialog" aria-modal="true" aria-label="Receipt image" className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4 sm:p-6" onClick={() => setLightbox(null)}>
           <div className="relative max-w-3xl max-h-[85vh] rounded-card overflow-hidden bg-surface">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={lightbox} alt="Receipt" className="w-full h-full object-contain" />
+            <img src={lightbox} alt="Receipt" className="block max-w-full max-h-[85vh] w-auto h-auto object-contain" />
             <button type="button" autoFocus onClick={() => setLightbox(null)} aria-label="Close receipt" className="absolute top-2 right-2 w-11 h-11 rounded-control bg-surface border border-line text-ink flex items-center justify-center hover:bg-surface-muted cursor-pointer"><X className="w-5 h-5" aria-hidden="true" /></button>
           </div>
         </div>
