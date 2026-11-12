@@ -56,6 +56,7 @@ class AgentActionType(str, enum.Enum):
     PAYEE_LINKED = "PAYEE_LINKED"
     PAYEE_LINK_FAILED = "PAYEE_LINK_FAILED"
     PAYPAL_SIGNIN = "PAYPAL_SIGNIN"
+    POLICY_LIMITS_CHANGED = "POLICY_LIMITS_CHANGED"
 
 
 class JudgmentResult(str, enum.Enum):
@@ -76,3 +77,8 @@ class PolicyStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     ACTIVE = "ACTIVE"
     DEPRECATED = "DEPRECATED"
+
+
+class LimitStatus(str, enum.Enum):
+    PROPOSED = "PROPOSED"    # suggested from the policy text, not shown to employees
+    CONFIRMED = "CONFIRMED"  # checked by HR

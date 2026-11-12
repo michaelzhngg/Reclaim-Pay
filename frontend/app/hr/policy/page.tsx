@@ -6,6 +6,7 @@ import { POLICY_STATUS_STYLE, type Policy, type PolicyStatus } from '../hr_compo
 import type { Policy as BackendPolicy } from '@/lib/api/types';
 import { uploadPolicy } from '@/lib/actions/hr';
 import { getPolicies, deletePolicy, updatePolicyCategories } from '@/lib/actions/policies';
+import PolicyLimitsPanel from './_components/PolicyLimitsPanel';
 
 const SAVE_STEPS = [
   { id: "upload", label: "Uploading documents...", subtitle: "Securely storing policy files." },
@@ -13,7 +14,7 @@ const SAVE_STEPS = [
   { id: "save", label: "Saving changes...", subtitle: "Updating policy database." },
 ];
 
-export function HrProcessingScreen({ currentStep, onBack }: { currentStep: number, onBack: () => void }) {
+function HrProcessingScreen({ currentStep, onBack }: { currentStep: number, onBack: () => void }) {
   return (
     <div className="w-full max-w-xl mx-auto flex flex-col justify-center my-8 sm:my-12">
       <div className="rounded-card shadow-ambient bg-surface p-5 sm:p-8" role="status" aria-live="polite">
@@ -611,6 +612,8 @@ export default function PolicyStudio() {
                   </div>
                 </div>
               )}
+
+              {!isNew && <PolicyLimitsPanel policyId={editingPolicy} />}
 
               {policyFileError && (
                 <div className="flex items-start gap-3 bg-danger/10 border border-danger/30 text-danger rounded-control px-4 py-3 text-sm font-body">

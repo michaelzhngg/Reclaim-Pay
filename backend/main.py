@@ -23,6 +23,7 @@ from api.payouts import router as payouts_router
 from api.paypal import router as paypal_router
 from api.employee import router as employee_router
 from api.policies import router as policies_router
+from api.policy_limits import router as policy_limits_router
 from api.reimbursements import router as reimbursements_router
 from api.drafts import router as drafts_router
 from api.departments import router as departments_router
@@ -78,6 +79,7 @@ app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["aut
 app.include_router(documents_router, prefix=f"{settings.API_V1_STR}/documents", tags=["documents"])
 app.include_router(notifications_router, prefix=f"{settings.API_V1_STR}/notifications", tags=["notifications"])
 app.include_router(policies_router, prefix=f"{settings.API_V1_STR}/policies", tags=["policies"])
+app.include_router(policy_limits_router, prefix=f"{settings.API_V1_STR}/policies", tags=["policies"])
 app.include_router(reimbursements_router, prefix=f"{settings.API_V1_STR}/reimbursements", tags=["reimbursements"])
 app.include_router(payouts_router, prefix=f"{settings.API_V1_STR}/payouts", tags=["payouts"])
 app.include_router(paypal_router, prefix=f"{settings.API_V1_STR}/paypal", tags=["paypal"])

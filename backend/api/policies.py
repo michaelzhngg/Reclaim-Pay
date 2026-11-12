@@ -1,3 +1,4 @@
+import logging
 import os
 import aiofiles
 from pathlib import Path
@@ -14,8 +15,11 @@ from api.schemas import PolicyResponse, PolicyCategoryWithBudget, PolicyCategori
 from core.models import User, Policy, PolicyReimbursableCategory, PolicySection
 from core.enums import PolicyStatus, UserRole
 from engine.agents.policy_agent import run_policy_workflow
+from engine.services import policy_limits_store
+from engine.services.policy_limits_extraction import extract_limits
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 STORAGE_POLICIES_DIR = Path(__file__).parent.parent / "storage" / "policies"
 
@@ -80,6 +84,15 @@ async def upload_policy(
     if not policy:
         raise HTTPException(status_code=500, detail="Policy saved but could not be retrieved")
 
+    # Suggest spending limits for HR to confirm. A failure here never fails the upload:
+    # HR can retry from Policy Studio or add limits by hand.
+    limits_found = 0
+    try:
+        limits_found = extract_limits(db, policy.policy_id).proposed
+    except Exception:
+        logger.exception("[POLICY_LIMITS] extraction failed for policy %s", policy.policy_id)
+        db.rollback()
+
     # Fetch categories for response
     cats = db.exec(
         select(PolicyReimbursableCategory).where(
@@ -93,6 +106,7 @@ async def upload_policy(
         "title": policy.title,
         "reimbursable_categories": [c.category for c in cats],
         "overview_summary": policy.overview_summary,
+        "limits_found": limits_found,
         "status": ((policy.status.value if policy.status and hasattr(policy.status, "value") else policy.status) if policy.status and hasattr(policy.status, "value") else policy.status),
     }
 
@@ -172,6 +186,8 @@ def delete_policy(
     ).all()
     for section in sections:
         db.delete(section)
+
+    policy_limits_store.delete_for_policy(db, policy.policy_id)
 
     # Null out policy_id on any reimbursements referencing this policy
     # (FK constraint prevents delete while references exist)
