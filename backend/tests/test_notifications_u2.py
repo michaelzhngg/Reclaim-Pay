@@ -271,3 +271,19 @@ def test_new_copy_names_no_check_signal_or_score():
         for after in tiers:
             if before != after:
                 assert "disput" not in " ".join(limit_notice(before, after, "MYR", 100.0, reim_id)).lower()
+
+
+def test_email_shows_the_amount_large_with_only_the_figure_bold():
+    payload = email_service.build_payload(
+        "emp@example.com", "Payment received", "MYR 1,250.00 arrived in your PayPal account for claim RC-1A2B3C4D.")
+    assert email_service.headline_amount(payload["text"]) == ("MYR", "1,250.00")
+    html = payload["html"]
+    assert 'font-weight:400;color:#5c5c72;vertical-align:middle">MYR</span>' in html
+    assert 'font-weight:700;letter-spacing:-0.5px;color:#0b0b1e;vertical-align:middle">1,250.00</span>' in html
+
+
+def test_email_without_an_amount_has_no_amount_block():
+    payload = email_service.build_payload("emp@example.com", "Set up your Reclaim Pay account",
+                                          "HR created a Reclaim Pay account for you.", link="/set-password?token=x")
+    assert email_service.headline_amount(payload["text"].split("\n\n")[0]) is None
+    assert "font-size:34px" not in payload["html"]

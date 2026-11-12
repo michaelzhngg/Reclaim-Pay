@@ -4,6 +4,7 @@ Sending never raises into the caller: a missing key, a timeout or an error answe
 """
 import html
 import logging
+import re
 import threading
 
 import httpx
@@ -34,6 +35,32 @@ PAPER = "#f5f5f9"
 LINE = "#e6e6ee"
 ACCENT = "#4647d3"
 FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+
+
+# "MYR 48.00", "MYR 1,250.00", "MYR 100": the currency code, a space, then the figure.
+AMOUNT_RE = re.compile(r"\b([A-Z]{3}|RM) ?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\b")
+
+
+def headline_amount(text: str) -> tuple[str, str] | None:
+    """The first money amount in the email, shown large in the middle of the card."""
+    match = AMOUNT_RE.search(text)
+    return (match.group(1), match.group(2)) if match else None
+
+
+def _amount_block(text: str) -> str:
+    found = headline_amount(text)
+    if not found:
+        return ""
+    currency, figure = found
+    return (
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px">'
+        f'<tr><td align="center" bgcolor="{PAPER}" style="background:{PAPER};border-radius:12px;padding:18px 12px">'
+        f'<span style="font-family:{FONT};font-size:16px;font-weight:400;color:{MUTED};vertical-align:middle">'
+        f"{html.escape(currency)}</span>&nbsp;"
+        f'<span style="font-family:{FONT};font-size:34px;font-weight:700;letter-spacing:-0.5px;color:{INK};'
+        f'vertical-align:middle">{html.escape(figure)}</span>'
+        "</td></tr></table>"
+    )
 
 
 def logo_url() -> str:
@@ -91,7 +118,7 @@ def render_html(subject: str, text: str, url: str | None, link_label: str) -> st
         f'<tr><td bgcolor="#ffffff" style="background:#ffffff;border:1px solid {LINE};border-radius:16px;'
         f'padding:28px 28px 24px;font-family:{FONT}">'
         f'<h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;font-weight:700;color:{INK}">{html.escape(subject)}</h1>'
-        f"{_paragraphs(text)}{button}{fallback}"
+        f"{_amount_block(text)}{_paragraphs(text)}{button}{fallback}"
         "</td></tr>"
         # Footer
         f'<tr><td align="center" style="padding:20px 8px 0;font-family:{FONT};font-size:12px;line-height:1.5;color:{MUTED}">'
