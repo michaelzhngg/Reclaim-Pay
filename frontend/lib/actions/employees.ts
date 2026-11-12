@@ -1,6 +1,6 @@
 "use server";
 
-import { apiGet, apiPost, API_PREFIX } from "@/lib/api/client";
+import { apiGet, apiPatch, apiPost, API_PREFIX } from "@/lib/api/client";
 import type { Department } from "@/lib/api/types";
 
 export type InviteStatus = "pending" | "expired" | null;
@@ -29,6 +29,15 @@ export interface NewEmployee {
   user_code?: string;
   department_id?: string;
   role: "Employee" | "HR";
+}
+
+/** Only the fields being changed. Email is the sign-in and can't be changed here. */
+export interface EmployeeChanges {
+  name?: string;
+  user_code?: string | null;
+  department_id?: string | null;
+  role?: "Employee" | "HR";
+  is_active?: boolean;
 }
 
 /** The link is in this response only. The backend never returns it again. */
@@ -72,5 +81,15 @@ export async function createEmployee(input: NewEmployee): Promise<{ data: Invite
 export async function resendInvite(userId: string): Promise<{ data: InviteResult | null; error: string | null }> {
   const result = await apiPost<InviteResult>(`${API_PREFIX}/employee/${encodeURIComponent(userId)}/invite`);
   if (!result.data) return { data: null, error: result.error ?? "We couldn't send a new invitation. Try again." };
+  return { data: result.data, error: null };
+}
+
+export async function updateEmployee(
+  userId: string,
+  changes: EmployeeChanges,
+): Promise<{ data: EmployeeRecord | null; error: string | null }> {
+  const result = await apiPatch<EmployeeRecord>(`${API_PREFIX}/employee/${encodeURIComponent(userId)}`, changes);
+  if (result.status === 422) return { data: null, error: "Check the name and company ID, then try again." };
+  if (!result.data) return { data: null, error: result.error ?? "We couldn't save the changes. Try again." };
   return { data: result.data, error: null };
 }

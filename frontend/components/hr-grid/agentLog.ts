@@ -19,6 +19,7 @@ const ACTION_LABEL: Record<string, string> = {
   PAYEE_LINKED: "PayPal account linked",
   EMPLOYEE_CREATED: "Account created",
   INVITE_RESENT: "Invitation re-sent",
+  EMPLOYEE_UPDATED: "Account updated",
 };
 
 export function actionLabel(action: Pick<AgentAction, "action_type" | "payload">): string {
@@ -38,6 +39,25 @@ export function actorLabel(actor: string, names: Record<string, string> = {}): s
   if (actor === "agent") return "Reclaim agent";
   if (names[actor]) return names[actor];
   return UUID_RE.test(actor) ? `User ${actor.slice(0, 8)}` : actor;
+}
+
+const FIELD_CHANGED: Record<string, string> = {
+  name: "name changed",
+  user_code: "company ID changed",
+  department_id: "department changed",
+};
+
+function employeeChanges(p: Record<string, unknown>): string | null {
+  const changes = p.changes;
+  if (!changes || typeof changes !== "object") return null;
+  const c = changes as Record<string, { from?: unknown; to?: unknown } | undefined>;
+  const parts: string[] = [];
+  if (c.is_active && typeof c.is_active.to === "boolean") parts.push(c.is_active.to ? "reactivated" : "deactivated");
+  if (c.role && str(c.role.from) && str(c.role.to)) parts.push(`role ${c.role.from} to ${c.role.to}`);
+  for (const field of Object.keys(FIELD_CHANGED)) if (c[field]) parts.push(FIELD_CHANGED[field]);
+  if (parts.length === 0) return null;
+  const line = parts.join(", ");
+  return line.charAt(0).toUpperCase() + line.slice(1);
 }
 
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
@@ -86,6 +106,8 @@ export function actionSummary(action: Pick<AgentAction, "action_type" | "payload
       return str(p.email);
     case "EMPLOYEE_CREATED":
       return p.role === "HR" ? "HR account" : p.role === "Employee" ? "Employee account" : null;
+    case "EMPLOYEE_UPDATED":
+      return employeeChanges(p);
     default:
       return null;
   }

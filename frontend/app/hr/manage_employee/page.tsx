@@ -4,21 +4,26 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Building2, Eye, Loader2, Mail, Plus, Search, Send } from "lucide-react";
+import { Building2, Loader2, Mail, Pencil, Plus, Search, Send } from "lucide-react";
+import { useToast } from "@/components/toast/ToastProvider";
 import { ErrorLine, Sheet } from "@/components/ui/Sheet";
 import { btn } from "@/components/ui/styles";
+import { useAuth } from "@/context/AuthContext";
 import type { Department } from "@/lib/api/types";
 import {
   createEmployee,
   getDepartments,
   listEmployees,
   resendInvite,
+  updateEmployee,
+  type EmployeeChanges,
   type EmployeeRecord,
   type InviteResult,
 } from "@/lib/actions/employees";
+import { diffEmployee, initialEditValues, needsConfirm, type EditValues } from "./editEmployee";
 
 const fieldClass =
-  "w-full min-h-[44px] px-3 bg-surface rounded-control border border-line-strong focus:border-accent outline-none text-sm text-ink disabled:bg-surface-muted disabled:text-ink-muted";
+  "w-full min-h-[44px] px-3 bg-surface rounded-control border border-line-strong focus:border-accent outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary text-sm text-ink disabled:bg-surface-muted! disabled:text-ink-muted!";
 const labelClass = "block text-sm font-medium text-ink mb-1.5";
 
 const schema = z.object({
@@ -89,30 +94,24 @@ function InviteLinkPanel({ invite, onDone }: { invite: InviteResult; onDone: () 
   );
 }
 
-// ─── Add / view dialog ──────────────────────────────────────────────────────
+// ─── Add dialog ─────────────────────────────────────────────────────────────
 
-function EmployeeForm({
-  employee,
+const HR_WARNING =
+  "HR accounts can approve claims and change autonomy settings. Only choose HR for people who run reimbursements.";
+
+function CreateEmployeeForm({
   departments,
   onCancel,
   onCreated,
 }: {
-  employee: EmployeeRecord | null;
   departments: DepartmentsState;
   onCancel: () => void;
   onCreated: (invite: InviteResult) => void;
 }) {
-  const isEdit = !!employee;
   const [error, setError] = useState<string | null>(null);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      name: employee?.name ?? "",
-      user_code: employee?.user_code ?? "",
-      email: employee?.email ?? "",
-      department_id: employee?.department_id ?? "",
-      role: employee?.role === "HR" ? "HR" : "Employee",
-    },
+    defaultValues: { name: "", user_code: "", email: "", department_id: "", role: "Employee" },
   });
   const { errors, isSubmitting } = form.formState;
   const role = useWatch({ control: form.control, name: "role" });
@@ -138,22 +137,20 @@ function EmployeeForm({
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="flex min-h-0 flex-col">
       <div className="overflow-y-auto px-5 py-5 space-y-4">
-        {!isEdit && (
-          <p className="text-sm text-ink-muted">
-            They&apos;ll get an email with a link to set their own password.
-          </p>
-        )}
+        <p className="text-sm text-ink-muted">
+          They&apos;ll get an email with a link to set their own password.
+        </p>
 
         <div>
           <label htmlFor="emp-name" className={labelClass}>Full name</label>
-          <input id="emp-name" type="text" autoComplete="off" disabled={isEdit} className={fieldClass}
+          <input id="emp-name" type="text" autoComplete="off" className={fieldClass}
             aria-invalid={errors.name ? true : undefined} aria-describedby={errorId("name")} {...form.register("name")} />
           {errors.name && <p id="name-error" className="mt-1.5 text-sm text-danger">{errors.name.message}</p>}
         </div>
 
         <div>
           <label htmlFor="emp-email" className={labelClass}>Work email</label>
-          <input id="emp-email" type="email" inputMode="email" autoComplete="off" spellCheck={false} disabled={isEdit}
+          <input id="emp-email" type="email" inputMode="email" autoComplete="off" spellCheck={false}
             placeholder="name@company.com" className={fieldClass}
             aria-invalid={errors.email ? true : undefined} aria-describedby={errorId("email")} {...form.register("email")} />
           {errors.email && <p id="email-error" className="mt-1.5 text-sm text-danger">{errors.email.message}</p>}
@@ -163,12 +160,12 @@ function EmployeeForm({
           <label htmlFor="emp-code" className={labelClass}>
             Company ID <span className="font-normal text-ink-muted">(optional)</span>
           </label>
-          <input id="emp-code" type="text" autoComplete="off" disabled={isEdit} className={fieldClass} {...form.register("user_code")} />
+          <input id="emp-code" type="text" autoComplete="off" className={fieldClass} {...form.register("user_code")} />
         </div>
 
         <div>
           <label htmlFor="emp-dept" className={labelClass}>Department</label>
-          <select id="emp-dept" disabled={isEdit || departments.loading} className={`${fieldClass} cursor-pointer`}
+          <select id="emp-dept" disabled={departments.loading} className={`${fieldClass} cursor-pointer`}
             aria-describedby={departments.error ? "dept-error" : undefined} {...form.register("department_id")}>
             <option value="">{departments.loading ? "Loading departments…" : "No department"}</option>
             {departments.list.map((d) => (
@@ -184,44 +181,290 @@ function EmployeeForm({
 
         <div>
           <label htmlFor="emp-role" className={labelClass}>System role</label>
-          <select id="emp-role" disabled={isEdit} className={`${fieldClass} cursor-pointer`}
+          <select id="emp-role" className={`${fieldClass} cursor-pointer`}
             aria-describedby={role === "HR" ? "role-warning" : undefined} {...form.register("role")}>
             <option value="Employee">Employee</option>
             <option value="HR">HR</option>
           </select>
           <div aria-live="polite">
-            {role === "HR" && !isEdit && (
+            {role === "HR" && (
               <p id="role-warning" className="mt-2 rounded-control bg-warning-soft px-3 py-2 text-sm text-warning">
-                HR accounts can approve claims and change autonomy settings. Only choose HR for people who run reimbursements.
+                {HR_WARNING}
               </p>
             )}
           </div>
         </div>
-
-        {isEdit && (
-          // TODO: wire to an employee update endpoint once one exists; there is none in backend/api/employee.py.
-          <p className="text-sm text-ink-muted">Editing details is coming soon. Nothing here can be changed yet.</p>
-        )}
 
         <ErrorLine error={error} />
       </div>
 
       <div className="flex flex-col-reverse gap-2.5 border-t border-line px-5 py-4 sm:flex-row sm:justify-end">
         <button type="button" onClick={onCancel} disabled={isSubmitting} className={btn.secondary}>
-          {isEdit ? "Close" : "Cancel"}
+          Cancel
         </button>
-        {!isEdit && (
-          <button type="submit" disabled={isSubmitting} aria-busy={isSubmitting} className={btn.primary}>
-            {isSubmitting ? (
+        <button type="submit" disabled={isSubmitting} aria-busy={isSubmitting} className={btn.primary}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Sending invitation…
+            </>
+          ) : (
+            "Create and send invitation"
+          )}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ─── Edit dialog ────────────────────────────────────────────────────────────
+
+const dangerBtn =
+  "inline-flex items-center justify-center gap-2 rounded-full h-11 px-5 text-sm font-semibold whitespace-nowrap " +
+  "text-on-accent bg-danger hover:opacity-90 transition-opacity disabled:opacity-50 disabled:pointer-events-none";
+
+const editSchema = z.object({
+  name: z.string().trim().min(1, { message: "Enter their full name." }).max(120, { message: "Use 120 characters or fewer." }),
+  user_code: z.string().trim().max(40, { message: "Use 40 characters or fewer." }),
+  department_id: z.string(),
+  role: z.enum(["Employee", "HR"]),
+  is_active: z.boolean(),
+});
+function EditEmployeeForm({
+  employee,
+  isSelf,
+  departments,
+  onBusy,
+  onCancel,
+  onSaved,
+}: {
+  employee: EmployeeRecord;
+  isSelf: boolean;
+  departments: DepartmentsState;
+  onBusy: (busy: boolean) => void;
+  onCancel: () => void;
+  onSaved: (record: EmployeeRecord) => void;
+}) {
+  const initial = useMemo(() => initialEditValues(employee), [employee]);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState<EmployeeChanges | null>(null);
+  const confirmHeadingRef = useRef<HTMLHeadingElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
+  const form = useForm<EditValues>({ resolver: zodResolver(editSchema), defaultValues: initial });
+  const { errors } = form.formState;
+  const values = useWatch({ control: form.control });
+  const changes = diffEmployee(initial, values);
+  const hasChanges = Object.keys(changes).length > 0;
+  const active = values.is_active ?? initial.is_active;
+  const grantsHr = values.role === "HR" && initial.role !== "HR";
+  // The saved department may be missing from the list if it failed to load; keep it selectable.
+  const deptMissing = !!initial.department_id && !departments.list.some((d) => d.department_id === initial.department_id);
+
+  useEffect(() => {
+    if (confirming) confirmHeadingRef.current?.focus();
+  }, [confirming]);
+
+  async function save(next: EmployeeChanges) {
+    setError(null);
+    setSaving(true);
+    onBusy(true);
+    const result = await updateEmployee(employee.user_id, next);
+    setSaving(false);
+    onBusy(false);
+    if (result.error || !result.data) {
+      setError(result.error ?? "We couldn't save the changes. Try again.");
+      return;
+    }
+    onSaved(result.data);
+  }
+
+  function onSubmit(submitted: EditValues) {
+    const next = diffEmployee(initial, submitted);
+    if (Object.keys(next).length === 0) return;
+    if (needsConfirm(initial, next)) {
+      setError(null);
+      setConfirming(next);
+      return;
+    }
+    save(next);
+  }
+
+  function goBack() {
+    setConfirming(null);
+    setError(null);
+    // The Save button is back in the DOM on the next frame.
+    requestAnimationFrame(() => saveRef.current?.focus());
+  }
+
+  const errorId = (field: keyof EditValues) => (errors[field] ? `edit-${field}-error` : undefined);
+  const selfNote = isSelf ? "self-note" : undefined;
+
+  if (confirming) {
+    const deactivating = confirming.is_active === false;
+    const demoting = confirming.role === "Employee";
+    return (
+      <div className="flex min-h-0 flex-col">
+        <div className="overflow-y-auto px-5 py-5 space-y-3">
+          <h3 ref={confirmHeadingRef} tabIndex={-1} className="font-display font-semibold text-base text-ink outline-none">
+            {deactivating ? `Deactivate ${employee.name}?` : `Remove HR access from ${employee.name}?`}
+          </h3>
+          {deactivating && (
+            <p className="text-sm text-ink">They will be signed out and cannot sign in until you turn this back on.</p>
+          )}
+          {demoting && (
+            <p className="text-sm text-ink">
+              {deactivating
+                ? "They will also lose HR access."
+                : "They will lose HR access straight away. They can still sign in as an employee."}
+            </p>
+          )}
+          <div aria-live="polite">
+            <ErrorLine error={error} />
+          </div>
+        </div>
+        <div className="flex flex-col-reverse gap-2.5 border-t border-line px-5 py-4 sm:flex-row sm:justify-end">
+          <button type="button" onClick={goBack} disabled={saving} className={btn.secondary}>
+            Go back
+          </button>
+          <button type="button" onClick={() => save(confirming)} disabled={saving} aria-busy={saving}
+            className={dangerBtn}>
+            {saving ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Sending invitation…
+                Saving…
               </>
-            ) : (
-              "Create and send invitation"
-            )}
+            ) : deactivating ? "Deactivate account" : "Remove HR access"}
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="flex min-h-0 flex-col">
+      <div className="overflow-y-auto px-5 py-5 space-y-4">
+        <div>
+          <label htmlFor="edit-name" className={labelClass}>Full name</label>
+          <input id="edit-name" type="text" autoComplete="off" className={fieldClass}
+            aria-invalid={errors.name ? true : undefined} aria-describedby={errorId("name")} {...form.register("name")} />
+          {errors.name && <p id="edit-name-error" className="mt-1.5 text-sm text-danger">{errors.name.message}</p>}
+        </div>
+
+        <div>
+          <label htmlFor="edit-email" className={labelClass}>Work email</label>
+          <input id="edit-email" type="email" readOnly value={employee.email} aria-describedby="edit-email-note"
+            className={`${fieldClass} bg-surface-muted text-ink-muted`} />
+          <p id="edit-email-note" className="mt-1.5 text-sm text-ink-muted">
+            This is their sign-in, so it can&apos;t be changed here.
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="edit-code" className={labelClass}>
+            Company ID <span className="font-normal text-ink-muted">(optional)</span>
+          </label>
+          <input id="edit-code" type="text" autoComplete="off" className={fieldClass}
+            aria-invalid={errors.user_code ? true : undefined} aria-describedby={errorId("user_code")} {...form.register("user_code")} />
+          {errors.user_code && <p id="edit-user_code-error" className="mt-1.5 text-sm text-danger">{errors.user_code.message}</p>}
+        </div>
+
+        <div>
+          <label htmlFor="edit-dept" className={labelClass}>Department</label>
+          {/* Remounts once the list arrives so the saved department shows as selected. */}
+          <select key={departments.loading ? "loading" : "ready"} id="edit-dept" disabled={departments.loading}
+            className={`${fieldClass} cursor-pointer`} aria-describedby={departments.error ? "edit-dept-error" : undefined}
+            {...form.register("department_id")}>
+            <option value="">{departments.loading ? "Loading departments…" : "No department"}</option>
+            {deptMissing && !departments.loading && (
+              <option value={initial.department_id}>{employee.department_name ?? "Current department"}</option>
+            )}
+            {departments.list.map((d) => (
+              <option key={d.department_id} value={d.department_id}>{d.name}</option>
+            ))}
+          </select>
+          {departments.error && (
+            <p id="edit-dept-error" className="mt-1.5 text-sm text-danger">
+              Departments didn&apos;t load, so only the current one is listed.
+            </p>
+          )}
+        </div>
+
+        {isSelf && (
+          <p id="self-note" className="rounded-control bg-surface-muted px-3 py-2 text-sm text-ink">
+            This is your account. You can&apos;t remove your own HR access or deactivate yourself.
+          </p>
         )}
+
+        <div>
+          <label htmlFor="edit-role" className={labelClass}>System role</label>
+          <select id="edit-role" disabled={isSelf} className={`${fieldClass} cursor-pointer disabled:cursor-not-allowed`}
+            aria-describedby={[grantsHr ? "edit-role-warning" : null, selfNote].filter(Boolean).join(" ") || undefined}
+            {...form.register("role")}>
+            <option value="Employee">Employee</option>
+            <option value="HR">HR</option>
+          </select>
+          <div aria-live="polite">
+            {grantsHr && (
+              <p id="edit-role-warning" className="mt-2 rounded-control bg-warning-soft px-3 py-2 text-sm text-warning">
+                {HR_WARNING}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <p id="edit-active-label" className="text-sm font-medium text-ink">Active</p>
+            <p id="edit-active-note" className="mt-0.5 text-sm text-ink-muted">Inactive people cannot sign in.</p>
+          </div>
+          {/* 44 px hit area around a smaller visual switch, matching the push notification toggle. */}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={active}
+            aria-labelledby="edit-active-label"
+            aria-describedby={["edit-active-note", selfNote].filter(Boolean).join(" ")}
+            disabled={isSelf}
+            onClick={() => form.setValue("is_active", !active, { shouldDirty: true })}
+            className="group -my-1 inline-flex h-11 min-w-11 shrink-0 items-center justify-center rounded-control disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span
+              aria-hidden
+              className={`relative inline-flex h-6 w-11 items-center rounded-full border transition-colors ${
+                active
+                  ? "border-accent bg-accent group-enabled:group-hover:bg-accent-hover"
+                  : "border-line-strong bg-surface-muted group-enabled:group-hover:bg-line"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full transition-transform ${
+                  active ? "translate-x-6 bg-on-accent" : "translate-x-1 bg-ink-muted"
+                }`}
+              />
+            </span>
+          </button>
+        </div>
+
+        <div aria-live="polite">
+          <ErrorLine error={error} />
+        </div>
+      </div>
+
+      <div className="flex flex-col-reverse gap-2.5 border-t border-line px-5 py-4 sm:flex-row sm:justify-end">
+        <button type="button" onClick={onCancel} disabled={saving} className={btn.secondary}>
+          Cancel
+        </button>
+        <button ref={saveRef} type="submit" disabled={!hasChanges || saving} aria-busy={saving} className={btn.primary}>
+          {saving ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Saving…
+            </>
+          ) : (
+            "Save changes"
+          )}
+        </button>
       </div>
     </form>
   );
@@ -260,7 +503,8 @@ function RoleBadge({ role }: { role: string }) {
 
 type DialogState =
   | { kind: "closed" }
-  | { kind: "form"; employee: EmployeeRecord | null }
+  | { kind: "create" }
+  | { kind: "edit"; employee: EmployeeRecord }
   | { kind: "invite"; invite: InviteResult; title: string };
 
 export default function ManageEmployeePage() {
@@ -272,6 +516,9 @@ export default function ManageEmployeePage() {
   const [departments, setDepartments] = useState<DepartmentsState>({ list: [], loading: true, error: null });
   const [resending, setResending] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const { user } = useAuth();
+  const { toast } = useToast();
 
   const applyEmployees = useCallback((result: { data: EmployeeRecord[]; error: string | null }) => {
     setEmployees(result.data);
@@ -295,6 +542,13 @@ export default function ManageEmployeePage() {
   }, [searchQuery, employees]);
 
   const closeDialog = () => setDialog({ kind: "closed" });
+
+  function handleSaved(record: EmployeeRecord) {
+    setEmployees((list) => list.map((e) => (e.user_id === record.user_id ? record : e)));
+    closeDialog();
+    toast({ tone: "success", title: "Changes saved", description: `${record.name}'s details are up to date.` });
+    reload();
+  }
 
   async function handleResend(emp: EmployeeRecord) {
     setActionError(null);
@@ -331,20 +585,20 @@ export default function ManageEmployeePage() {
         </button>
       )}
       <button
-        onClick={() => setDialog({ kind: "form", employee: emp })}
+        onClick={() => setDialog({ kind: "edit", employee: emp })}
         type="button"
         className="inline-flex items-center justify-center w-11 h-11 text-ink-muted hover:text-ink hover:bg-surface-muted rounded-control transition-colors cursor-pointer"
-        aria-label={`View ${emp.name}`}
-        title="View details"
+        aria-label={`Edit ${emp.name}`}
+        title="Edit details"
       >
-        <Eye className="w-4 h-4" aria-hidden="true" />
+        <Pencil className="w-4 h-4" aria-hidden="true" />
       </button>
     </>
   );
 
   const dialogTitle =
     dialog.kind === "invite" ? dialog.title
-      : dialog.kind === "form" && dialog.employee ? dialog.employee.name
+      : dialog.kind === "edit" ? `Edit ${dialog.employee.name}`
       : "Add employee";
 
   return (
@@ -354,7 +608,7 @@ export default function ManageEmployeePage() {
           <div className="max-w-2xl">
             <h1 className="font-display font-semibold text-2xl md:text-3xl text-ink">Manage Employees</h1>
             <p className="mt-1 text-sm text-ink-muted">
-              Add people, send their invitations and see who still has to set a password.
+              Add people, send their invitations and change their details or access.
             </p>
             <p className="mt-1 text-sm text-ink-muted">
               {isLoading ? (
@@ -370,7 +624,7 @@ export default function ManageEmployeePage() {
 
           <button
             type="button"
-            onClick={() => setDialog({ kind: "form", employee: null })}
+            onClick={() => setDialog({ kind: "create" })}
             className="flex items-center justify-center gap-2 rounded-full min-h-[44px] px-5 bg-accent text-on-accent font-body text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
@@ -382,19 +636,28 @@ export default function ManageEmployeePage() {
           open={dialog.kind !== "closed"}
           titleId="employee-dialog-title"
           title={dialogTitle}
-          busy={false}
+          busy={saving}
           onClose={closeDialog}
         >
-          {dialog.kind === "form" && (
-            <EmployeeForm
-              key={dialog.employee?.user_id ?? "new"}
-              employee={dialog.employee}
+          {dialog.kind === "create" && (
+            <CreateEmployeeForm
               departments={departments}
               onCancel={closeDialog}
               onCreated={(invite) => {
                 setDialog({ kind: "invite", invite, title: "Invitation sent" });
                 reload();
               }}
+            />
+          )}
+          {dialog.kind === "edit" && (
+            <EditEmployeeForm
+              key={dialog.employee.user_id}
+              employee={dialog.employee}
+              isSelf={user?.user_id === dialog.employee.user_id}
+              departments={departments}
+              onBusy={setSaving}
+              onCancel={closeDialog}
+              onSaved={handleSaved}
             />
           )}
           {dialog.kind === "invite" && <InviteLinkPanel invite={dialog.invite} onDone={closeDialog} />}
