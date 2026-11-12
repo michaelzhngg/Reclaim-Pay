@@ -126,14 +126,19 @@ def same_category(a: str, b: str) -> bool:
     return _norm(a) == _norm(b)
 
 
+def _place_norm(s: str) -> str:
+    # "Kuala-Lumpur" and "Shah Alam, Selangor." match the policy's "Kuala Lumpur" and "Shah Alam".
+    return _norm(re.sub(r"[^\w\s]", " ", s))
+
+
 def zone_for(places: list[ZonePlace], destination: str | None) -> str | None:
     if not destination or not destination.strip():
         return None
-    d = _norm(destination)
-    for p in places:
-        if p.place.strip() == "*":
-            continue
-        if re.search(rf"(?<!\w){re.escape(_norm(p.place))}(?!\w)", d):
+    d = _place_norm(destination)
+    named = sorted((p for p in places if p.place.strip() != "*"), key=lambda p: -len(_place_norm(p.place)))
+    for p in named:  # longest first, so "Johor Bahru" beats "Johor"
+        name = _place_norm(p.place)
+        if name and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", d):
             return p.zone
     return next((p.zone for p in places if p.place.strip() == "*"), None)
 
