@@ -18,7 +18,7 @@ export function RingGauge({ value, size = 64, label }: { value: number; size?: n
         </linearGradient>
       </defs>
       <g style={{ transformBox: "fill-box", transformOrigin: "center", transform: "rotate(-90deg)" }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#ebebef" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-surface-container)" strokeWidth={stroke} />
         <motion.circle
           cx={size / 2}
           cy={size / 2}

@@ -33,6 +33,39 @@ Both naming schemes resolve to one palette. App screens use the short semantic n
 | `success` / `success-soft` | `#0a7f58` / `#defbe9` | Paid |
 | `danger` / `danger-soft` | `#c4153f` / `#ffe3e8` | Blocked or failed |
 | `warning` / `warning-soft` | `#b45309` / `#fff3d6` | Needs review |
+| `on-ink` | `#ffffff` | Text on `bg-ink` (dark buttons, selected chips) |
+| `night` | `#0b0b1e` | Surfaces that stay dark in both themes: `mesh-ink` heroes, skip link |
+| `scrim` | `#0b0b1e` | Dialog and drawer backdrops (`bg-scrim/40`) |
+| `edge` | `rgb(20 20 43 / 0.1)` | 1 px rim drawn as a box-shadow on buttons and inputs |
+
+## Dark theme
+
+Light, Dark or System, chosen from the moon/sun button in the top bar or Settings > Appearance, saved in `localStorage` (`reclaim-theme`). An inline script in `app/layout.tsx` sets `data-theme` on `<html>` before first paint, and `components/theme/AppearanceProvider.tsx` keeps it in step after that. The marketing page at `/` always renders light.
+
+Every colour token above is redefined for dark in `globals.css`, once under `@media (prefers-color-scheme: dark)` and once under `[data-theme="dark"]`. Saturated colours become light tones and their `on-*` text becomes dark, so `bg-accent text-on-accent` and `bg-ink text-on-ink` work in both themes. `night` and `scrim` stay dark. Shadows go through `--elevation-*` so each theme sets its own.
+
+| Pair | Light | Ratio | Dark | Ratio |
+|---|---|---|---|---|
+| `ink` on `surface` | `#0b0b1e` on `#ffffff` | 19.43 | `#ededf5` on `#181826` | 15.06 |
+| `ink` on `paper` | `#0b0b1e` on `#f0f0f0` | 17.05 | `#ededf5` on `#0f0f1a` | 16.34 |
+| `ink-muted` on `surface` | `#5c5c72` on `#ffffff` | 6.50 | `#a6a6bd` on `#181826` | 7.36 |
+| `ink-muted` on `surface-muted` | `#5c5c72` on `#f4f4f7` | 5.92 | `#a6a6bd` on `#222233` | 6.55 |
+| `accent` on `surface` | `#4647d3` on `#ffffff` | 6.77 | `#9b9cff` on `#181826` | 7.18 |
+| `accent` on `accent-soft` | `#4647d3` on `#ecebff` | 5.77 | `#9b9cff` on `#2a2a5c` | 5.42 |
+| `on-accent` on `accent` | `#ffffff` on `#4647d3` | 6.77 | `#10102a` on `#9b9cff` | 7.61 |
+| `on-ink` on `ink` | `#ffffff` on `#0b0b1e` | 19.43 | `#0f0f1a` on `#ededf5` | 16.34 |
+| `secondary` (focus ring) on `surface` | `#105bff` on `#ffffff` | 5.30 | `#7aa2ff` on `#181826` | 7.05 |
+| `line-strong` (control border) on `surface` | `#c2c2d1` on `#ffffff` | 1.76 | `#6b6b88` on `#181826` | 3.41 |
+| `success` on `success-soft` | `#0a7f58` on `#defbe9` | 4.55 | `#4ed6a0` on `#0f3326` | 7.52 |
+| `danger` on `danger-soft` | `#c4153f` on `#ffe3e8` | 4.94 | `#ff8098` on `#3f1420` | 6.60 |
+| `warning` on `warning-soft` | `#b45309` on `#fff3d6` | 4.55 | `#f4b04a` on `#3a2a0c` | 7.36 |
+| `paypal-blue` on `surface` | `#0070e0` on `#ffffff` | 4.78 | `#5aa8ff` on `#181826` | 7.08 |
+
+`app/globals.theme.test.ts` recomputes the dark ratios and checks the two dark blocks match. Status chips and charts carry a text label next to the colour in both themes.
+
+## HR density
+
+Comfortable or Compact, set next to the theme (HR only), saved as `reclaim-density` and mirrored on `<html data-density>`. Compact switches the AG Grid theme to 36 px rows and tighter padding (`hrGridThemeCompact` in `components/hr-grid/theme.ts`) and tightens plain HR tables. It applies from 768 px up only; phones keep 52 px rows and 44 px targets.
 
 ## Type
 

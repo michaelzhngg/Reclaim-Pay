@@ -34,7 +34,7 @@ def create_users():
                 name="Demo Employee",
                 role=UserRole.Employee,
                 department_id=dept.department_id,
-                rank=1,
+                rank=6,
                 privilege_level=PrivilegeLevel.Standard,
                 is_active=True,
             )

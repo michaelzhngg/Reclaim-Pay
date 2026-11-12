@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LimitRule, SpendCheckResult, TripEstimate } from "@/lib/api/reclaim-pay-types";
 import {
-  GUIDANCE_NOTE, askErrorMessage, spendErrorMessage, tripLineText, tripNotes, tripSummary, verdictMessage, zoneText,
+  GUIDANCE_NOTE, askErrorMessage, spendErrorMessage, tripLineText, tripNotes, tripSummary, verdictMessage, zoneText, ONE_QUESTION_MESSAGE, askHint, hasSeveralQuestions,
 } from "./spendCopy";
 
 const cap: LimitRule = {
@@ -181,5 +181,21 @@ describe("zoneText", () => {
     expect(zoneText("2", "*")).toBe("Zone 2 rate (everywhere else)");
     expect(zoneText("1", null)).toBeNull(); // the rate that applied has no zone, e.g. an overseas rate
     expect(zoneText(null, null)).toBeNull();
+  });
+});
+
+describe("asking the policy", () => {
+  it("spots more than one question in a message", () => {
+    expect(hasSeveralQuestions("Can I claim laundry?")).toBe(false);
+    expect(hasSeveralQuestions("Can I claim laundry? What is my overseas allowance?")).toBe(true);
+  });
+
+  it("says which grade answers use", () => {
+    expect(askHint(6)).toBe("Ask one thing at a time. Answers use your grade on file: 6. Up to 20 questions a day.");
+    expect(askHint(undefined)).toContain("Answers use the grade on your HR profile.");
+  });
+
+  it("explains a message with several questions", () => {
+    expect(askErrorMessage("ONE_QUESTION", 422)).toBe(ONE_QUESTION_MESSAGE);
   });
 });

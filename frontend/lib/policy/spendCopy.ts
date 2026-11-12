@@ -143,8 +143,22 @@ export function spendErrorMessage(error: string | null, status: number | undefin
   return NO_RESPONSE;
 }
 
+export const ONE_QUESTION_MESSAGE = "Ask one thing at a time. Split this into separate questions.";
+
+/** More than one question mark: one answer is backed by one quote, so each question needs its own ask. */
+export function hasSeveralQuestions(text: string): boolean {
+  return (text.match(/\?/g)?.length ?? 0) > 1;
+}
+
+/** The hint under the question box. Answers always use the grade on file, not one typed into the question. */
+export function askHint(grade: number | null | undefined): string {
+  const onFile = grade != null ? `Answers use your grade on file: ${grade}.` : "Answers use the grade on your HR profile.";
+  return `Ask one thing at a time. ${onFile} Up to 20 questions a day.`;
+}
+
 export function askErrorMessage(error: string | null, status: number | undefined): string {
   if (error === "QUESTION_LENGTH") return "Write a question between 5 and 500 characters.";
+  if (error === "ONE_QUESTION") return ONE_QUESTION_MESSAGE;
   if (error === "DAILY_QUESTION_LIMIT") return "You've asked 20 questions in the last 24 hours. Ask HR, or try again tomorrow.";
   if (status === 429) return "Too many questions in a minute. Wait a moment and try again.";
   if (status === 503) return "Couldn't answer right now. Try again in a few minutes, or ask HR.";

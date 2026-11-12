@@ -27,7 +27,7 @@ export default function HRLayout({
 
           <main
             id="main-content"
-            className="flex-auto lg:flex-1 lg:overflow-y-auto bg-paper pb-nav-safe"
+            className="hr-main flex-auto lg:flex-1 lg:overflow-y-auto bg-paper pb-nav-safe"
           >
             {children}
           </main>

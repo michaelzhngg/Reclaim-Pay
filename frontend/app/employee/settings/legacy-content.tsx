@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import PayPalConnectCard from "./_components/PayPalConnectCard";
 import ProfileCard from "./_components/ProfileCard";
 import PushSettingToggle from "@/app/_components/PushSettingToggle";
+import { ThemeOptions } from "@/components/theme/AppearanceControls";
 
 // The URL hash picks the section, so /employee/settings#paypal opens on PayPal.
 function subscribeHash(onChange: () => void) {
@@ -19,6 +20,7 @@ const readServerHash = () => "";
 const SECTIONS = [
   { id: "paypal", label: "PayPal payouts" },
   { id: "notifications", label: "Notifications" },
+  { id: "appearance", label: "Appearance" },
   { id: "profile", label: "Profile information" },
 ] as const;
 
@@ -28,7 +30,7 @@ const navLink =
 export default function SettingsLegacyContent() {
   const { user } = useAuth();
   const hash = useSyncExternalStore(subscribeHash, readHash, readServerHash);
-  const active = hash === "#profile" ? "profile" : "paypal";
+  const active = hash === "#profile" ? "profile" : hash === "#appearance" ? "appearance" : "paypal";
   const paypalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -105,6 +107,19 @@ export default function SettingsLegacyContent() {
                 Notifications
               </h2>
               <PushSettingToggle className="px-5 pb-4" />
+            </section>
+
+            <section
+              id="appearance"
+              aria-labelledby="appearance-title"
+              className="scroll-mt-24 bg-surface shadow-ambient rounded-card"
+            >
+              <h2 id="appearance-title" className="px-5 pt-5 pb-1 font-display font-semibold text-lg text-ink">
+                Appearance
+              </h2>
+              <div className="px-5 pt-2 pb-5">
+                <ThemeOptions layout="tiles" />
+              </div>
             </section>
 
             <ProfileCard key={user?.user_id ?? "anon"} />

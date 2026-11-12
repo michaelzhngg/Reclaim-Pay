@@ -127,7 +127,7 @@ export default function LoginPage() {
   return (
     <>
       <LoadingOverlay show={isLoading} />
-      <main className="flex min-h-dvh w-full bg-white">
+      <main className="flex min-h-dvh w-full bg-surface">
         {/* Left, desktop only: brand panel with the live payout card. */}
         <section
           aria-labelledby="login-intro"
@@ -160,7 +160,7 @@ export default function LoginPage() {
         </section>
 
         {/* Right: sign in. */}
-        <section className="flex min-h-dvh flex-1 flex-col items-center overflow-y-auto bg-marshmallow px-5 py-8 sm:px-8 lg:bg-white">
+        <section className="flex min-h-dvh flex-1 flex-col items-center overflow-y-auto bg-marshmallow px-5 py-8 sm:px-8 lg:bg-surface">
           <div className="flex w-full max-w-[420px] items-center justify-between lg:hidden">
             <Link href="/" className="flex items-center gap-2 rounded-full">
               <Image src="/images/logo.svg" alt="" width={26} height={26} className="h-[26px] w-[26px]" priority />
@@ -171,7 +171,7 @@ export default function LoginPage() {
           </div>
 
           <div className="my-auto w-full max-w-[420px] py-10">
-            <div className="rounded-[28px] bg-white p-6 shadow-ambient-lg sm:p-8 lg:p-0 lg:shadow-none">
+            <div className="rounded-[28px] bg-surface p-6 shadow-ambient-lg sm:p-8 lg:p-0 lg:shadow-none">
               <h2 className="font-headline text-[30px] font-semibold tracking-[-0.035em] text-on-surface">
                 Sign in to Reclaim Pay
               </h2>

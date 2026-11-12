@@ -80,7 +80,7 @@ export function ViewAllModal({
     >
       {/* Dimmed overlay */}
       <div
-        className="absolute inset-0 bg-ink/30"
+        className="absolute inset-0 bg-scrim/30"
         onClick={onClose}
       />
 
@@ -155,7 +155,7 @@ export function ViewAllModal({
                           font-semibold font-body transition-colors
                           shrink-0 ring-1 cursor-pointer ${
                             filterOpen || activeCount > 0
-                              ? "bg-ink text-on-accent ring-ink"
+                              ? "bg-ink text-on-ink ring-ink"
                               : "bg-surface text-ink ring-line-strong hover:bg-surface-muted"
                           }`}
             >
@@ -167,7 +167,7 @@ export function ViewAllModal({
                               font-bold flex items-center justify-center ${
                                 filterOpen || activeCount > 0
                                   ? "bg-on-accent text-ink"
-                                  : "bg-ink text-on-accent"
+                                  : "bg-ink text-on-ink"
                               }`}
                 >
                   {activeCount}

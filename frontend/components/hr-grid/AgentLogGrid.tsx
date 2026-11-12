@@ -8,7 +8,7 @@ import ClaimLink from "./ClaimLink";
 import { actionLabel, actionSummary, actorLabel, hashPrefix } from "./agentLog";
 import { tabThroughCell } from "./cellKeyboard";
 import { formatUpdated } from "./ledger";
-import { hrGridTheme } from "./theme";
+import { useHrGridTheme } from "./useHrGridTheme";
 
 /** A native <details>, so opening it works by keyboard and AG Grid's auto height follows the change. */
 function PayloadDetails({ action }: { action: AgentAction }) {
@@ -52,6 +52,7 @@ function LogCard({ action, actorNames }: { action: AgentAction; actorNames: Reco
 }
 
 export default function AgentLogGrid({ rows, actorNames }: { rows: AgentAction[]; actorNames: Record<string, string> }) {
+  const gridTheme = useHrGridTheme();
   const columnDefs = useMemo<ColDef<AgentAction>[]>(
     () => [
       {
@@ -108,7 +109,7 @@ export default function AgentLogGrid({ rows, actorNames }: { rows: AgentAction[]
     <>
       <div className="hidden sm:block">
         <AgGridReact<AgentAction>
-          theme={hrGridTheme}
+          theme={gridTheme}
           rowData={rows}
           columnDefs={columnDefs}
           defaultColDef={{ sortable: true, resizable: true, suppressMovable: true }}

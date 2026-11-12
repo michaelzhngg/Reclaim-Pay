@@ -101,7 +101,7 @@ export default function MobileDrawer({ open, onClose, portal, links }: MobileDra
     >
       {/* Backdrop */}
       <div
-        className={`absolute inset-0 bg-ink/40 transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0"}`}
+        className={`absolute inset-0 bg-scrim/40 transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0"}`}
         onClick={onClose}
       />
 
@@ -111,7 +111,7 @@ export default function MobileDrawer({ open, onClose, portal, links }: MobileDra
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className="absolute top-0 right-0 bottom-0 w-[86vw] max-w-[340px] bg-white rounded-l-[28px] shadow-[-24px_0_60px_-20px_rgb(20_20_43/0.35)] flex flex-col h-full px-3 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] overscroll-contain touch-pan-y"
+        className="absolute top-0 right-0 bottom-0 w-[86vw] max-w-[340px] bg-surface rounded-l-[28px] shadow-[-24px_0_60px_-20px_rgb(20_20_43/0.35)] flex flex-col h-full px-3 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] overscroll-contain touch-pan-y"
         style={panelStyle}
       >
         {/* Close + Brand */}

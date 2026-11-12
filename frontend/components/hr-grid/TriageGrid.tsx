@@ -15,7 +15,7 @@ import type {
   SelectionChangedEvent,
 } from "ag-grid-community";
 import { formatMoney } from "@/lib/api/reclaim-pay-types";
-import { hrGridTheme } from "./theme";
+import { useHrGridTheme } from "./useHrGridTheme";
 import { TierPill } from "./cells/TierCell";
 import { RiskBar } from "./cells/RiskCell";
 import { SignalChips } from "./cells/SignalsCell";
@@ -125,6 +125,7 @@ function TriageCard({
 }
 
 export default function TriageGrid({ rows, selectable, selfId, selected, onSelectedChange }: TriageGridProps) {
+  const gridTheme = useHrGridTheme();
   const router = useRouter();
   const apiRef = useRef<GridApi<TriageRow> | null>(null);
 
@@ -306,7 +307,7 @@ export default function TriageGrid({ rows, selectable, selfId, selected, onSelec
     <>
       <div className="hidden sm:block">
         <AgGridReact<TriageRow>
-          theme={hrGridTheme}
+          theme={gridTheme}
           rowData={rows}
           columnDefs={columnDefs}
           defaultColDef={{ sortable: true, resizable: true, suppressMovable: true }}

@@ -3,6 +3,8 @@
 **Written:** Wed 4 Nov 2026, evening, by the Claude Code session on Michael's laptop. Its usage ran out.
 **For:** whoever picks this up (a teammate's Claude Code). Read this file first, then [`PLAN.md`](PLAN.md) for the checklist.
 
+> **Update 12 Nov 2026.** This file describes 4 Nov and is out of date. The submission went in on 11 Nov (as reported by the team). Several "still unbuilt" items in §3 are now built: the HR Payouts tabs, the saved reason on `PUT /autonomy/settings`, Sign in with PayPal, the Channel3 check, the Bryntum calendar and reconciliation. Production moved to Render (`render.yaml`). For current status, read [`FUTURE-DEVELOPMENT-PLAN.md`, Status as of 12 Nov 2026](FUTURE-DEVELOPMENT-PLAN.md#status-as-of-12-nov-2026) and the "After submission" section of [`PLAN.md`](PLAN.md#after-submission).
+
 **Deadlines:**
 - **Code freeze:** Thu 5 Nov 12:00.
 - **Recording:** Thursday afternoon.

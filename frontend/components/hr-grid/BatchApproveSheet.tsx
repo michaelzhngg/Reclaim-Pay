@@ -68,7 +68,7 @@ export default function BatchApproveSheet({
         if (submitting) e.preventDefault();
         else onClose();
       }}
-      className="m-0 mt-auto w-full max-w-none max-h-[85dvh] rounded-t-dialog p-0 bg-surface text-ink backdrop:bg-ink/40 sm:m-auto sm:max-w-lg sm:rounded-dialog"
+      className="m-0 mt-auto w-full max-w-none max-h-[85dvh] rounded-t-dialog p-0 bg-surface text-ink backdrop:bg-scrim/40 sm:m-auto sm:max-w-lg sm:rounded-dialog"
     >
       <div className="flex flex-col max-h-[85dvh]">
         <header className="flex items-start justify-between gap-4 px-5 pt-5 pb-3 border-b border-line">

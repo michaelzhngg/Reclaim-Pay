@@ -61,7 +61,7 @@ export default function HistoryFilterBar({
               onClick={() => onStatusChange(status)}
               className={`whitespace-nowrap px-4 min-h-[44px] rounded-full text-sm font-semibold transition-colors cursor-pointer border snap-start ${
                 isActive
-                  ? "bg-ink text-on-accent border-ink"
+                  ? "bg-ink text-on-ink border-ink"
                   : "bg-surface text-ink hover:bg-surface-muted border-line"
               }`}
             >

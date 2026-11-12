@@ -2,7 +2,9 @@
 
 Each section below matches one field of the Devpost submission form, in the order Devpost shows them. Paste the text inside each section. Lines starting with **Team:** are notes for us and are not pasted.
 
-The long-form source for most of this is [`DEVPOST.md`](DEVPOST.md). Its "Before submitting" checklist still applies: nothing here claims a live sandbox payout or a live AI run, and any text that depends on one is marked.
+The long-form source for most of this is [`DEVPOST.md`](DEVPOST.md). Its "Before submitting" checklist still applies. The one live sandbox payout on record is S1 on 4 Nov (see "Before submitting" below); any text that depends on another live run is marked.
+
+**Team (12 Nov, evening):** the team reports that the form was submitted on 11 Nov. The repo holds no copy of the submitted text, so this file may differ from what Devpost shows. Since then the hosting text here was changed from the home server to Render, which matches `render.yaml`. Placeholders a person must fill are in square brackets.
 
 ---
 
@@ -80,7 +82,7 @@ A colleague submits a cropped copy of your receipt: it's matched to yours and go
 - **Backend:** FastAPI streams a live timeline while LangGraph agents read the receipt and judge it against the policy with Google Gemini 3.6 Flash, falling back to Gemini 3.1 Flash Lite through OpenRouter if a call fails. Policies live in PostgreSQL with pgvector for search.
 - **The safety boundary:** the AI produces a verdict and text, nothing else. Its only tools are a date lookup and a policy search. A plain, deterministic function, `decide()`, is the only code that can choose auto-pay, and the payout service only pays claims approved by that function or by HR. Receipt text is labeled as untrusted data before any model sees it.
 - **PayPal:** Payouts (REST) for paying claims, Log in with PayPal for verifying payees, signed webhooks for status, the PayPal Agent Toolkit for recovery invoices, and the PayPal Server SDK for Transaction Search reconciliation. Everything runs on the PayPal sandbox.
-- **Shipping:** Docker on a home server behind Cloudflare Tunnel, a 91-request Postman collection run with Newman, and pytest and vitest suites that pin every rule threshold.
+- **Shipping:** Docker images on Render, an API service and a web service that deploy from `main` on each commit, a 91-request Postman collection run with Newman, and pytest and vitest suites that pin every rule threshold.
 
 Reclaim began in April 2026 as our expense review prototype. Everything about PayPal, the rule engine, the Receipt Shield and HR's controls is new for this hackathon.
 
@@ -123,7 +125,7 @@ Reclaim began in April 2026 as our expense review prototype. Everything about Pa
 **Sources:** [1] [GBTA Foundation and HRS, 2015](https://gbta.org/how-much-do-expense-reports-really-cost-a-company/) · [2] [Airwallex Singapore survey, 2025](https://www.airwallex.com/en-sg/blog/reimbursement-frustrations) · [3] [Accountancy Age on Airwallex UK survey, 2025](https://accountancyage.com/2025/04/17/why-expense-systems-are-failing-uk-staff-in-2025/) · [4] [PYMNTS on AppZen and Emburse data, June 2026](https://www.pymnts.com/?p=3892615) · [5] [OWASP LLM01:2025](https://genai.owasp.org/llmrisk/llm01-prompt-injection/) · [6] [DOSM MSME Performance 2024](https://www.dosm.gov.my/portal-main/release-content/micro-small--medium-enterprises-msmes-performance-2024) · [7] [PayPal Payouts supported features](https://developer.paypal.com/payouts/supported-features)
 ```
 
-**Team:** Models describe the live site, from `deploy/homeserver/.env.example`: Gemini 3.6 Flash for chat and vision, Gemini 3.1 Flash Lite on OpenRouter as fallback, OpenAI embeddings on OpenRouter. The code defaults in `backend/core/config.py` and `.env.example` still say GLM-5.1 and Qwen (left alone on purpose), so the code and this text only agree through the server's `.env`. Filbert should confirm the server's `~/reclaim/.env` says `gemini-3.6-flash`. "MYR 48.00 in your PayPal" depends on the MYR/USD decision. Change it if we switch to USD. The 91-request Postman count is from the collection file; re-run Newman before submitting.
+**Team:** Models describe the live site, from `render.yaml` (`CHAT_MODEL` and `VISION_MODEL` are `gemini-3.6-flash`): Gemini 3.6 Flash for chat and vision, Gemini 3.1 Flash Lite on OpenRouter as fallback, OpenAI embeddings on OpenRouter. The code defaults in `backend/core/config.py` still say GLM-5.1 and Qwen (left alone on purpose), so the code and this text only agree through the Render environment. The currency is MYR (`PAYPAL_CURRENCY` in `render.yaml`), so "MYR 48.00 in your PayPal" stands. The 91-request Postman count is from the collection file; re-run Newman before quoting it again.
 
 ## Built with (25 tags max)
 
@@ -154,7 +156,7 @@ ag-charts
 bryntum
 postman
 docker
-cloudflare
+render
 ```
 
 ## "Try it out" links
@@ -164,7 +166,7 @@ https://reclaimai.dev
 https://github.com/michaelzhngg/Reclaim-Pay
 ```
 
-**Team:** add the public Postman workspace link once it's published (needs a human login).
+**Team:** add the public Postman workspace link once it's published (needs a human login): `[Postman link: add after the public workspace is published]`
 
 ## Image gallery (JPG, PNG or GIF, 5 MB max, 3:2 ratio, up to 15)
 
@@ -202,6 +204,12 @@ Timed outline, from PLAN.md section 6:
 | 2:50 | Close | Built with strip, "all payments are PayPal sandbox" |
 
 Turn captions on. Keep it under 2:55 to leave margin.
+
+```
+[video link: add after upload]
+```
+
+**Team:** the repo has no video link. Paste the real one here and in the README.
 
 ---
 
@@ -271,9 +279,10 @@ How they fit together: the AI reads receipts and judges them against policy, the
 - Bryntum Calendar (trial): the employee calendar of claims and payouts
 - Postman (with Newman): a 91-request API collection covering login, payouts, autonomy settings, the kill switch, approvals, recoveries and permission checks
 - Channel3: an optional market-price check on equipment receipts (built, and off in the demo without an API key)
+- Render: hosts the live site, with an API service and a web service that deploy from main on each commit
 ```
 
-**Team:** add APIMatic only if someone used the Context Plugin (see below). Render was not used; we deploy on a home server with Cloudflare Tunnel.
+**Team:** add APIMatic only if someone used the Context Plugin (see below). Render is in the list because production moved there on 4 and 5 Nov (`render.yaml`, commits `80c76be` and `916c852`): `reclaim-pay-api` at api.reclaimai.dev and `reclaim-pay-web` at reclaimai.dev. The repo doesn't show whether the submitted form listed it.
 
 ## Public code repository URL
 
@@ -318,7 +327,7 @@ Notes:
 - To run locally: see "Run locally" in the README. Mock mode needs no PayPal keys.
 ```
 
-**Team:** checked on 4 Nov: the site has the demo policy and seeded data, and all five logins work. My test run left two pending claims in the HR queue (RC-DB9D0B4D and RC-D9473DCD). Reset the demo data before judging so judges start clean.
+**Team:** checked on 4 Nov: the site has the demo policy and seeded data, and all five logins work. It has not been re-checked on the Render database. My test run left two pending claims in the HR queue (RC-DB9D0B4D and RC-D9473DCD). Reset the demo data before judging so judges start clean.
 
 ## Overall PayPal integration rating (1 to 10)
 
@@ -377,6 +386,8 @@ What worked well: custom cell renderers made the risk bar and signal chips simpl
 ---
 
 # Before submitting (team only)
+
+The team reports the submission went in on 11 Nov. Items still open below are not recorded as done anywhere in the repo.
 
 - [x] AGPL-3.0 `LICENSE` added and linked from the README.
 - [x] Live run done on 4 Nov: S1 paid RM48 to the sandbox account, S4 and S5 landed in two-person review. Screenshots are in `screenshots/`.

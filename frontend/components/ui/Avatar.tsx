@@ -21,7 +21,7 @@ export function Avatar({
     <span
       role="img"
       aria-label={name}
-      className={`${SIZES[size]} inline-flex shrink-0 select-none items-center justify-center rounded-full bg-linear-to-br ${avatarGradient(name)} font-semibold text-white ring-2 ring-white shadow-[0_2px_6px_-2px_rgb(20_20_43/0.3)] ${className}`}
+      className={`${SIZES[size]} inline-flex shrink-0 select-none items-center justify-center rounded-full bg-linear-to-br ${avatarGradient(name)} font-semibold text-white ring-2 ring-surface shadow-[0_2px_6px_-2px_rgb(20_20_43/0.3)] ${className}`}
     >
       {initials ?? initialsOf(name)}
     </span>

@@ -72,7 +72,7 @@ export default function NotificationsMenu({ cacheKey }: { cacheKey: string }) {
       >
         <Bell className="h-[19px] w-[19px]" strokeWidth={1.75} aria-hidden="true" />
         {unread > 0 && (
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-tangerine ring-2 ring-white" aria-hidden="true" />
+          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-tangerine ring-2 ring-surface" aria-hidden="true" />
         )}
       </button>
 
@@ -85,7 +85,7 @@ export default function NotificationsMenu({ cacheKey }: { cacheKey: string }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 z-[70] mt-2 w-[min(360px,calc(100vw-2rem))] origin-top-right overflow-hidden rounded-2xl bg-white shadow-float"
+            className="absolute right-0 z-[70] mt-2 w-[min(360px,calc(100vw-2rem))] origin-top-right overflow-hidden rounded-2xl bg-surface shadow-float"
           >
             <div className="flex items-center justify-between border-b border-on-surface/[0.06] px-4 py-3">
               <h3 className="text-[14px] font-semibold text-on-surface">Notifications</h3>
@@ -116,7 +116,7 @@ export default function NotificationsMenu({ cacheKey }: { cacheKey: string }) {
                           {!n.isRead && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-tangerine" aria-label="Unread" />}
                         </span>
                         <span className="mt-0.5 block break-words text-[12px] leading-relaxed text-on-surface-variant">{n.message}</span>
-                        <span className="mt-1 block text-[11px] text-on-surface-variant/70">{n.timestamp}</span>
+                        <span className="mt-1 block text-[11px] text-on-surface-variant">{n.timestamp}</span>
                       </span>
                     </>
                   );

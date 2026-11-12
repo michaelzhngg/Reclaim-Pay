@@ -222,3 +222,21 @@ def test_ask_route_maps_errors_and_questions_are_hr_only(setup, monkeypatch):
         assert body["total"] >= 1 and "asked_at" not in body["recent_unanswered"][0]
     finally:
         app.dependency_overrides.clear()
+
+
+def test_several_questions_are_turned_back_before_the_model(setup, monkeypatch):
+    db, me, _, _ = setup
+    seen = {}
+    _llm(monkeypatch, {"covered": False, "answer": "", "quote": None}, seen)
+    with pytest.raises(qa.QuestionError) as err:
+        qa.answer_question(db, me, "Can I claim laundry? What is my overseas allowance?", NOW)
+    assert err.value.code == "ONE_QUESTION" and not seen
+    assert db.exec(text("SELECT count(*) FROM policy_questions")).one()[0] == 0
+
+
+def test_an_answer_may_name_my_grade_on_file(setup, monkeypatch):
+    db, me, _, _ = setup
+    _llm(monkeypatch, {"covered": True, "answer": "For your grade on file (2), meals are reimbursed up to RM100.",
+                       "quote": "may be reimbursed only up to RM100"})
+    out = qa.answer_question(db, me, "How much can I spend on a client dinner meal", NOW)
+    assert out.covered and out.answer.startswith("For your grade on file (2)")

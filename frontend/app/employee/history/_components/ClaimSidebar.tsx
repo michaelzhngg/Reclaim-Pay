@@ -225,7 +225,7 @@ function ClaimFormModal({
       role="dialog"
       aria-modal="true"
       aria-label="Official claim form"
-      className="fixed inset-0 z-[100] bg-ink/90 overflow-auto"
+      className="fixed inset-0 z-[100] bg-scrim/90 overflow-auto"
       onClick={onClose}
     >
       <style>{`
@@ -539,7 +539,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
     <>
       {/* ── Overlay ── */}
       <div
-        className={`fixed inset-0 bg-ink/40 z-60 transition-opacity duration-400 motion-reduce:transition-none ${
+        className={`fixed inset-0 bg-scrim/40 z-60 transition-opacity duration-400 motion-reduce:transition-none ${
           claim ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
         onClick={onClose}
