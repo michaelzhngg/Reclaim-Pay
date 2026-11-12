@@ -17,6 +17,11 @@ interface BannerState {
   breakerReason: string | null;
 }
 
+// Moving between HR pages reuses a recent answer, so the page's own data isn't queued behind
+// this check (server actions run one at a time). A change made here fires the event and skips it.
+const STATUS_TTL_MS = 15_000;
+let cache: { state: BannerState; ts: number } | null = null;
+
 /**
  * A strip across every HR page while auto-pay is paused by the kill switch or held by the
  * circuit breaker. Hidden on /hr/autonomy, where the status card says the same at full length.
@@ -24,33 +29,36 @@ interface BannerState {
  */
 export default function AutonomyBanner() {
   const pathname = usePathname();
-  const [state, setState] = useState<BannerState | null>(null);
+  const [state, setState] = useState<BannerState | null>(() => cache?.state ?? null);
   const [, setTick] = useState(0);
 
-  const load = useCallback(
-    () =>
-      getStatus()
-        .then(async (s) => {
-          if (!s.status) return null;
-          const showsSomething = !s.status.enabled || breakerActive(s.status.breaker_until);
-          const actions = showsSomething ? ((await getActions(50)).result?.actions ?? []) : [];
-          return {
-            status: s.status,
-            pauseReason: latestReason(actions, "KILL_SWITCH"),
-            breakerReason: latestReason(actions, "BREAKER_TRIPPED"),
-          };
-        })
-        .catch(() => null)
-        .then(setState),
-    [],
-  );
+  const load = useCallback((force = false) => {
+    // State starts from the cache and every write goes to both, so a fresh cache is already on screen.
+    if (!force && cache && Date.now() - cache.ts < STATUS_TTL_MS) return Promise.resolve();
+    return getStatus()
+      .then(async (s) => {
+        if (!s.status) return null;
+        const showsSomething = !s.status.enabled || breakerActive(s.status.breaker_until);
+        const actions = showsSomething ? ((await getActions(50)).result?.actions ?? []) : [];
+        return {
+          status: s.status,
+          pauseReason: latestReason(actions, "KILL_SWITCH"),
+          breakerReason: latestReason(actions, "BREAKER_TRIPPED"),
+        };
+      })
+      .catch(() => null)
+      .then((next) => {
+        cache = next ? { state: next, ts: Date.now() } : null;
+        setState(next);
+      });
+  }, []);
 
   useEffect(() => {
     void load();
   }, [load, pathname]);
 
   useEffect(() => {
-    const handler = () => void load();
+    const handler = () => void load(true);
     window.addEventListener(AUTONOMY_CHANGED_EVENT, handler);
     return () => window.removeEventListener(AUTONOMY_CHANGED_EVENT, handler);
   }, [load]);

@@ -45,7 +45,11 @@ function Differences({ summary }: { summary: ReconcileSummary }) {
   );
 }
 
-export default function ReconcileBadge() {
+/**
+ * `start` holds the check back until the caller says go. The PayPal lookup can take seconds,
+ * and server actions run one at a time, so the ledger loads first.
+ */
+export default function ReconcileBadge({ start = true }: { start?: boolean }) {
   const [summary, setSummary] = useState<ReconcileSummary | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -61,8 +65,8 @@ export default function ReconcileBadge() {
   );
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (start) void load();
+  }, [start, load]);
 
   const retry = () => {
     setSummary(null);

@@ -6,9 +6,8 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, CheckCircle2, Clock, Loader2, PauseCircle, RefreshCw } from "lucide-react";
 import {
-  getActions,
-  getSettings,
-  getStatus,
+  getAutonomyOverview,
+  getStatusWithActions,
   runBacktest,
   saveSettings,
   setKillSwitch,
@@ -243,30 +242,35 @@ export default function AutonomyPage() {
   const { register, control, reset, formState } = form;
   const values = useWatch({ control }) as AutonomyFormValues;
 
+  const applyStatus = useCallback(
+    ({ status: s, actions: a }: Awaited<ReturnType<typeof getStatusWithActions>>) => {
+      setStatus(s.status);
+      setStatusError(s.error);
+      if (a.result) setActions(a.result.actions);
+    },
+    [],
+  );
+
   const loadStatus = useCallback(
     () =>
-      Promise.all([getStatus(), getActions(50)])
-        .then(([s, a]) => {
-          setStatus(s.status);
-          setStatusError(s.error);
-          if (a.result) setActions(a.result.actions);
-        })
+      getStatusWithActions(50)
+        .then(applyStatus)
         .catch(() => setStatusError("Check your connection and try again.")),
-    [],
+    [applyStatus],
   );
 
   const loadAll = useCallback(
     () =>
-      getSettings()
-        .then((res) => {
+      getAutonomyOverview(50)
+        .then(({ settings: res, ...rest }) => {
           if (!res.settings) return setLoadError(res.error ?? "No response from the server.");
           setLoadError(null);
           setSettings(res.settings);
           reset(res.settings.config);
-          void loadStatus();
+          applyStatus(rest);
         })
         .catch(() => setLoadError("Check your connection and try again.")),
-    [reset, loadStatus],
+    [reset, applyStatus],
   );
 
   useEffect(() => {
