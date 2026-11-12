@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import {
+  dismissDifference,
   getReconciliationHistory,
   runReconciliation,
   type ReconciliationDifference,
@@ -10,8 +11,9 @@ import {
 import { useTabData } from "@/lib/hooks/useTabData";
 import ClaimLink from "@/components/hr-grid/ClaimLink";
 import { TabEmpty, TabError, TabLoading } from "@/components/hr-grid/TabStates";
-import { formatMoney } from "@/lib/format";
+import { formatClaimRef, formatMoney } from "@/lib/format";
 import { formatUpdated } from "@/components/hr-grid/ledger";
+import { useToast } from "@/components/toast/ToastProvider";
 import {
   RECONCILIATION_TONE_CLASSES,
   differenceReason,
@@ -28,7 +30,15 @@ const RUN_FAILED = "Couldn't run the check. The previous history is still shown.
 
 const fetchHistory = () => getReconciliationHistory(14);
 
-function DifferenceRow({ difference }: { difference: ReconciliationDifference }) {
+function DifferenceRow({
+  difference,
+  busy,
+  onDismiss,
+}: {
+  difference: ReconciliationDifference;
+  busy: boolean;
+  onDismiss: (difference: ReconciliationDifference) => void;
+}) {
   return (
     <li className="rounded-control border border-line bg-surface px-3 py-3 text-sm">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
@@ -43,9 +53,19 @@ function DifferenceRow({ difference }: { difference: ReconciliationDifference })
             · {difference.employee_name ?? "Not set"} · {formatMoney(difference.currency, difference.amount)}
           </span>
         </div>
-        <span className="shrink-0 text-xs text-ink-muted">
-          First seen {formatUpdated(difference.first_seen_at)}
-        </span>
+        <div className="flex shrink-0 flex-col items-start gap-1 sm:items-end">
+          <span className="text-xs text-ink-muted">
+            First seen {formatUpdated(difference.first_seen_at)}
+          </span>
+          <button
+            type="button"
+            onClick={() => onDismiss(difference)}
+            disabled={busy}
+            className="inline-flex min-h-[44px] items-center justify-center rounded-control border border-line-strong px-3 text-sm font-semibold text-ink hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+          >
+            {busy ? "Marking" : "Mark reviewed"}
+          </button>
+        </div>
       </div>
       <p className="mt-1 text-ink-muted">
         {difference.kind === "MISSING_IN_PAYPAL" ? "Sent" : "Posted"}{" "}
@@ -61,8 +81,35 @@ export default function ReconciliationTab({ onLoaded }: { onLoaded?: () => void 
     LOAD_FAILED,
     onLoaded,
   );
+  const { toast } = useToast();
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
+  const [dismissing, setDismissing] = useState<string | null>(null);
+  const [reviewed, setReviewed] = useState<Set<string>>(new Set());
+
+  const openDifferences = (data?.open_differences ?? []).filter(
+    (difference) => !reviewed.has(difference.difference_id),
+  );
+
+  const markReviewed = async (difference: ReconciliationDifference) => {
+    setDismissing(difference.difference_id);
+    try {
+      await dismissDifference(difference.difference_id);
+      setReviewed((current) => new Set(current).add(difference.difference_id));
+      toast({
+        tone: "success",
+        title: `${difference.reim_id ? formatClaimRef(difference.reim_id) : difference.transaction_id} marked as reviewed.`,
+      });
+      refresh();
+    } catch {
+      toast({
+        tone: "error",
+        title: "Couldn't mark the difference as reviewed. Try again.",
+      });
+    } finally {
+      setDismissing(null);
+    }
+  };
 
   const checkNow = async () => {
     setRunning(true);
@@ -119,7 +166,7 @@ export default function ReconciliationTab({ onLoaded }: { onLoaded?: () => void 
 
           <section
             aria-labelledby="reconcile-latest"
-            className={`mb-5 rounded-card border px-4 py-4 sm:px-5 ${RECONCILIATION_TONE_CLASSES[runTone(data.latest, data.open_differences)]}`}
+            className={`mb-5 rounded-card border px-4 py-4 sm:px-5 ${RECONCILIATION_TONE_CLASSES[runTone(data.latest, openDifferences)]}`}
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
@@ -132,7 +179,7 @@ export default function ReconciliationTab({ onLoaded }: { onLoaded?: () => void 
                   {data.latest.data_through && ` · PayPal data through ${formatUpdated(data.latest.data_through)}`}
                 </p>
                 {pendingLine(data.latest) && <p className="mt-1 text-sm">{pendingLine(data.latest)}</p>}
-                <p className="mt-1 text-sm">{differencesLine(data.open_differences)}</p>
+                <p className="mt-1 text-sm">{differencesLine(openDifferences)}</p>
               </div>
               {checkButton}
             </div>
@@ -144,14 +191,23 @@ export default function ReconciliationTab({ onLoaded }: { onLoaded?: () => void 
             </div>
           )}
 
-          {data.open_differences.length > 0 && (
+          {openDifferences.length > 0 && (
             <section aria-labelledby="reconcile-differences" className="mb-6">
-              <h2 id="reconcile-differences" className="mb-2 font-display text-lg font-semibold text-ink">
+              <h2 id="reconcile-differences" className="font-display text-lg font-semibold text-ink">
                 Open differences
               </h2>
+              <p className="mb-2 text-sm text-ink-muted">
+                Check each one in PayPal before marking it reviewed. Marking it reviewed does not
+                move or reverse money.
+              </p>
               <ul className="flex flex-col gap-2">
-                {data.open_differences.map((difference) => (
-                  <DifferenceRow key={difference.difference_id} difference={difference} />
+                {openDifferences.map((difference) => (
+                  <DifferenceRow
+                    key={difference.difference_id}
+                    difference={difference}
+                    busy={dismissing === difference.difference_id}
+                    onDismiss={markReviewed}
+                  />
                 ))}
               </ul>
             </section>

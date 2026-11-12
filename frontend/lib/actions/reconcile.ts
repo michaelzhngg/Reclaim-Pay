@@ -237,3 +237,21 @@ export async function runReconciliation(): Promise<ReconciliationRun> {
     throw new Error(result.error ?? "No response");
   });
 }
+
+/** Close a reviewed difference. Throws so the row stays visible when the request fails. */
+export async function dismissDifference(differenceId: string): Promise<ReconciliationDifference> {
+  return withFixture(
+    differenceFixture({
+      difference_id: differenceId,
+      resolved_at: new Date().toISOString(),
+      resolution: "DISMISSED",
+    }),
+    async () => {
+      const result = await apiPost<ReconciliationDifference>(
+        `${API_PREFIX}/payouts/reconcile/differences/${encodeURIComponent(differenceId)}/dismiss`,
+      );
+      if (result.data && !result.error) return result.data;
+      throw new Error(result.error ?? "No response");
+    },
+  );
+}

@@ -230,12 +230,12 @@ def test_history_returns_latest_last_success_and_open_differences(db):
     assert [row.kind for row in found.open_differences] == [rh.MISSING_IN_PAYPAL]
 
 
-def _client(role, db=None):
+def _client(role, db=None, user=None):
     app = FastAPI()
     app.include_router(payouts_api.router, prefix="/payouts")
     if db is not None:
         app.dependency_overrides[deps.get_db] = lambda: db
-    app.dependency_overrides[deps.get_current_user] = lambda: User(
+    app.dependency_overrides[deps.get_current_user] = lambda: user or User(
         user_id=uuid4(), email="u@example.com", hashed_password="x", name="U", role=role)
     return TestClient(app)
 
@@ -403,3 +403,47 @@ def test_a_failed_run_notifies_hr_once(db, monkeypatch, no_push):
 
     (note,) = _notes(db, rh.OUTAGE_TITLE)
     assert "failed before it could compare" in note.message
+
+
+def test_dismiss_closes_a_difference_and_keeps_the_first_resolution(db):
+    employee, reim, payout = _claim_and_payout(db)
+    hr = _hr(db)
+    recorded = rh.record_run(db, _summary(mismatches=[_mismatch(payout, employee, payout.created_at)],
+                                         total=1), trigger="manual", started_at=NOW)
+    difference = recorded.new_differences[0]
+    before = (payout.status, payout.amount, reim.status)
+
+    dismissed = rh.dismiss(db, difference.difference_id, hr.user_id)
+    again = rh.dismiss(db, difference.difference_id, None)
+
+    assert dismissed is not None and dismissed.resolved_at is not None
+    assert (dismissed.resolution, dismissed.resolved_by) == (rh.DISMISSED, hr.user_id)
+    assert again.resolved_at == dismissed.resolved_at
+    assert again.resolved_by == hr.user_id
+    db.refresh(payout)
+    db.refresh(reim)
+    assert (payout.status, payout.amount, reim.status) == before
+
+
+def test_dismiss_endpoint_is_hr_only_and_idempotent(db):
+    employee, reim, payout = _claim_and_payout(db)
+    hr = _hr(db)
+    recorded = rh.record_run(db, _summary(mismatches=[_mismatch(payout, employee, payout.created_at)],
+                                         total=1), trigger="manual", started_at=NOW)
+    path = f"/payouts/reconcile/differences/{recorded.new_differences[0].difference_id}/dismiss"
+
+    assert _client(UserRole.Employee, db, employee).post(path).status_code == 403
+    unknown = "/payouts/reconcile/differences/00000000-0000-4000-8000-000000000999/dismiss"
+    assert _client(UserRole.HR, db, hr).post(unknown).status_code == 404
+
+    client = _client(UserRole.HR, db, hr)
+    first = client.post(path)
+    assert first.status_code == 200
+    body = first.json()
+    assert (body["resolution"], body["resolved_at"] is not None) == ("DISMISSED", True)
+    second = client.post(path)
+    assert second.status_code == 200
+    assert second.json()["resolved_at"] == body["resolved_at"]
+    db.refresh(payout)
+    db.refresh(reim)
+    assert payout.status == PayoutStatus.SUCCEEDED

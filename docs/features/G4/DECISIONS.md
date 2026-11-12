@@ -97,3 +97,11 @@ One entry per non-obvious choice. Each names the alternative that was rejected a
 **Rejected:** an APScheduler or asyncio loop inside the API process.
 
 **Why:** the API restarts on every deploy and can run more than one instance, so an in-process loop would duplicate or silently skip runs. A PayPal search can take seconds to minutes; it has no place in a web request. The cron approach adds no Python dependency and gives a process exit code the platform can alert on.
+
+## D13: Dismissal is idempotent and never deletes a row
+
+**Chosen:** dismissing a resolved difference returns the stored row with its original resolver and timestamp. Rows are never deleted.
+
+**Rejected:** return 409 for a second dismissal, or delete the row.
+
+**Why:** a double click or a stale tab is a retry, not an error. Keeping the row preserves the run counts and the audit trail, which is the point of storing differences at all.

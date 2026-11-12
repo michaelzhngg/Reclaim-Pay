@@ -18,6 +18,7 @@ from engine.services.payout_status import FINAL_STATUSES, refresh_payout
 from engine.services.paypal_client import PayPalError
 from engine.services.reconcile_history import (
     JOB_DAYS,
+    dismiss as dismiss_difference,
     history as reconciliation_history,
     run_and_record,
 )
@@ -221,6 +222,23 @@ def reconcile_now(
 ):
     recorded = run_and_record(db, days=days, trigger="manual", triggered_by=current_user.user_id)
     return ReconciliationRunOut.model_validate(recorded.run)
+
+
+@router.post("/reconcile/differences/{difference_id}/dismiss",
+             response_model=ReconciliationDifferenceOut)
+def dismiss_reconciliation_difference(
+    difference_id: str,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    try:
+        parsed_id = UUID(difference_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid difference_id")
+    row = dismiss_difference(db, parsed_id, current_user.user_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Difference not found")
+    return ReconciliationDifferenceOut.model_validate(row)
 
 
 # Also before GET /{reim_id}. Alert only: it never changes a claim or a payout.

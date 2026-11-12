@@ -328,6 +328,21 @@ def run_and_record(db: Session, *, days: int = JOB_DAYS, trigger: str = "manual"
     return recorded
 
 
+def dismiss(db: Session, difference_id: UUID,
+            resolved_by: Optional[UUID] = None) -> Optional[ReconciliationDifference]:
+    """Close a reviewed difference. A row that is already resolved is returned unchanged."""
+    row = db.get(ReconciliationDifference, difference_id)
+    if row is None or row.resolved_at is not None:
+        return row
+    row.resolved_at = datetime.now(timezone.utc)
+    row.resolution = DISMISSED
+    row.resolved_by = resolved_by
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 def history(db: Session, limit: int = 14) -> History:
     runs = list(db.exec(
         select(ReconciliationRun)
