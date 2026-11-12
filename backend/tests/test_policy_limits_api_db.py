@@ -291,3 +291,22 @@ def test_extract_reports_counts_and_maps_failure_to_503(hr_api, monkeypatch):
     monkeypatch.setattr(mod, "extract_limits", boom)
     res = c.post(f"/api/v1/policies/{p.policy_id}/limits/extract")
     assert res.status_code == 503 and res.json()["detail"] == "LIMITS_EXTRACTION_FAILED"
+
+
+def test_seed_writes_demo_limits_for_matching_categories(pg_db):
+    from seeds.seed_policy_limits import seed
+
+    hr = make_user(pg_db)
+    p = make_policy(pg_db, hr, categories=("Transportation", "meals", "Accommodations", "Equipment"))
+    assert seed(pg_db, alias=p.alias) == 5
+    rules, _ = store.load_limits(pg_db, p.policy_id)
+    assert {r.category for r in rules} == {"meals", "Accommodations", "Equipment"}
+    assert seed(pg_db, alias=p.alias) == 5  # running it again replaces, not duplicates
+    assert len(store.load_limits(pg_db, p.policy_id)[0]) == 5
+
+
+def test_seed_names_a_missing_policy(pg_db):
+    from seeds.seed_policy_limits import seed
+
+    with pytest.raises(SystemExit, match="No policy with alias"):
+        seed(pg_db, alias=f"missing-{uuid4().hex[:6]}")
