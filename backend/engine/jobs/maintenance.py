@@ -168,15 +168,24 @@ async def refresh_stuck_payouts(
     return report
 
 
-def _try_lock(db: Session) -> bool:
-    return bool(db.connection().execute(
+def _lock_connection(session: Session):
+    """A dedicated connection for the lock. Sweep commits must not return it to the pool."""
+    bind = session.get_bind()
+    if hasattr(bind, "engine"):
+        bind = bind.engine
+    return bind.connect()
+
+
+def _try_lock(conn) -> bool:
+    return bool(conn.execute(
         text("SELECT pg_try_advisory_lock(:key)"), {"key": MAINTENANCE_LOCK_KEY}
     ).scalar())
 
 
-def _unlock(db: Session) -> None:
+def _unlock(conn) -> None:
     try:
-        db.connection().execute(text("SELECT pg_advisory_unlock(:key)"), {"key": MAINTENANCE_LOCK_KEY})
+        conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": MAINTENANCE_LOCK_KEY})
+        conn.commit()
     except Exception:
         logger.exception("[MAINTENANCE] Could not release the advisory lock")
 
@@ -190,9 +199,10 @@ async def run_maintenance(
     started = now or datetime.now(timezone.utc)
     own_session = db is None
     session = db or Session(engine)
+    lock_conn = _lock_connection(session)
     acquired = False
     try:
-        acquired = _try_lock(session)
+        acquired = _try_lock(lock_conn)
         if not acquired:
             return MaintenanceReport(started_at=started, finished_at=datetime.now(timezone.utc), locked=True)
         webhooks = sweep_events(session, started, webhook_limit)
@@ -205,7 +215,8 @@ async def run_maintenance(
         )
     finally:
         if acquired:
-            _unlock(session)
+            _unlock(lock_conn)
+        lock_conn.close()
         if own_session:
             session.close()
 

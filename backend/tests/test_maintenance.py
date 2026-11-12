@@ -7,12 +7,12 @@ from uuid import uuid4
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlmodel import Session
 
 from api import deps
 from api import payouts as payouts_api
 from api.rate_limit import limiter
 from core.config import settings
+from core.database import engine as app_engine
 from core.enums import JudgmentResult, PayoutStatus, UserRole
 from core.models import Payout, PayPalWebhookEvent, Reimbursement, User
 from engine.jobs import maintenance
@@ -118,15 +118,51 @@ def test_run_maintenance_respects_an_existing_lock(pg_db, monkeypatch):
     assert report.locked is True
 
 
-def test_advisory_lock_is_held_per_session(pg_db):
+def test_advisory_lock_is_held_per_connection():
     other_engine = create_engine(os.environ["TEST_DATABASE_URL"])
-    assert maintenance._try_lock(pg_db) is True
+    first = other_engine.connect()
+    second = other_engine.connect()
+    assert maintenance._try_lock(first) is True
     try:
-        with Session(other_engine) as other:
-            assert maintenance._try_lock(other) is False
+        assert maintenance._try_lock(second) is False
     finally:
-        maintenance._unlock(pg_db)
+        maintenance._unlock(first)
+        first.close()
+        second.close()
         other_engine.dispose()
+
+
+def test_two_runs_cannot_overlap_and_lock_is_released(pg_db, monkeypatch):
+    async def scenario():
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        def fake_sweep(db, now, limit):
+            db.commit()
+            return WebhookSweepReport()
+
+        async def fake_payouts(db, now, limit, refresh=None):
+            started.set()
+            await release.wait()
+            return PayoutSweepReport()
+
+        monkeypatch.setattr(maintenance, "sweep_events", fake_sweep)
+        monkeypatch.setattr(maintenance, "refresh_stuck_payouts", fake_payouts)
+        first = asyncio.create_task(run_maintenance(payout_limit=10))
+        await asyncio.wait_for(started.wait(), 5)
+        second = await run_maintenance(payout_limit=10)
+        assert second.locked is True
+        release.set()
+        first_report = await asyncio.wait_for(first, 5)
+        assert first_report.locked is False
+
+    asyncio.run(scenario())
+    probe = app_engine.connect()
+    try:
+        assert maintenance._try_lock(probe) is True
+    finally:
+        maintenance._unlock(probe)
+        probe.close()
 
 
 def test_run_maintenance_runs_both_sweeps(pg_db, monkeypatch):
