@@ -56,6 +56,7 @@ class AgentActionType(str, enum.Enum):
     PAYEE_LINKED = "PAYEE_LINKED"
     PAYEE_LINK_FAILED = "PAYEE_LINK_FAILED"
     PAYPAL_SIGNIN = "PAYPAL_SIGNIN"
+    SIGNAL_REVIEWED = "SIGNAL_REVIEWED"
 
 
 class JudgmentResult(str, enum.Enum):
@@ -76,3 +77,8 @@ class PolicyStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     ACTIVE = "ACTIVE"
     DEPRECATED = "DEPRECATED"
+
+
+class SignalVerdict(str, enum.Enum):
+    CONFIRMED = "CONFIRMED"      # HR: a real problem
+    FALSE_ALARM = "FALSE_ALARM"  # HR: the check was wrong here
