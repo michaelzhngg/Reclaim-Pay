@@ -5,6 +5,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from core.config import settings
@@ -78,8 +79,14 @@ def resolve_vendor(db: Session, name: str, category: str, requester_id: UUID) ->
         default_category=category,
         created_by=requester_id,
     )
-    db.add(vendor)
-    db.flush()
+    try:
+        with db.begin_nested():
+            db.add(vendor)
+            db.flush()
+    except IntegrityError:
+        # Another request created the same vendor between our read and insert.
+        vendor = db.exec(select(Vendor).where(Vendor.name_key == key)).one()
+        return vendor, False
     return vendor, True
 
 
