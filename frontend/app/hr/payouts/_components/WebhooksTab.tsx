@@ -143,6 +143,7 @@ export default function WebhooksTab({ onLoaded }: { onLoaded?: () => void }) {
     setRetrying(null);
     if (retryError) {
       toast({ tone: "error", title: retryError });
+      refresh();
       return;
     }
     const stillDead = event?.status === "DEAD_LETTER";
@@ -159,6 +160,7 @@ export default function WebhooksTab({ onLoaded }: { onLoaded?: () => void }) {
     setRunning(false);
     if (runError || !report) {
       toast({ tone: "error", title: runError ?? "Couldn't run maintenance. Try again." });
+      refresh();
       return;
     }
     toast({ tone: "success", title: maintenanceSummary(report) });
