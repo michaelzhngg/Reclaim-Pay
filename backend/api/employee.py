@@ -27,6 +27,7 @@ def _record(u: User, dept_name: str | None, invite_status: str | None) -> dict:
         "name": u.name,
         "email": u.email,
         "role": _value(u.role),
+        "country_code": u.country_code,
         "department_id": str(u.department_id) if u.department_id else None,
         "department_name": dept_name,
         "rank": u.rank,
@@ -85,6 +86,11 @@ def create_employee(
     if body.department_id and dept is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Choose a department from the list.")
 
+    from engine.services.currency import normalise_country
+    country_code = normalise_country(body.country_code)
+    if country_code is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="COUNTRY_UNSUPPORTED")
+
     user = User(
         email=email,
         name=body.name.strip(),
@@ -92,6 +98,7 @@ def create_employee(
         # Nobody knows this password, so the account can't sign in until the invite link is used.
         hashed_password=security.get_password_hash(secrets.token_urlsafe(48)),
         role=body.role,
+        country_code=country_code,
         department_id=body.department_id,
         rank=1,
         privilege_level=PrivilegeLevel.Standard,

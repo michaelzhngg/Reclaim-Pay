@@ -376,15 +376,15 @@ def test_register_accepts_a_country_and_refuses_an_unknown_one(client, pg_db):
     headers = {"Authorization": f"Bearer {token}"}
     base = {
         "email": f"{uuid4().hex[:8]}@example.com", "name": "Overseas", "role": "Contractor",
-        "password": "pw", "country_code": "ID",
+        "country_code": "ID",
     }
 
-    created = client.post("/api/v1/auth/register", json=base, headers=headers)
-    assert created.status_code == 200 and created.json()["country_code"] == "ID"
+    created = client.post("/api/v1/employee/", json=base, headers=headers)
+    assert created.status_code == 201 and created.json()["employee"]["country_code"] == "ID"
 
     base["email"] = f"{uuid4().hex[:8]}@example.com"
     base["country_code"] = "ZZ"
-    refused = client.post("/api/v1/auth/register", json=base, headers=headers)
+    refused = client.post("/api/v1/employee/", json=base, headers=headers)
     assert refused.status_code == 422 and refused.json()["detail"] == "COUNTRY_UNSUPPORTED"
 
 

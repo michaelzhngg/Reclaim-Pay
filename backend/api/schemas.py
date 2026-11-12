@@ -72,6 +72,8 @@ class CreateEmployeeRequest(BaseModel):
     user_code: Optional[str] = Field(default=None, max_length=40)
     department_id: Optional[UUID] = None
     role: UserRole = UserRole.Employee
+    # The payee country the MYR guard reads. Defaults to Malaysia like the model.
+    country_code: Optional[str] = "MY"
 
 
 class UpdateEmployeeRequest(BaseModel):
