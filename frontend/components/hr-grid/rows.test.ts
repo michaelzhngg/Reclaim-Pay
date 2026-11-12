@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { ContractRecord } from "@/lib/contracts";
 import {
   approveButtonLabel,
   batchResultMessage,
@@ -74,6 +75,18 @@ describe("toTriageRow", () => {
   it("counts approvals", () => {
     expect(toTriageRow(raw({ approvals: [{ hr_id: "hr-1", at: "2026-11-03T10:05:00Z" }] })).approvals).toBe(1);
   });
+
+  it("keeps a contractor invoice a claim row with its period", () => {
+    const r = toTriageRow(raw({
+      is_invoice: true,
+      invoice_period_start: "2026-11-01",
+      invoice_period_end: "2026-11-05",
+    }));
+    expect(r.kind).toBe("CLAIM");
+    expect(r.isInvoice).toBe(true);
+    expect(r.invoicePeriodStart).toBe("2026-11-01");
+    expect(r.invoicePeriodEnd).toBe("2026-11-05");
+  });
 });
 
 describe("tierTabs", () => {
@@ -119,6 +132,41 @@ describe("batch approval", () => {
     expect(row.kind).toBe("VENDOR_BOOKING");
     expect(row.vendorName).toBe("Hotel Seri Kenanga");
     expect(exclusionReason(row, "hr-1")).toBe("VENDOR_BOOKING");
+  });
+
+  it("labels a contractor row with its contract but holds back a failed contract check", () => {
+    const contract = {
+      contract_id: "contract-1",
+      user_id: "emp-1",
+      country_code: "ID",
+      country_name: "Indonesia",
+      currency: "IDR",
+      currency_name: "Indonesian rupiah",
+      rate_amount: 50,
+      rate_unit: "DAY",
+      service_category: "Consulting",
+      categories: ["Meals"],
+      policy_id: null,
+      policy_title: null,
+      max_company_amount_per_claim: 5000,
+      company_currency: "MYR",
+      is_active: true,
+      effective_from: "2026-01-01",
+      effective_to: null,
+      created_at: null,
+      updated_at: null,
+    } satisfies ContractRecord;
+
+    const row = toTriageRow(raw({ contract }));
+    expect(row.contractLabel).toBe("Consulting · IDR");
+    expect(exclusionReason(row, "hr-1")).toBeNull();
+
+    const checked = toTriageRow(raw({
+      contract,
+      ai_reasoning: { contract_reason: "OVER_CONTRACT_RATE" },
+    }));
+    expect(checked.contractReason).toBe("OVER_CONTRACT_RATE");
+    expect(exclusionReason(checked, "hr-1")).toBe("CONTRACT_CHECK");
   });
 
   it("carries the vendor verification, dates and purpose for HR", () => {

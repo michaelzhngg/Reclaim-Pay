@@ -51,7 +51,7 @@ def health():
 @router.get("/")
 def list_policies(
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(deps.get_current_non_contractor_user),
 ) -> List[PolicyResponse]:
     policies = db.exec(select(Policy)).all()
 
@@ -141,7 +141,7 @@ async def upload_policy(
 def get_policy(
     policy_id: str,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(deps.get_current_non_contractor_user),
 ) -> PolicyResponse:
     try:
         p_uuid = UUID(policy_id)

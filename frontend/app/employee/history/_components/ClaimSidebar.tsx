@@ -18,6 +18,7 @@ import {
 import type { HistoryClaim, LineItem, ClaimStatus } from "./historyData";
 import MoneyFlow from "@/components/timeline/MoneyFlow";
 import { formatClaimRef, formatMoney } from "@/lib/format";
+import { invoicePeriodLabel } from "@/lib/invoices";
 
 // ─── Prop types ───────────────────────────────────────────────────────────────
 
@@ -27,10 +28,10 @@ interface ClaimSidebarProps {
   isLoading?: boolean;
 }
 
-// ─── Currency formatter (MYR) ─────────────────────────────────────────────────
+// ─── Currency formatter ───────────────────────────────────────────────────────
 
-function fmt(v: number) {
-  return formatMoney("MYR", v);
+function fmt(currency: string, v: number) {
+  return formatMoney(currency || "Not set", v);
 }
 
 // ─── Status Cascading Logic ───────────────────────────────────────────────────
@@ -101,10 +102,12 @@ function HRNoteBanner({ note }: { note: string }) {
 
 function LineItemRow({
   item,
+  currency,
   masterRejected,
   masterPending,
 }: {
   item: LineItem;
+  currency: string;
   masterRejected: boolean;
   masterPending: boolean;
 }) {
@@ -142,13 +145,13 @@ function LineItemRow({
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-xs text-ink-muted">
           {isDeducted ? (
-            <>Requested <del className="font-mono">{fmt(item.requested)}</del></>
+            <>Requested <del className="font-mono">{fmt(currency, item.requested)}</del></>
           ) : (
-            isPending ? "Requested" : <span className="font-mono">{fmt(item.requested)}</span>
+            isPending ? "Requested" : <span className="font-mono">{fmt(currency, item.requested)}</span>
           )}
         </span>
         <span className={`font-mono font-medium text-sm ${amountColor}`}>
-          {isPending ? fmt(item.requested) : fmt(effectiveApproved)}
+          {isPending ? fmt(currency, item.requested) : fmt(currency, effectiveApproved)}
         </span>
       </div>
 
@@ -307,6 +310,14 @@ function ClaimFormModal({
                   <span className="font-semibold">{claim.claimContext.vendorName}</span>
                 </div>
               )}
+              {claim.isInvoice && (
+                <div className="flex gap-2">
+                  <span className="text-ink-muted w-28 shrink-0">Invoice period:</span>
+                  <span className="font-semibold">
+                    {invoicePeriodLabel(claim.invoicePeriodStart, claim.invoicePeriodEnd)}
+                  </span>
+                </div>
+              )}
               {claim.claimContext.serviceStart && (
                 <div className="flex gap-2">
                   <span className="text-ink-muted w-28 shrink-0">Service start:</span>
@@ -353,7 +364,7 @@ function ClaimFormModal({
           {/* Line Items Table */}
           <section className="mb-8">
             <h3 className="font-body font-semibold text-sm text-ink mb-3 border-b border-line pb-1">
-              Expense line items ({claim.lineItems.length} {claim.isVendorBooking ? "booking" : claim.lineItems.length === 1 ? "receipt" : "receipts"})
+              Expense line items ({claim.lineItems.length} {claim.isVendorBooking ? "booking" : claim.isInvoice ? "invoice line" : claim.lineItems.length === 1 ? "receipt" : "receipts"})
             </h3>
             <table className="w-full border-collapse" style={{ fontSize: "12px" }}>
               <thead>
@@ -532,6 +543,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
   const masterRejected = effectiveStatus === "Rejected";
   const isPending      = effectiveStatus === "Pending";
   const isPartial      = effectiveStatus === "Partially Approved";
+  const currency       = claim?.currency || "MYR";
 
   if (!claim && !isVisible) return null;
 
@@ -616,7 +628,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                     <p className="font-body text-sm text-ink-muted mb-1">
                       Total approved
                     </p>
-                    <span className="font-headline tabular-nums tracking-[-0.02em] font-medium text-3xl text-danger">MYR 0.00</span>
+                    <span className="font-headline tabular-nums tracking-[-0.02em] font-medium text-3xl text-danger">{fmt(currency, 0)}</span>
                     <div className="mt-2"><StatusBadge status={effectiveStatus} /></div>
                   </div>
                 </div>
@@ -631,8 +643,13 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                         Total approved
                       </p>
                       <span className="font-headline tabular-nums tracking-[-0.02em] font-medium text-3xl text-ink">
-                        {fmt(totalApproved)}
+                        {fmt(currency, totalApproved)}
                       </span>
+                      {claim.currency !== claim.companyCurrency && claim.approvedCompanyAmount != null && (
+                        <p className="font-body text-xs text-ink-muted mt-1">
+                          about {formatMoney(claim.companyCurrency, claim.approvedCompanyAmount)}
+                        </p>
+                      )}
                     </div>
                     <div className="sm:text-right">
                       <p className="font-body text-sm text-ink-muted mb-1">
@@ -655,7 +672,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                       Total approved
                     </p>
                     <span className="font-headline tabular-nums tracking-[-0.02em] font-medium text-3xl text-ink">
-                      {fmt(totalApproved)}
+                      {fmt(currency, totalApproved)}
                     </span>
                   </div>
                   <StatusBadge status={effectiveStatus} />
@@ -709,7 +726,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
               <div className="rounded-card shadow-ambient bg-surface overflow-hidden">
                 <div className="divide-y divide-line">
                   {items.map((item, i) => (
-                    <LineItemRow key={i} item={item} masterRejected={masterRejected} masterPending={isPending} />
+                    <LineItemRow key={i} item={item} currency={claim.currency || "MYR"} masterRejected={masterRejected} masterPending={isPending} />
                   ))}
                 </div>
 
@@ -718,14 +735,14 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                 <div className="flex items-center justify-between px-4 py-2.5">
                   <span className="font-body text-sm text-ink-muted">Total requested</span>
                   <span className="font-mono font-medium text-sm text-ink">
-                    {fmt(totalRequested)}
+                    {fmt(currency, totalRequested)}
                   </span>
                 </div>
                 {totalDeducted > 0 && (
                   <div className="flex items-center justify-between px-4 py-2.5 border-t border-line">
                     <span className="font-body text-sm text-danger">Total deduction</span>
                     <span className="font-mono font-medium text-sm text-danger">
-                      − {fmt(totalDeducted)}
+                      − {fmt(currency, totalDeducted)}
                     </span>
                   </div>
                 )}
@@ -734,7 +751,7 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                     Net approved
                   </span>
                   <span className="font-mono font-medium text-base text-ink">
-                    {fmt(totalApproved)}
+                    {fmt(currency, totalApproved)}
                   </span>
                 </div>
               </div>
@@ -802,8 +819,8 @@ export default function ClaimSidebar({ claim, onClose, isLoading = false }: Clai
                         {masterRejected
                           ? "Claim rejected. It does not meet the reimbursement policy."
                           : isPartial
-                          ? <>Adjusted to company policy. <span className="font-mono">{fmt(totalApproved)}</span> of <span className="font-mono">{claim.amount}</span> approved.</>
-                          : <>Fully approved. <span className="font-mono">{fmt(totalApproved)}</span> queued for payment.</>}
+                          ? <>Adjusted to company policy. <span className="font-mono">{fmt(currency, totalApproved)}</span> of <span className="font-mono">{claim.amount}</span> approved.</>
+                          : <>Fully approved. <span className="font-mono">{fmt(currency, totalApproved)}</span> queued for payment.</>}
                       </p>
                     </div>
                   </li>

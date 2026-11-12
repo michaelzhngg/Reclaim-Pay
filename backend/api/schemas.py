@@ -25,6 +25,8 @@ class UserBase(BaseModel):
     email: EmailStr
     name: str
     role: UserRole = UserRole.Employee
+    # Payee country for the MYR guard. Omitted means MY.
+    country_code: Optional[str] = None
     department_id: Optional[UUID] = None
     privilege_level: PrivilegeLevel = PrivilegeLevel.Standard
     rank: Optional[int] = Field(default=1, ge=1)
@@ -69,7 +71,10 @@ class CreateEmployeeRequest(BaseModel):
     email: EmailStr
     user_code: Optional[str] = Field(default=None, max_length=40)
     department_id: Optional[UUID] = None
-    role: UserRole = UserRole.Employee
+    # HR names the role. Omitted or unknown roles are refused, matching ticket 01.
+    role: UserRole
+    # The payee country the MYR guard reads. Defaults to Malaysia like the model.
+    country_code: Optional[str] = "MY"
 
 
 class UpdateEmployeeRequest(BaseModel):

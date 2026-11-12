@@ -22,6 +22,8 @@ const claim = (over: Partial<HistoryClaim>): HistoryClaim => ({
   currency: "MYR",
   category: "Meals",
   resolvedAt: "2026-10-15T04:00:00Z",
+  companyAmount: 10,
+  companyCurrency: "MYR",
   dateSubmitted: "",
   dateResolved: "",
   status: "Paid",

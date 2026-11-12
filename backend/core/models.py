@@ -20,6 +20,7 @@ from core.enums import (
     AgentActionType,
     LimitStatus,
     WebhookEventStatus,
+    ContractRateUnit,
 )
 from core.enums import SignalVerdict
 
@@ -51,6 +52,11 @@ class User(SQLModel, table=True):
     role: UserRole = Field(
         default=UserRole.Employee,
         sa_column=Column(String, nullable=False)
+    )
+    # Payee country for the MYR guard. Existing staff were backfilled to MY.
+    country_code: str = Field(
+        default="MY",
+        sa_column=Column(String(2), nullable=False, server_default="MY")
     )
     department_id: Optional[UUID] = Field(
         default=None,
@@ -122,6 +128,11 @@ class Vendor(SQLModel, table=True):
     name: str = Field(sa_column=Column(String, nullable=False))
     # Case-folded, whitespace-collapsed name. Unique so a booking cannot fork the same vendor.
     name_key: str = Field(sa_column=Column(String, unique=True, index=True, nullable=False))
+    # Payee country for the MYR guard. A new vendor is Malaysian until HR says otherwise.
+    country_code: str = Field(
+        default="MY",
+        sa_column=Column(String(2), nullable=False, server_default="MY")
+    )
     default_category: Optional[str] = Field(default=None, sa_column=Column(String))
     paypal_email: Optional[str] = Field(default=None, sa_column=Column(String))
     paypal_payer_id: Optional[str] = Field(default=None, sa_column=Column(String, index=True))
@@ -420,6 +431,21 @@ class Reimbursement(SQLModel, table=True):
         default=None,
         foreign_key="travel_settlements.settlement_id"
     )
+    # Set for a contractor claim. All of a contractor's claims carry their contract.
+    contract_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="contractor_contracts.contract_id",
+        index=True,
+    )
+    # Set only on a contractor invoice. An invoice is still a Reimbursement row.
+    invoice_period_start: Optional[date] = Field(
+        default=None,
+        sa_column=Column(Date)
+    )
+    invoice_period_end: Optional[date] = Field(
+        default=None,
+        sa_column=Column(Date)
+    )
     # A vendor booking uses this row as its financial record. Existing rows are claims.
     kind: str = Field(
         default=ReimbursementKind.CLAIM.value,
@@ -441,6 +467,48 @@ class Reimbursement(SQLModel, table=True):
     total_rejected_amount: Optional[float] = Field(
         default=None,
         sa_column=Column(Numeric(12, 2))
+    )
+    # Company-currency snapshots. `amount_company` is claimed at save time;
+    # `approved_company_amount` is locked at HR approval. Both fall back to the claim
+    # amount for legacy rows, which `fx_source = "UNQUOTED"` marks as unconverted.
+    amount_company: Optional[float] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 2))
+    )
+    approved_company_amount: Optional[float] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 2))
+    )
+    fx_rate_to_company: Optional[float] = Field(
+        default=None,
+        sa_column=Column(Numeric(18, 8))
+    )
+    fx_rate_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True))
+    )
+    # "TABLE", "ENV", "IDENTITY" or "UNQUOTED".
+    fx_source: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String)
+    )
+    # Expected payout locked at approval: what PayPal will send, in which currency, at the
+    # claim-to-payout rate behind it. Recovery offsets can lower the amount actually sent.
+    payout_amount: Optional[float] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 2))
+    )
+    payout_currency: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(3))
+    )
+    payout_fx_rate: Optional[float] = Field(
+        default=None,
+        sa_column=Column(Numeric(18, 8))
+    )
+    payout_fx_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True))
     )
     judgment: JudgmentResult = Field(
         sa_column=Column(String, nullable=False)
@@ -1366,3 +1434,102 @@ class MonthlyReport(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False)
     )
     generated_by: Optional[UUID] = Field(default=None, foreign_key="employees.user_id")
+
+
+# ---------------------------------------------------------------------------
+# 24. contractor_contracts
+# ---------------------------------------------------------------------------
+
+class ContractorContract(SQLModel, table=True):
+    """One active contract per contractor. Edits overwrite; there is no amendment history."""
+
+    __tablename__ = "contractor_contracts"
+
+    contract_id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(
+        foreign_key="employees.user_id",
+        unique=True,
+        index=True,
+    )
+    # Authoritative payee country. The MYR guard reads this, never the request.
+    country_code: str = Field(sa_column=Column(String(2), nullable=False))
+    # The payout currency, not the claim currency.
+    currency: str = Field(sa_column=Column(String(3), nullable=False))
+    rate_amount: float = Field(sa_column=Column(Numeric(12, 2), nullable=False))
+    rate_unit: str = Field(sa_column=Column(String, nullable=False))
+    # Invoice label. It does not have to be one of the policy's expense categories.
+    service_category: str = Field(sa_column=Column(String, nullable=False))
+    policy_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="policies.policy_id",
+    )
+    # A contract ceiling in company currency, on top of the autonomy limits.
+    max_company_amount_per_claim: float = Field(sa_column=Column(Numeric(12, 2), nullable=False))
+    is_active: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    effective_from: date = Field(sa_column=Column(Date, nullable=False))
+    effective_to: Optional[date] = Field(default=None, sa_column=Column(Date))
+    created_by: UUID = Field(foreign_key="employees.user_id")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True)),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True)),
+    )
+
+
+# ---------------------------------------------------------------------------
+# 25. contractor_contract_categories
+# ---------------------------------------------------------------------------
+
+class ContractorContractCategory(SQLModel, table=True):
+    """Expense categories the contract covers. Invoices use the service category instead."""
+
+    __tablename__ = "contractor_contract_categories"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    contract_id: UUID = Field(
+        foreign_key="contractor_contracts.contract_id",
+        index=True,
+    )
+    category: str = Field(sa_column=Column(String, nullable=False))
+
+    __table_args__ = (
+        UniqueConstraint("contract_id", "category", name="uq_contract_category"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# 26. payout_settings
+# ---------------------------------------------------------------------------
+
+class PayoutSettings(SQLModel, table=True):
+    """Single HR-owned row (id = 1): the PayPal account country and the currencies it holds."""
+
+    __tablename__ = "payout_settings"
+
+    id: int = Field(default=1, primary_key=True)
+    paypal_account_country: str = Field(
+        default="MY",
+        sa_column=Column(String(2), nullable=False, server_default="MY"),
+    )
+    held_currencies: list = Field(
+        default_factory=lambda: ["MYR"],
+        sa_column=Column(
+            JSONB,
+            nullable=False,
+            server_default=text("'[\"MYR\"]'::jsonb"),
+        ),
+    )
+    updated_by: Optional[UUID] = Field(
+        default=None,
+        foreign_key="employees.user_id",
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True)),
+    )

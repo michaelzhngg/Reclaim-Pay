@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     MAINTENANCE_JOB_ENABLED: bool = True
     # The balance mock mode reports, in PAYPAL_CURRENCY.
     PAYPAL_MOCK_BALANCE: Decimal = Decimal("25000.00")
+    # Per-currency mock balances as JSON, e.g. {"MYR": "25000", "USD": "4000"}.
+    # Empty keeps the old behaviour: every currency reports PAYPAL_MOCK_BALANCE.
+    PAYPAL_MOCK_BALANCES: str = ""
     BACKEND_PUBLIC_URL: str = "http://localhost:8000"
     FRONTEND_PUBLIC_URL: str = "http://localhost:3000"
 
@@ -71,6 +74,12 @@ class Settings(BaseSettings):
     CHANNEL3_API_KEY: str = ""
     CHANNEL3_CATEGORIES: str = "Equipment,Office Supplies,IT Equipment"
     FX_TO_USD: float = 0.0
+
+    # Deterministic FX table override for demos and tests: JSON object of company-currency
+    # units per one unit of the foreign currency, for example {"USD": 4.75}.
+    FX_RATES: str = ""
+    # Optional ISO timestamp for the rate table's as_of, so a demo can show a fixed quote.
+    FX_RATES_AS_OF: str = ""
 
     # Image forensics on uploaded receipts (pasted-in numbers). off: not run. observe: stored and shown to HR
     # as information, 0 points, never feeds decide(). score: a MEDIUM signal like any other (never HIGH).

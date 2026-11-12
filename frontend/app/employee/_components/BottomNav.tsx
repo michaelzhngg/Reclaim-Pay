@@ -4,11 +4,14 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Home, Upload, History, ClipboardList, Settings } from "lucide-react";
 import { getDraftCount } from "@/lib/actions/claims";
+import { useAuth } from "@/context/AuthContext";
 import MobileTabBar from "@/components/shell/MobileTabBar";
 import MobileNavDrawer from "./MobileNavDrawer";
+import { navLinksForRole } from "./navLinks";
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const { user } = useAuth();
   const [draftCount, setDraftCount] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -42,7 +45,9 @@ export default function BottomNav() {
         <MobileTabBar
           links={[
             { href: "/employee/dashboard", label: "Home", icon: Home },
-            { href: "/employee/drafts", label: "Drafts", icon: ClipboardList, badge: draftCount },
+            ...(user?.role === "Contractor"
+              ? []
+              : [{ href: "/employee/drafts", label: "Drafts", icon: ClipboardList, badge: draftCount }]),
             { href: "/employee/claims", label: "Upload", icon: Upload },
             { href: "/employee/history", label: "History", icon: History },
             { href: "/employee/settings", label: "Settings", icon: Settings },

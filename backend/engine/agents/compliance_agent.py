@@ -52,6 +52,7 @@ from engine.risk.types import (
     TimelineStep,
 )
 from engine.services import autonomy_store
+from engine.services import fx
 from engine.services.action_log import record_action
 from engine.tools.change_detector import detect_changes
 from engine.tools.compliance_tools import get_disparance_date, make_search_policy_rag_tool
@@ -71,6 +72,9 @@ class ComplianceWorkflowState(TypedDict):
     document_ids: Optional[List[str]]
     # Generated before the shield runs, so the claim's own documents can be told apart from others.
     reim_id: str
+    # Set for a contractor claim. The limit is already in company currency.
+    contract_id: Optional[str]
+    contract_max_company_amount: Optional[float]
 
     # Context loaded from DB
     user: Optional[Any]
@@ -627,12 +631,15 @@ def _observations(state: ComplianceWorkflowState, session: Session) -> List[dict
 def _claim_lite(state: ComplianceWorkflowState, now: datetime) -> ClaimLite:
     receipts = state.get("receipts", [])
     first = receipts[0] if receipts else {}
+    raw = sum(float(r.get("total_amount") or 0) for r in receipts)
+    # Shield thresholds are company-currency limits, so a foreign claim is compared in company currency.
+    amount, _quote = fx.company_amount(raw, state.get("currency"), now)
     return ClaimLite(
         reim_id=state["reim_id"],
         user_id=state["user_id"],
         merchant=first.get("merchant_name") or "",
         expense_date=_iso_date(first.get("date")),
-        amount=round(sum(float(r.get("total_amount") or 0) for r in receipts), 2),
+        amount=float(amount),
         created_at=now,
         status=ReimbursementStatus.REVIEW.value,
     )
@@ -768,12 +775,25 @@ def save_reimbursement(
     user = state["user"]
     settlement_uuid = UUID(state["settlement_id"]) if state.get("settlement_id") else None
     reim_id = UUID(state.get("reim_id") or str(uuid4()))
-    currency = state.get("currency") or "MYR"
+    currency = state.get("currency") or fx.company_currency()
 
     totals = state.get("totals", {})
     total_claimed = Decimal(str(totals.get("total_requested", 0) or 0))
     total_approved = Decimal(str(totals.get("net_approved", 0) or 0))
     total_deduction = Decimal(str(totals.get("total_deduction", 0) or 0))
+
+    # The company-currency snapshot is fixed now; HR approval locks the approved side separately.
+    amount_company, claimed_quote = fx.company_amount(total_claimed, currency, now)
+    approved_company, approved_quote = fx.company_amount(total_approved, currency, now)
+    fx_rate = claimed_quote.rate if claimed_quote else None
+    fx_at = claimed_quote.as_of if claimed_quote else None
+    fx_source = claimed_quote.source if claimed_quote else "UNQUOTED"
+    fx_unavailable = claimed_quote is None or approved_quote is None
+    is_contractor = user.role == UserRole.Contractor
+    contract_limit = state.get("contract_max_company_amount")
+    over_contract_limit = (
+        contract_limit is not None and float(max(amount_company, approved_company)) > float(contract_limit)
+    )
 
     judgment_str = state.get("judgment", "MANUAL REVIEW")
     judgment_enum = _map_agent_status_to_enum(judgment_str)
@@ -781,19 +801,22 @@ def save_reimbursement(
     emit(make_step("autonomy.decide", "running"))
     try:
         budget_violations = (
-            _check_category_budgets(state["policy_id"], totals.get("by_category", {}), session)
+            _check_category_budgets(state["policy_id"], totals.get("by_category", {}), session, currency)
             if state.get("policy_id") else []
         )
         facts = ClaimFacts(
             reim_id=str(reim_id),
             user_id=state["user_id"],
             # The larger figure, so a PARTIAL verdict can't shrink the amount the limits see.
-            amount=float(max(total_claimed, total_approved)),
-            currency=currency,
+            amount=float(max(amount_company, approved_company)),
+            currency=fx.company_currency(),
             judgment=_verdict_for_decide(judgment_enum, state.get("line_items", []), total_claimed, total_approved),
             confidence=float(state.get("confidence") or 0.0),
             over_category_budget=bool(budget_violations),
             claimant_is_hr=_is_hr(user),
+            fx_unavailable=fx_unavailable,
+            claimant_is_contractor=is_contractor,
+            over_contract_limit=over_contract_limit,
         )
         decision = _decide(state, session, facts, now)
     except Exception:
@@ -837,11 +860,17 @@ def save_reimbursement(
         user_id=UUID(state["user_id"]),
         policy_id=UUID(state["policy_id"]),
         settlement_id=settlement_uuid,
+        contract_id=UUID(state["contract_id"]) if state.get("contract_id") else None,
         main_category=state["main_category"],
-        currency=state.get("currency", ""),
+        currency=state.get("currency") or fx.company_currency(),
         total_claimed_amount=float(total_claimed),
         total_approved_amount=float(total_approved) if total_approved > 0 else None,
         total_rejected_amount=float(total_deduction) if total_deduction > 0 else None,
+        amount_company=float(amount_company),
+        approved_company_amount=float(approved_company) if total_approved > 0 else None,
+        fx_rate_to_company=float(fx_rate) if fx_rate is not None else None,
+        fx_rate_at=fx_at,
+        fx_source=fx_source,
         judgment=judgment_enum,
         confidence=state.get("confidence"),
         ai_reasoning={
@@ -858,6 +887,10 @@ def save_reimbursement(
         autonomy=autonomy_record,
         audit_selected=decision.audit_selected,
     )
+    if total_approved > 0:
+        # AUTO_PAY is an approval too: lock the payout at the same quote the limits used.
+        from engine.services.payout_service import lock_payout_snapshot
+        lock_payout_snapshot(session, reimbursement, total_approved, now)
 
     try:
         session.add(reimbursement)
@@ -947,9 +980,13 @@ def save_reimbursement(
     return {"reimbursement_id": str(reimbursement.reim_id)}
 
 
-def _check_category_budgets(policy_id: str, category_totals: dict, session: Session) -> list:
+def _check_category_budgets(policy_id: str, category_totals: dict, session: Session,
+                            currency: str | None = None) -> list:
     """
     Check if claimed amounts exceed auto-approval budgets per category.
+
+    Budgets are company-currency amounts, so category totals are converted before the
+    comparison. A currency with no quote is left raw; decide() already fails it closed.
 
     Returns list of violations: [{"category": "Meals", "claimed": 150.0, "budget": 100.0}, ...]
     """
@@ -979,7 +1016,8 @@ def _check_category_budgets(policy_id: str, category_totals: dict, session: Sess
         if budget is None:
             continue
 
-        if float(claimed_amount) > float(budget):
+        company_claimed, _quote = fx.company_amount(claimed_amount, currency)
+        if float(company_claimed) > float(budget):
             violations.append({
                 "category": category_name,
                 "claimed": float(claimed_amount),
@@ -1040,6 +1078,8 @@ def run_compliance_workflow(
     session: Session,
     document_ids: Optional[List[str]] = None,
     progress_callback=None,
+    contract_id: Optional[str] = None,
+    contract_max_company_amount: Optional[float] = None,
 ) -> dict:
     """
     Compile and run the compliance graph.
@@ -1116,6 +1156,8 @@ def run_compliance_workflow(
         "all_category": all_category or [],
         "document_ids": document_ids or [],
         "reim_id": str(uuid4()),
+        "contract_id": contract_id,
+        "contract_max_company_amount": contract_max_company_amount,
         "user": None,
         "policy": None,
         "receipts": [],

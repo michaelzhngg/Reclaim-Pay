@@ -10,6 +10,8 @@ export interface HistorySummary {
   total: string;
   /** "Pending": claims still waiting on a decision. */
   pending: string;
+  /** The company currency the figures are converted into. */
+  companyCurrency: string;
 }
 
 const SETTLED_STATUSES: HistoryClaim["status"][] = ["Approved", "Paid"];
@@ -19,11 +21,16 @@ export function employeeHistorySummary(claims: HistoryClaim[]): HistorySummary {
   let pending = 0;
   for (const c of claims) {
     if (c.isVendorBooking) continue;
-    if (SETTLED_STATUSES.includes(c.status)) reimbursed += c.approvedAmount;
-    else if (c.status === "Pending") pending += c.amountNumeric;
+    if (SETTLED_STATUSES.includes(c.status)) {
+      reimbursed += c.approvedCompanyAmount ?? c.approvedAmount;
+    } else if (c.status === "Pending") {
+      pending += c.amountCompany ?? c.amountNumeric;
+    }
   }
+  const companyCurrency = claims.find((c) => c.companyCurrency)?.companyCurrency ?? "MYR";
   return {
-    total: formatMoney("MYR", reimbursed),
-    pending: formatMoney("MYR", pending),
+    total: formatMoney(companyCurrency, reimbursed),
+    pending: formatMoney(companyCurrency, pending),
+    companyCurrency,
   };
 }

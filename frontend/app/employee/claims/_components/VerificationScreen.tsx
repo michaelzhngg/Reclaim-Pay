@@ -19,8 +19,8 @@ import { formatMoney } from "@/lib/format";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmt(n: number) {
-  return formatMoney("MYR", n);
+function fmt(currency: string, n: number) {
+  return formatMoney(currency || "Not set", n);
 }
 
 function receiptRowTotal(r: OcrReceiptData) {
@@ -30,6 +30,7 @@ function receiptRowTotal(r: OcrReceiptData) {
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface VerificationScreenProps {
+  currency:             string;
   dbData:               DbEmployee;
   mainCategory:         string;
   /** uploadedFiles intentionally removed — doc preview lives in the Upload stage */
@@ -62,12 +63,13 @@ function LockedField({ label, value }: { label: string; value: string }) {
 
 interface AmountInputProps {
   label:    string;
+  currency: string;
   value:    number;
   onChange: (v: number) => void;
   required?: boolean;
 }
 
-function AmountInput({ label, value, onChange, required }: AmountInputProps) {
+function AmountInput({ label, currency, value, onChange, required }: AmountInputProps) {
   const showError = required && value === 0;
   return (
     <div className="flex flex-col gap-1">
@@ -78,7 +80,7 @@ function AmountInput({ label, value, onChange, required }: AmountInputProps) {
       <div className={`relative flex items-center min-h-11 bg-surface border rounded-control overflow-hidden transition-colors ${
         showError ? "border-danger" : "border-line-strong focus-within:border-accent"
       }`}>
-        <span className="pl-3 pr-1 text-sm text-ink-muted font-mono shrink-0">MYR</span>
+        <span className="pl-3 pr-1 text-sm text-ink-muted font-mono shrink-0">{currency}</span>
         <input
           type="number"
           min={0}
@@ -86,7 +88,7 @@ function AmountInput({ label, value, onChange, required }: AmountInputProps) {
           value={value === 0 ? "" : value}
           onChange={e => onChange(parseFloat(e.target.value) || 0)}
           placeholder="0.00"
-          aria-label={`${label} amount in MYR`}
+          aria-label={`${label} amount in ${currency}`}
           className="flex-1 min-w-0 bg-transparent text-sm text-ink font-mono py-2 pr-3 focus:outline-none placeholder:text-ink-muted"
         />
       </div>
@@ -103,11 +105,12 @@ function AmountInput({ label, value, onChange, required }: AmountInputProps) {
 
 interface ReceiptCardProps {
   receipt:  OcrReceiptData;
+  currency: string;
   index:    number;
   onChange: (r: OcrReceiptData) => void;
 }
 
-function ReceiptCard({ receipt, index, onChange }: ReceiptCardProps) {
+function ReceiptCard({ receipt, currency, index, onChange }: ReceiptCardProps) {
   const [open, setOpen] = useState(true);
   const total = receiptRowTotal(receipt);
 
@@ -148,7 +151,7 @@ function ReceiptCard({ receipt, index, onChange }: ReceiptCardProps) {
               Manual entry
             </span>
           )}
-          <span className="text-sm font-medium text-ink font-mono">{fmt(total)}</span>
+          <span className="text-sm font-medium text-ink font-mono">{fmt(currency, total)}</span>
           {open
             ? <ChevronUp   className="w-4 h-4 text-ink-muted" strokeWidth={1.75} aria-hidden="true" />
             : <ChevronDown className="w-4 h-4 text-ink-muted" strokeWidth={1.75} aria-hidden="true" />
@@ -217,10 +220,10 @@ function ReceiptCard({ receipt, index, onChange }: ReceiptCardProps) {
 
           {/* Amount grid */}
           <div className="grid grid-cols-2 gap-3">
-            <AmountInput label="Transport"     value={receipt.transport}     onChange={v => patch("transport",     v)} />
-            <AmountInput label="Accommodation" value={receipt.accommodation} onChange={v => patch("accommodation", v)} />
-            <AmountInput label="Meals"         value={receipt.meals}         onChange={v => patch("meals",         v)} />
-            <AmountInput label="Others"        value={receipt.others}        onChange={v => patch("others",        v)} />
+            <AmountInput label="Transport"     currency={currency} value={receipt.transport}     onChange={v => patch("transport",     v)} />
+            <AmountInput label="Accommodation" currency={currency} value={receipt.accommodation} onChange={v => patch("accommodation", v)} />
+            <AmountInput label="Meals"         currency={currency} value={receipt.meals}         onChange={v => patch("meals",         v)} />
+            <AmountInput label="Others"        currency={currency} value={receipt.others}        onChange={v => patch("others",        v)} />
           </div>
 
           {/* Notes */}
@@ -241,7 +244,7 @@ function ReceiptCard({ receipt, index, onChange }: ReceiptCardProps) {
           {/* Row subtotal */}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
             <span className="text-xs text-ink-muted font-body">Receipt subtotal</span>
-            <span className="text-sm font-medium text-ink font-mono">{fmt(total)}</span>
+            <span className="text-sm font-medium text-ink font-mono">{fmt(currency, total)}</span>
           </div>
         </div>
       )}
@@ -252,6 +255,7 @@ function ReceiptCard({ receipt, index, onChange }: ReceiptCardProps) {
 // ─── Live A4 HTML Preview ─────────────────────────────────────────────────────
 
 interface A4PreviewProps {
+  currency:     string;
   dbData:       DbEmployee;
   mainCategory: string;
   claimContext: ClaimContext;
@@ -259,9 +263,9 @@ interface A4PreviewProps {
   subTotal:     number;
 }
 
-function A4Preview({ dbData, mainCategory, claimContext, receipts, subTotal }: A4PreviewProps) {
+function A4Preview({ currency, dbData, mainCategory, claimContext, receipts, subTotal }: A4PreviewProps) {
   const blank = (v: string | number) => {
-    if (typeof v === "number") return v > 0 ? fmt(v) : "___________";
+    if (typeof v === "number") return v > 0 ? fmt(currency, v) : "___________";
     return v || "___________";
   };
 
@@ -405,6 +409,7 @@ function A4Preview({ dbData, mainCategory, claimContext, receipts, subTotal }: A
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function VerificationScreen({
+  currency,
   dbData,
   mainCategory,
   ocrReceipts,
@@ -586,6 +591,7 @@ export function VerificationScreen({
         {ocrReceipts.map((r, i) => (
           <ReceiptCard
             key={i}
+            currency={currency}
             receipt={r}
             index={i}
             onChange={updated => handleReceiptChange(i, updated)}
@@ -597,7 +603,7 @@ export function VerificationScreen({
       <div className="shrink-0 bg-surface rounded-card shadow-ambient p-5">
         <div className="flex items-baseline justify-between mb-5">
           <span className="text-sm font-semibold text-ink font-display">Sub-total</span>
-          <span className="text-xl font-medium text-ink font-mono">{fmt(subTotal)}</span>
+          <span className="text-xl font-medium text-ink font-mono">{fmt(currency, subTotal)}</span>
         </div>
         {!canSubmit && (
           <div className="mb-4 px-3 py-2.5 rounded-control bg-warning-soft flex items-center gap-2">
@@ -726,6 +732,7 @@ export function VerificationScreen({
               }}
             >
               <A4Preview
+                currency={currency}
                 dbData={dbData}
                 mainCategory={mainCategory}
                 claimContext={claimContext}

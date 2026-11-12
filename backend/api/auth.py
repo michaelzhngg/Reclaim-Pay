@@ -77,6 +77,7 @@ def read_users_me(
         "email": current_user.email,
         "name": current_user.name,
         "role": current_user.role.value if current_user.role and hasattr(current_user.role, "value") else current_user.role,
+        "country_code": current_user.country_code,
         "department_id": str(current_user.department_id) if current_user.department_id else None,
         "department_name": dept_name,
         "rank": current_user.rank,

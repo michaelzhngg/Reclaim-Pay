@@ -1,8 +1,18 @@
 "use client";
 
 import MobileDrawer from "@/components/shell/MobileDrawer";
-import { EMPLOYEE_DRAWER_LINKS } from "./navLinks";
+import { useAuth } from "@/context/AuthContext";
+import { portalLabelForRole } from "@/lib/roles";
+import { drawerLinksForRole } from "./navLinks";
 
 export default function MobileNavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  return <MobileDrawer open={open} onClose={onClose} portal="Employee" links={EMPLOYEE_DRAWER_LINKS} />;
+  const { user } = useAuth();
+  return (
+    <MobileDrawer
+      open={open}
+      onClose={onClose}
+      portal={portalLabelForRole(user?.role)}
+      links={drawerLinksForRole(user?.role)}
+    />
+  );
 }

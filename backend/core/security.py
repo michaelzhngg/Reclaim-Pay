@@ -31,7 +31,8 @@ def is_paypal_session(claims: dict) -> bool:
 
 def paypal_signin_rejection(user: Any, payer_id: Optional[str]) -> Optional[str]:
     """Why this user can't hold a PayPal session for this payer ID, or None when they can."""
-    if user.role != UserRole.Employee:
+    # Contractors are paid to their own PayPal account, so they sign in like employees. HR never does.
+    if user.role not in (UserRole.Employee, UserRole.Contractor):
         return "not_employee"
     if not user.is_active:
         return "inactive"

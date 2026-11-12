@@ -10,8 +10,8 @@ from uuid import UUID
 from pydantic import BaseModel, ValidationError
 from sqlmodel import Session, select
 
-from core.enums import ReimbursementStatus
-from core.models import Recovery, Reimbursement
+from core.enums import ReimbursementStatus, UserRole
+from core.models import Recovery, Reimbursement, User
 from engine.risk.autonomy import (
     NEW_ISSUE_DAYS,
     STANDARD_MIN_PAID,
@@ -33,6 +33,7 @@ from engine.risk.types import (
     TrustTier,
 )
 from engine.services import autonomy_store as store
+from engine.services import fx
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +181,7 @@ def _issue_dates_by_user(db: Session, user_ids: set[UUID]) -> dict[UUID, list[da
 
 
 def _case(r: Reimbursement, rows: list[tuple[datetime, dict]], issues: list[datetime],
-          bad: bool, now: datetime) -> BacktestCase:
+          bad: bool, now: datetime, claimant_is_contractor: bool = False) -> BacktestCase:
     at = store._utc(r.created_at)
     stored = r.autonomy or {}
     stops = set(stored.get("hard_stops") or [])
@@ -198,10 +199,13 @@ def _case(r: Reimbursement, rows: list[tuple[datetime, dict]], issues: list[date
     )
     judgment = r.judgment.value if hasattr(r.judgment, "value") else str(r.judgment)
     claim = ClaimFacts(
-        reim_id=str(r.reim_id), user_id=str(r.user_id), amount=float(r.total_claimed_amount or 0),
-        currency=r.currency or "MYR", judgment=judgment, confidence=r.confidence or 0.0,
+        reim_id=str(r.reim_id), user_id=str(r.user_id), amount=float(fx.stored_company_amount(r)),
+        currency=fx.company_currency(), judgment=judgment, confidence=r.confidence or 0.0,
         over_category_budget=HardStop.OVER_CATEGORY_BUDGET.value in stops,
         claimant_is_hr=HardStop.HR_SELF_CLAIM.value in stops,
+        fx_unavailable=HardStop.FX_RATE_UNAVAILABLE.value in stops or fx.is_unquoted(r),
+        claimant_is_contractor=claimant_is_contractor,
+        over_contract_limit=HardStop.OVER_CONTRACT_LIMIT.value in stops,
     )
     signals = [RiskSignal.model_validate(s) for s in stored.get("signals") or []]
     demo = isinstance(r.ai_reasoning, dict) and bool(r.ai_reasoning.get("demo_seed"))
@@ -234,6 +238,8 @@ def load_backtest_cases(db: Session, now: datetime, days: int = 90) -> list[Back
         row = store._claim_row(r)
         rows[r.user_id].append((store._utc(row["updated_at"]), row))
     issues = _issue_dates_by_user(db, user_ids)
+    # The role is current state; a stored hard stop is not proof of who filed the claim.
+    roles = dict(db.exec(select(User.user_id, User.role).where(User.user_id.in_(user_ids))).all())
     recovered = set(db.exec(
         select(Recovery.reim_id).where(
             Recovery.reim_id.in_([r.reim_id for r in claims]), Recovery.status.in_(store.CONFIRMED_RECOVERY_STATUSES)
@@ -244,7 +250,10 @@ def load_backtest_cases(db: Session, now: datetime, days: int = 90) -> list[Back
     for r in claims:
         rejected = store._status_str(r.status) == ReimbursementStatus.REJECTED.value and r.reviewed_by is not None
         try:
-            cases.append(_case(r, rows[r.user_id], issues[r.user_id], rejected or r.reim_id in recovered, now))
+            cases.append(_case(
+                r, rows[r.user_id], issues[r.user_id], rejected or r.reim_id in recovered, now,
+                claimant_is_contractor=roles.get(r.user_id) == UserRole.Contractor,
+            ))
         except ValidationError:
             logger.warning("[BACKTEST] Skipping claim %s: stored decision doesn't parse", r.reim_id)
     return cases
@@ -322,7 +331,8 @@ def trust_levels(config: AutonomyConfig) -> list[dict]:
     ]
 
 
-def employee_trust(db: Session, user_id: UUID, config: AutonomyConfig, now: datetime) -> dict:
+def employee_trust(db: Session, user_id: UUID, config: AutonomyConfig, now: datetime,
+                   is_contractor: bool = False) -> dict:
     """Trust card data for one employee. Holds no signal, score or claim detail."""
     now = store._utc(now)
     history = store.employee_history(db, user_id, now)
@@ -352,6 +362,8 @@ def employee_trust(db: Session, user_id: UUID, config: AutonomyConfig, now: date
             ready = max(older) + timedelta(days=TRUSTED_ISSUE_DAYS)
             reasons.append(f"Gold needs {TRUSTED_ISSUE_DAYS} days without a correction. "
                            f"That's on {_fmt_date(ready)}.")
+    if is_contractor and tier != TrustTier.TRUSTED:
+        reasons.append("Contractor payments are reviewed by HR until you reach the trusted level.")
 
     return {
         "trust_tier": tier,
@@ -361,6 +373,7 @@ def employee_trust(db: Session, user_id: UUID, config: AutonomyConfig, now: date
         "claims_to_next_tier": needed,
         "reasons": reasons,
         "currency": config.currency,
+        "is_contractor": is_contractor,
         "next_limit": limit_for(config, next_tier) if next_tier else None,
         "limited_until": limited_until,
         "changes": trust_changes(paid_at, issue_rows, config, now),

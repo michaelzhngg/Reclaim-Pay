@@ -37,7 +37,10 @@ export type HardStop =
   | "EMPLOYEE_MONTHLY_CAP"
   | "AGENT_DAILY_BUDGET"
   | "HIGH_RISK_SIGNAL"
-  | "EXPECTED_LOSS";
+  | "EXPECTED_LOSS"
+  | "FX_RATE_UNAVAILABLE"
+  | "CONTRACTOR_NOT_TRUSTED"
+  | "OVER_CONTRACT_LIMIT";
 
 export interface RiskSignal {
   code: SignalCode;
@@ -158,14 +161,21 @@ export interface PayoutLedgerRow {
   /** The vendor for a booking, the employee for a claim. */
   payee_name: string;
   kind: "CLAIM" | "VENDOR_BOOKING";
+  /** The payout currency and amount PayPal received. */
   amount: number;
   currency: string;
+  /** The currency the claim was filed in, and its company-currency value. */
+  claim_currency: string;
+  company_amount: number;
+  company_currency: string;
   status: PayoutStatus;
   tier: AutonomyTier | null;
   provider_batch_id: string | null;
   provider_item_id: string | null;
   attempt: number;
   audit_selected: boolean;
+  /** Set when the guard or PayPal refused this attempt. */
+  failure_code?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -193,7 +203,13 @@ export interface ReimbursementAutonomyFields {
   approvals?: Approval[] | null;
 }
 
-export type BatchSkipReason = "NOT_HR_QUICK" | "NOT_IN_REVIEW" | "SELF_APPROVAL" | "NOTHING_TO_PAY" | "VENDOR_BOOKING";
+export type BatchSkipReason =
+  | "NOT_HR_QUICK"
+  | "NOT_IN_REVIEW"
+  | "SELF_APPROVAL"
+  | "NOTHING_TO_PAY"
+  | "VENDOR_BOOKING"
+  | "CONTRACT_CHECK";
 
 /** POST /reimbursements/batch-approve */
 export interface BatchApproveResult {
@@ -208,6 +224,8 @@ export interface TrustInfo {
   trust_tier: TrustTier;
   auto_limit: number;
   paid_claims: number;
+  /** Set for a contractor: payments are reviewed until TRUSTED. */
+  is_contractor?: boolean;
   /** null at the top tier. */
   next_tier: TrustTier | null;
   claims_to_next_tier: number;

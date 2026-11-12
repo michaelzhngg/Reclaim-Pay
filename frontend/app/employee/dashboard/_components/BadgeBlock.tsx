@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { TrustInfo } from "@/lib/api/reclaim-pay-types";
-import { badgeName, formatLimit, trustReasonLine } from "../_lib/copy";
+import { badgeName, formatLimit, payoutLimitPrefix, trustReasonLine } from "../_lib/copy";
 import type { TrustTier } from "@/lib/api/reclaim-pay-types";
 import { TIER_ORDER, badgeArcLabel, badgeAt, badgeProgress, lockedBadgeHint } from "../_lib/badges";
 import BadgeMedal from "./BadgeMedal";
@@ -146,7 +146,7 @@ export default function BadgeBlock({ info }: { info: TrustInfo }) {
                 aria-hidden={!shown}
                 className={`[grid-area:1/1] motion-safe:transition-opacity motion-safe:duration-300 ${shown ? "opacity-100" : "pointer-events-none opacity-0"}`}
               >
-                <p className="font-body text-sm text-ink-muted">{status}Instant payouts up to</p>
+                <p className="font-body text-sm text-ink-muted">{status}{payoutLimitPrefix(info)}</p>
                 <p className={`mt-0.5 font-headline text-3xl font-medium tabular-nums tracking-[-0.02em] md:text-4xl ${slot.state === "current" ? "text-ink" : "text-ink-muted"}`}>
                   {formatLimit(currency, slot.limit)}
                 </p>

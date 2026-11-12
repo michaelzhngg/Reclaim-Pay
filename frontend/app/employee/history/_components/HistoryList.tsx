@@ -58,6 +58,11 @@ export default function HistoryList({ claims, onSelectClaim }: HistoryListProps)
                         Vendor booking
                       </span>
                     )}
+                    {claim.isInvoice && (
+                      <span className="mt-1 w-fit rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">
+                        Invoice
+                      </span>
+                    )}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-ink">
@@ -107,6 +112,7 @@ export default function HistoryList({ claims, onSelectClaim }: HistoryListProps)
                 <p className="font-body text-xs text-ink-muted truncate mt-0.5">
                   {claim.date.split(",")[0]} · {claim.category}
                   {claim.isVendorBooking ? " · Vendor booking" : ""}
+                  {claim.isInvoice ? " · Invoice" : ""}
                 </p>
               </div>
 

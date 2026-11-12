@@ -31,6 +31,9 @@ const HARD_STOP_LABEL: Record<HardStop, string> = {
   AGENT_DAILY_BUDGET: "Company's daily auto-pay budget reached",
   HIGH_RISK_SIGNAL: "High-risk signal on this claim",
   EXPECTED_LOSS: "Expected loss is higher than the cost of a review",
+  FX_RATE_UNAVAILABLE: "No company-currency rate for this claim",
+  CONTRACTOR_NOT_TRUSTED: "Contractor payments are reviewed until trusted",
+  OVER_CONTRACT_LIMIT: "Above this contract's limit per claim",
 };
 
 /** HR wording for a hard stop. Unknown codes from a newer backend show as they are. */

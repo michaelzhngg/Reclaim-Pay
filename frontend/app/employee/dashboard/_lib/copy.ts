@@ -22,9 +22,13 @@ export function isTopTier(info: TrustInfo): boolean {
   return info.next_tier === null;
 }
 
-/** "Instant payouts up to MYR 100" */
+/** "Instant payouts up to MYR 100", or reviewed payments for a contractor. */
+export function payoutLimitPrefix(info: Pick<TrustInfo, "is_contractor">): string {
+  return info.is_contractor ? "Reviewed payouts up to" : "Instant payouts up to";
+}
+
 export function limitLine(info: TrustInfo): string {
-  return `Instant payouts up to ${formatLimit(info.currency || "MYR", info.auto_limit)}`;
+  return `${payoutLimitPrefix(info)} ${formatLimit(info.currency || "MYR", info.auto_limit)}`;
 }
 
 /**

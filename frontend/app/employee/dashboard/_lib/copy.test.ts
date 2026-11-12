@@ -12,7 +12,9 @@ import {
   formatDeadline,
   formatLimit,
   isDisputeOpen,
+  limitLine,
   noticeLine,
+  payoutLimitPrefix,
   trustReasonLine,
 } from "./copy";
 
@@ -42,8 +44,20 @@ describe("badge names", () => {
   });
 });
 
-describe("trust reason line", () => {
-  const reason = "Instant payouts are limited after a recent correction. They return to normal on 27 Jan 2027.";
+describe("payout limit label", () => {
+  it("says instant payouts for an employee", () => {
+    expect(payoutLimitPrefix(standard)).toBe("Instant payouts up to");
+    expect(limitLine(standard)).toBe("Instant payouts up to MYR 100");
+  });
+
+  it("says reviewed payouts for a contractor", () => {
+    const contractor = { ...standard, is_contractor: true };
+    expect(payoutLimitPrefix(contractor)).toBe("Reviewed payouts up to");
+    expect(limitLine(contractor)).toBe("Reviewed payouts up to MYR 100");
+  });
+});
+
+describe("trust reason line", () => {  const reason = "Instant payouts are limited after a recent correction. They return to normal on 27 Jan 2027.";
   it("is absent when the backend gives no reasons", () => {
     expect(trustReasonLine(standard)).toBeNull();
     expect(trustReasonLine({ ...standard, reasons: ["  "] })).toBeNull();

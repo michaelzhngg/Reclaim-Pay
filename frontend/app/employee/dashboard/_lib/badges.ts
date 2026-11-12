@@ -170,7 +170,7 @@ export function badgeLevels(info: TrustInfo): BadgeLevel[] {
       tier: level.tier,
       name: badgeName(level.tier),
       autoLimit: level.auto_limit,
-      limit: `Instant payouts up to ${formatLimit(currency, level.auto_limit)}`,
+      limit: `${info.is_contractor ? "Reviewed payouts up to" : "Instant payouts up to"} ${formatLimit(currency, level.auto_limit)}`,
       howTo,
       current: level.tier === info.trust_tier,
     };

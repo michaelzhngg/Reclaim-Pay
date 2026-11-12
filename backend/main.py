@@ -34,6 +34,8 @@ from api.recoveries import router as recoveries_router
 from api.signal_reviews import router as signal_reviews_router
 from api.spend_check import router as spend_check_router
 from api.vendors import router as vendors_router
+from api.contracts import router as contracts_router
+from api.contractor_invoices import router as contractor_invoices_router
 from api import deps
 from core.models import User
 
@@ -111,6 +113,12 @@ app.include_router(reports_router, prefix=f"{settings.API_V1_STR}/reports", tags
 app.include_router(signal_reviews_router, prefix=settings.API_V1_STR, tags=["signal-reviews"])
 app.include_router(spend_check_router, prefix=f"{settings.API_V1_STR}/spend-check", tags=["spend-check"])
 app.include_router(vendors_router, prefix=settings.API_V1_STR, tags=["vendors"])
+app.include_router(contracts_router, prefix=f"{settings.API_V1_STR}/contracts", tags=["contracts"])
+app.include_router(
+    contractor_invoices_router,
+    prefix=f"{settings.API_V1_STR}/contractor-invoices",
+    tags=["contractor-invoices"],
+)
 
 @app.get("/")
 async def root():

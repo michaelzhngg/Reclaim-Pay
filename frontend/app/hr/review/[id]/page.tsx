@@ -5,6 +5,9 @@ import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, AlertTriangle, Clock, ShieldCheck, ShieldX, ChevronDown, ZoomIn, Pencil, FileText, ExternalLink, Download, X, Loader2, Send, CheckCircle2 } from "lucide-react";
 import type { ClaimBundle } from "@/lib/api/types";
 import { formatClaimRef, formatMoney } from "@/lib/format";
+import { companyLineAmount, formatFxTimestamp, fxQuoteText } from "@/lib/fx";
+import { contractSummaryRows, formatRate } from "@/lib/contracts";
+import { invoicePeriodLabel, quantityLabel } from "@/lib/invoices";
 import { SuccessModal, isAwaitingSecondApproval } from "../../hr_components/SuccessModal";
 import { useAuth } from "@/context/AuthContext";
 import { updateReimbursementStatus } from "@/lib/actions/hr";
@@ -30,7 +33,6 @@ const STATUS_CHIP: Record<string, string> = {
   PENDING: "bg-surface-muted text-ink-muted",
 };
 const CAT: Record<string, string> = { meals: "Meals", transportation: "Transport", accommodation: "Stay", others: "Others" };
-const fmt = (n: number | undefined | null) => formatMoney("MYR", n ?? 0);
 /** Label/value pairs with empty values dropped, so the page never shows a label with nothing under it. */
 function presentFields(pairs: Array<[string, string | null | undefined]>): Array<[string, string]> {
   return pairs.filter((p): p is [string, string] => typeof p[1] === "string" && p[1].trim() !== "");
@@ -97,6 +99,10 @@ function ClaimFormModal({
   const totalApproved = bundle?.totals?.net_approved || 0;
   const totalDeducted = bundle?.totals?.total_deduction || 0;
   const effectiveStatus = (bundle?.overall_judgment || "").replace("_", " ");
+  const claimCurrency = bundle?.currency || "MYR";
+  const companyCurrency = bundle?.company_currency || claimCurrency;
+  const fmt = (n: number | undefined | null) => formatMoney(claimCurrency, n ?? 0);
+  const fmtCompany = (n: number | undefined | null) => formatMoney(companyCurrency, n ?? 0);
 
   const statusChip: Record<string, string> = {
     APPROVED:             "bg-success-soft text-success",
@@ -230,8 +236,8 @@ function ClaimFormModal({
                 <tr className="bg-surface-muted text-ink-muted text-xs">
                   <th className="text-left py-2 px-3 border border-line font-semibold w-16">Ref</th>
                   <th className="text-left py-2 px-3 border border-line font-semibold">Category / Audit Notes</th>
-                  <th className="text-right py-2 px-3 border border-line font-semibold w-28">Requested (MYR)</th>
-                  <th className="text-right py-2 px-3 border border-line font-semibold w-28">Approved (MYR)</th>
+                  <th className="text-right py-2 px-3 border border-line font-semibold w-28">Requested ({claimCurrency})</th>
+                  <th className="text-right py-2 px-3 border border-line font-semibold w-28">Approved ({claimCurrency})</th>
                   <th className="text-center py-2 px-3 border border-line font-semibold w-24">Status</th>
                 </tr>
               </thead>
@@ -262,9 +268,19 @@ function ClaimFormModal({
                       </td>
                       <td className="py-2 px-3 border border-line text-right tabular-nums">
                         {(item.requested_amount || 0).toFixed(2)}
+                        {companyLineAmount(companyCurrency, item.requested_company_amount) && (
+                          <div className="text-[10px] font-normal text-ink-muted">
+                            {companyLineAmount(companyCurrency, item.requested_company_amount)}
+                          </div>
+                        )}
                       </td>
                       <td className="py-2 px-3 border border-line text-right tabular-nums font-semibold">
                         {(item.approved_amount || 0).toFixed(2)}
+                        {companyLineAmount(companyCurrency, item.approved_company_amount) && (
+                          <div className="text-[10px] font-normal text-ink-muted">
+                            {companyLineAmount(companyCurrency, item.approved_company_amount)}
+                          </div>
+                        )}
                       </td>
                       <td className="py-2 px-3 border border-line text-center">
                         <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
@@ -298,7 +314,12 @@ function ClaimFormModal({
                 <tr className="bg-surface-muted">
                   <td colSpan={2} className="py-3 px-3 border border-line text-right text-ink font-bold">Net approved</td>
                   <td className="py-3 px-3 border border-line" />
-                  <td className="py-3 px-3 border border-line text-right font-mono text-ink font-semibold text-base">{totalApproved.toFixed(2)}</td>
+                  <td className="py-3 px-3 border border-line text-right font-mono text-ink font-semibold text-base">
+                    {totalApproved.toFixed(2)}
+                    {bundle.amount_company != null && claimCurrency !== companyCurrency && (
+                      <div className="text-xs font-normal text-ink-muted">≈ {fmtCompany(bundle.amount_company)}</div>
+                    )}
+                  </td>
                   <td className="py-3 px-3 border border-line" />
                 </tr>
               </tfoot>
@@ -335,6 +356,21 @@ export default function ReviewPage() {
 
   const { load, retry, refresh } = useClaimBundle(id);
   const bundle = load.state === "ready" ? load.bundle : null;
+  const claimCurrency = bundle?.currency || "MYR";
+  const companyCurrency = bundle?.company_currency || claimCurrency;
+  const fmt = (n: number | undefined | null) => formatMoney(claimCurrency, n ?? 0);
+  const fmtCompany = (n: number | undefined | null) => formatMoney(companyCurrency, n ?? 0);
+  // The locked snapshot wins; before approval the preview is the same calculation, unlocked.
+  const expectedPayout = bundle
+    ? (bundle.payout_amount != null && bundle.payout_currency
+        ? { currency: bundle.payout_currency, amount: bundle.payout_amount, company_amount: null, as_of: bundle.payout_fx_at }
+        : bundle.payout_preview)
+    : null;
+  const payoutHeading = !expectedPayout
+    ? null
+    : bundle?.payout_amount != null
+      ? "Payout"
+      : "Expected payout";
   const [approvals, setApprovals] = useState<Record<string, string>>({});
   const [decision, setDecision] = useState<Decision>(null);
   const [note, setNote] = useState("");
@@ -506,6 +542,58 @@ export default function ReviewPage() {
             </div>
           </Card>
 
+          {/* The contract that scopes a contractor claim, before any money decision */}
+          {bundle.contract && (
+            <Card title="Contract">
+              <div className="p-4 sm:p-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {contractSummaryRows(bundle.contract).map((row) => (
+                  <Field key={row.label} label={row.label} value={row.value} />
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* The invoice period and rate, before the money decision */}
+          {bundle.is_invoice && (
+            <Card title="Contractor invoice">
+              <div className="p-4 sm:p-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <Field label="Period" value={invoicePeriodLabel(bundle.invoice_period_start, bundle.invoice_period_end)} />
+                <Field
+                  label="Quantity"
+                  value={bundle.contract
+                    ? quantityLabel(bundle.line_items[0]?.quantity, bundle.contract.rate_unit)
+                    : "Not set"}
+                />
+                <Field
+                  label="Unit price"
+                  value={fmt(bundle.line_items[0]?.unit_price ?? null)}
+                />
+                <Field
+                  label="Contract rate"
+                  value={bundle.contract
+                    ? formatRate(bundle.contract.currency, bundle.contract.rate_amount, bundle.contract.rate_unit)
+                    : "Not set"}
+                />
+                <Field label="Claimed amount" value={fmt(bundle.totals.total_requested)} />
+                <Field
+                  label="Company equivalent"
+                  value={fxQuoteText(
+                    claimCurrency,
+                    bundle.totals.total_requested,
+                    companyCurrency,
+                    bundle.fx_rate_to_company,
+                    bundle.fx_rate_at,
+                  )}
+                />
+              </div>
+              {bundle.invoice_over_contract_rate && (
+                <p className="px-4 sm:px-6 pb-4 font-body text-sm text-warning">
+                  Billed above the contract rate. This invoice needs an HR decision and cannot auto-pay.
+                </p>
+              )}
+            </Card>
+          )}
+
           {/* Claim Context: shown only when at least one value was recorded */}
           {contextFields.length > 0 && (
             <Card title="Claim Context">
@@ -667,8 +755,22 @@ export default function ReviewPage() {
                           <p key={i} className="text-xs font-mono font-medium text-danger mt-0.5">{n.tag}</p>
                         ))}
                       </td>
-                      <td className="py-3 px-3 font-mono font-medium whitespace-nowrap text-xs">{fmt(li.requested_amount)}</td>
-                      <td className="py-3 px-3 font-mono font-medium whitespace-nowrap text-xs">{fmt(li.approved_amount)}</td>
+                      <td className="py-3 px-3 font-mono font-medium whitespace-nowrap text-xs">
+                        {fmt(li.requested_amount)}
+                        {companyLineAmount(companyCurrency, li.requested_company_amount) && (
+                          <p className="text-[10px] font-normal text-ink-muted mt-0.5">
+                            {companyLineAmount(companyCurrency, li.requested_company_amount)}
+                          </p>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 font-mono font-medium whitespace-nowrap text-xs">
+                        {fmt(li.approved_amount)}
+                        {companyLineAmount(companyCurrency, li.approved_company_amount) && (
+                          <p className="text-[10px] font-normal text-ink-muted mt-0.5">
+                            {companyLineAmount(companyCurrency, li.approved_company_amount)}
+                          </p>
+                        )}
+                      </td>
                       <td className="py-3 px-3">
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${STATUS_CHIP[li.status]}`}>{li.status.replace("_", " ")}</span>
                         {li.deduction_amount > 0 && <p className="text-xs font-mono text-danger mt-0.5">-{fmt(li.deduction_amount)}</p>}
@@ -796,6 +898,38 @@ export default function ReviewPage() {
                 <p className="text-sm font-semibold text-ink">HR Approved Total</p>
                 <p className="text-base font-mono font-semibold text-ink">{fmt(netHR)}</p>
               </div>
+              <div className="rounded-control bg-surface-muted px-3 py-2">
+                <p className="text-xs text-ink-muted">Company equivalent</p>
+                <p className="text-xs font-mono font-medium text-ink mt-0.5">
+                  {fxQuoteText(claimCurrency, bundle.totals.total_requested, companyCurrency,
+                    bundle.fx_rate_to_company, bundle.fx_rate_at)}
+                </p>
+                {bundle.fx_rate_to_company != null && claimCurrency !== companyCurrency && (
+                  <p className="text-xs font-mono text-ink-muted mt-0.5">
+                    Approved {fmtCompany(bundle.approved_company_amount ?? 0)}
+                  </p>
+                )}
+                {bundle.fx_unavailable && (
+                  <p className="text-xs text-danger mt-1">
+                    No company rate for this currency. This claim needs HR review and cannot be paid until a rate exists.
+                  </p>
+                )}
+                {expectedPayout && expectedPayout.currency !== claimCurrency && (
+                  <div className="border-t border-line mt-2 pt-2">
+                    <p className="text-xs text-ink-muted">{payoutHeading}</p>
+                    <p className="text-xs font-mono font-medium text-ink mt-0.5">
+                      {formatMoney(expectedPayout.currency, expectedPayout.amount)}
+                      {expectedPayout.company_amount != null &&
+                        ` ≈ ${formatMoney(companyCurrency, expectedPayout.company_amount)}`}
+                    </p>
+                    {expectedPayout.as_of && (
+                      <p className="text-xs text-ink-muted mt-0.5">
+                        Rate locked at approval. Quoted {formatFxTimestamp(expectedPayout.as_of)}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </Card>
 
@@ -828,7 +962,7 @@ export default function ReviewPage() {
                     <p className="text-xs text-ink-muted">Requested <span className="font-mono">{fmt(li.requested_amount)}</span></p>
                   </div>
                   <label className="flex items-center min-h-[44px] bg-surface rounded-control border border-line-strong focus-within:border-accent px-2 w-32 shrink-0 cursor-text">
-                    <span className="text-xs text-ink-muted mr-1">MYR</span>
+                    <span className="text-xs text-ink-muted mr-1">{claimCurrency}</span>
                     <span className="sr-only">Approved amount for receipt {idx + 1}</span>
                     <input
                       type="text"

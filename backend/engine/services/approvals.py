@@ -60,6 +60,9 @@ def split_batch(rows: list[dict], approver_id: str) -> tuple[list[str], list[dic
         elif row.get("kind") == "VENDOR_BOOKING":
             # A booking needs an individual look at the vendor and dates.
             reason = "VENDOR_BOOKING"
+        elif row.get("contract_reason"):
+            # A contractor claim is batched only when every contract check passed.
+            reason = "CONTRACT_CHECK"
         else:
             approved.append(row["reim_id"])
             continue

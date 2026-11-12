@@ -5,6 +5,7 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import PayPalConnectCard from "./_components/PayPalConnectCard";
+import ContractSummaryCard from "./_components/ContractSummaryCard";
 import ProfileCard from "./_components/ProfileCard";
 import PushSettingToggle from "@/app/_components/PushSettingToggle";
 import { ThemeOptions } from "@/components/theme/AppearanceControls";
@@ -32,6 +33,10 @@ export default function SettingsLegacyContent() {
   const hash = useSyncExternalStore(subscribeHash, readHash, readServerHash);
   const active = hash === "#profile" ? "profile" : hash === "#appearance" ? "appearance" : "paypal";
   const paypalRef = useRef<HTMLDivElement>(null);
+  const sections =
+    user?.role === "Contractor"
+      ? [{ id: "contract", label: "Your contract" }, ...SECTIONS]
+      : SECTIONS;
 
   useEffect(() => {
     if (hash !== "#paypal") return;
@@ -59,7 +64,7 @@ export default function SettingsLegacyContent() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* ── Left Sidebar (Desktop Nav) ── */}
           <nav aria-label="Settings sections" className="hidden md:flex flex-col gap-1">
-            {SECTIONS.map((item) => (
+            {sections.map((item) => (
               <a
                 key={item.id}
                 href={`#${item.id}`}
@@ -83,6 +88,8 @@ export default function SettingsLegacyContent() {
 
           {/* ── Main Content Area ── */}
           <div className="md:col-span-2 space-y-6 min-w-0">
+
+            {user?.role === "Contractor" && <ContractSummaryCard />}
 
             {/* PayPal first: it decides whether reimbursements can reach the employee */}
             <div

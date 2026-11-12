@@ -106,7 +106,8 @@ def test_updates_details_and_returns_the_list_record(client, pg_db, hr_headers):
 
 def test_record_keeps_invite_status_for_an_invited_person(client, hr_headers):
     created = client.post("/api/v1/employee/", headers=hr_headers,
-                          json={"name": "New Starter", "email": f"{uuid4().hex[:8]}@example.com"}).json()
+                          json={"name": "New Starter", "email": f"{uuid4().hex[:8]}@example.com",
+                                "role": "Employee"}).json()
     user_id = created["employee"]["user_id"]
     r = _patch(client, hr_headers, user_id, name="New Starter Two")
     assert r.status_code == 200

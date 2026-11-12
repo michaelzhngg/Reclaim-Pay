@@ -16,6 +16,7 @@ import type {
 } from "ag-grid-community";
 import { formatMoney } from "@/lib/api/reclaim-pay-types";
 import { useHrGridTheme } from "./useHrGridTheme";
+import { invoicePeriodLabel } from "@/lib/invoices";
 import { TierPill } from "./cells/TierCell";
 import { RiskBar } from "./cells/RiskCell";
 import { SignalChips } from "./cells/SignalsCell";
@@ -88,6 +89,16 @@ function TriageCard({
             <p className="text-xs text-ink-muted mt-0.5 truncate">
               <span className="font-mono">{row.ref}</span> · {row.category}
             </p>
+            {row.isInvoice && (
+              <span className="mt-1 inline-flex flex-col gap-0.5 text-xs">
+                <span className="w-fit rounded-full bg-accent-soft px-2 py-0.5 font-semibold text-accent">
+                  Contractor invoice
+                </span>
+                <span className="text-ink-muted">
+                  {invoicePeriodLabel(row.invoicePeriodStart, row.invoicePeriodEnd)}
+                </span>
+              </span>
+            )}
             {row.kind === "VENDOR_BOOKING" && (
               <span className="mt-1 inline-flex flex-col gap-0.5 text-xs">
                 <span className="w-fit rounded-full bg-accent-soft px-2 py-0.5 font-semibold text-accent">
@@ -156,6 +167,11 @@ export default function TriageGrid({ rows, selectable, selfId, selected, onSelec
             <span className="flex flex-col leading-tight min-w-0">
               <span className="truncate font-medium text-ink">{p.data.employee}</span>
               <span className="truncate text-xs text-ink-muted">{p.data.category}</span>
+              {p.data.isInvoice && (
+                <span className="truncate text-xs font-semibold text-accent">
+                  Invoice · {invoicePeriodLabel(p.data.invoicePeriodStart, p.data.invoicePeriodEnd)}
+                </span>
+              )}
               {p.data.kind === "VENDOR_BOOKING" && (
                 <span className="flex flex-col leading-tight min-w-0 text-xs">
                   <span className="truncate font-semibold text-accent">

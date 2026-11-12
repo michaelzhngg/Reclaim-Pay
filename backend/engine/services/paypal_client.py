@@ -6,6 +6,7 @@ ID for 30 days, so a 5xx or timeout is retried once with the same ID.
 """
 import base64
 import hashlib
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -27,6 +28,9 @@ logger = logging.getLogger(__name__)
 class PayoutCreated:
     batch_id: str
     batch_status: str
+    # PayPal accepts the batch before the items settle. When the response carries item
+    # statuses, they let a caller record a per-item failure without a second read.
+    items: tuple["PayoutItem", ...] = ()
 
 
 @dataclass(frozen=True)
@@ -35,6 +39,16 @@ class PayoutItem:
     transaction_status: str
     sender_item_id: str
     error: str | None
+
+
+@dataclass(frozen=True)
+class PayoutItemRequest:
+    """One payee instruction in a batch. Every item in a batch shares one currency."""
+    payer_id: str
+    amount: Decimal
+    currency: str
+    note: str
+    sender_item_id: str
 
 
 @dataclass(frozen=True)
@@ -93,6 +107,17 @@ def sender_batch_id_for(reim_id: UUID, attempt: int) -> str:
     return f"RC-{reim_id.hex}-{attempt}"
 
 
+def sender_batch_id_for_group(reim_ids: list[UUID | str], currency: str, attempt: int) -> str:
+    """A deterministic batch key of 24 characters, inside PayPal's 30-character cap.
+
+    The sorted claim IDs make the key stable for the same approved set, and the currency and
+    attempt keep a retry or a differently grouped set from reusing a live key.
+    """
+    ids = ",".join(sorted(str(reim_id) for reim_id in reim_ids))
+    digest = hashlib.sha256(f"{currency.upper()}|{attempt}|{ids}".encode()).hexdigest()[:16].upper()
+    return f"RCB-{currency.upper()}-{digest}"
+
+
 def map_item_status(transaction_status: str) -> PayoutStatus:
     # UNCLAIMED, PENDING, ONHOLD and anything new are still in flight.
     return _ITEM_STATUS.get(transaction_status.upper(), PayoutStatus.REQUESTED)
@@ -109,8 +134,11 @@ def mask_email(email: str) -> str:
     return f"{local[0]}***@{domain}"
 
 
-def _payout_body(sender_batch_id: str, payer_id: str, amount: Decimal, currency: str,
-                 note: str, sender_item_id: str) -> dict:
+def _payout_body(sender_batch_id: str, items: list[PayoutItemRequest]) -> dict:
+    """One PayPal batch, one currency. A mixed or empty set is a programming error."""
+    currencies = {item.currency.upper() for item in items}
+    if len(currencies) != 1:
+        raise ValueError("A PayPal payout batch must hold at least one item and exactly one currency")
     return {
         "sender_batch_header": {
             "sender_batch_id": sender_batch_id,
@@ -118,16 +146,15 @@ def _payout_body(sender_batch_id: str, payer_id: str, amount: Decimal, currency:
         },
         "items": [{
             "recipient_type": "PAYPAL_ID",
-            "receiver": payer_id,
-            "amount": {"value": format_amount(amount), "currency": currency},
-            "note": note,
-            "sender_item_id": sender_item_id,
-        }],
+            "receiver": item.payer_id,
+            "amount": {"value": format_amount(item.amount), "currency": item.currency},
+            "note": item.note,
+            "sender_item_id": item.sender_item_id,
+        } for item in items],
     }
 
 
-def _parse_batch(data: dict) -> PayoutBatch:
-    header = data.get("batch_header", {})
+def _parse_items(data: dict) -> list[PayoutItem]:
     items = []
     for raw in data.get("items", []):
         error = raw.get("errors")
@@ -137,7 +164,17 @@ def _parse_batch(data: dict) -> PayoutBatch:
             sender_item_id=(raw.get("payout_item") or {}).get("sender_item_id", ""),
             error=(error.get("name") if isinstance(error, dict) else error) or None,
         ))
-    return PayoutBatch(header.get("payout_batch_id", ""), header.get("batch_status", ""), items)
+    return items
+
+
+def _parse_created(data: dict) -> PayoutCreated:
+    header = data.get("batch_header", {})
+    return PayoutCreated(header.get("payout_batch_id", ""), header.get("batch_status", ""), tuple(_parse_items(data)))
+
+
+def _parse_batch(data: dict) -> PayoutBatch:
+    header = data.get("batch_header", {})
+    return PayoutBatch(header.get("payout_batch_id", ""), header.get("batch_status", ""), _parse_items(data))
 
 
 def _money_value(money: object) -> Decimal | None:
@@ -258,12 +295,19 @@ class PayPalClient:
             return _json_or_empty(resp)
         raise PayPalError(500, "RETRY_EXHAUSTED")
 
+    async def create_payout_batch(self, *, sender_batch_id: str,
+                                  items: list[PayoutItemRequest]) -> PayoutCreated:
+        data = await self.request("POST", "/v1/payments/payouts",
+                                  json=_payout_body(sender_batch_id, items))
+        return _parse_created(data)
+
     async def create_payout(self, *, sender_batch_id: str, payer_id: str, amount: Decimal,
                             currency: str, note: str, sender_item_id: str) -> PayoutCreated:
-        data = await self.request("POST", "/v1/payments/payouts",
-                                  json=_payout_body(sender_batch_id, payer_id, amount, currency, note, sender_item_id))
-        header = data.get("batch_header", {})
-        return PayoutCreated(header.get("payout_batch_id", ""), header.get("batch_status", ""))
+        """One-item batch. Kept for callers that pay exactly one claim."""
+        return await self.create_payout_batch(sender_batch_id=sender_batch_id, items=[
+            PayoutItemRequest(payer_id=payer_id, amount=amount, currency=currency,
+                              note=note, sender_item_id=sender_item_id),
+        ])
 
     async def get_payout_batch(self, batch_id: str) -> PayoutBatch:
         return _parse_batch(await self.request("GET", f"/v1/payments/payouts/{batch_id}"))
@@ -321,30 +365,50 @@ class MockPayPalClient:
 
     def __init__(self, now: Callable[[], float] = time.monotonic):
         self._now = now
-        self._batches: dict[str, tuple[float, str]] = {}
+        self._batches: dict[str, tuple[float, tuple[str, ...]]] = {}
 
     async def access_token(self) -> str:
         return "MOCK-TOKEN"
 
+    async def create_payout_batch(self, *, sender_batch_id: str,
+                                  items: list[PayoutItemRequest]) -> PayoutCreated:
+        if not items or len({item.currency.upper() for item in items}) != 1:
+            raise ValueError("A PayPal payout batch must hold at least one item and exactly one currency")
+        batch_id = "MOCKB-" + hashlib.sha256(sender_batch_id.encode()).hexdigest()[:12].upper()
+        self._batches.setdefault(batch_id, (self._now(), tuple(item.sender_item_id for item in items)))
+        return PayoutCreated(batch_id, "PENDING")
+
     async def create_payout(self, *, sender_batch_id: str, payer_id: str, amount: Decimal,
                             currency: str, note: str, sender_item_id: str) -> PayoutCreated:
-        batch_id = "MOCKB-" + hashlib.sha256(sender_batch_id.encode()).hexdigest()[:12].upper()
-        self._batches.setdefault(batch_id, (self._now(), sender_item_id))
-        return PayoutCreated(batch_id, "PENDING")
+        return await self.create_payout_batch(sender_batch_id=sender_batch_id, items=[
+            PayoutItemRequest(payer_id=payer_id, amount=amount, currency=currency,
+                              note=note, sender_item_id=sender_item_id),
+        ])
 
     async def get_payout_batch(self, batch_id: str) -> PayoutBatch:
         if batch_id not in self._batches:
             raise PayPalError(404, "RESOURCE_NOT_FOUND")
-        created_at, sender_item_id = self._batches[batch_id]
+        created_at, sender_item_ids = self._batches[batch_id]
         done = self._now() - created_at >= self.SUCCESS_AFTER_SECONDS
-        item = PayoutItem("MOCKI-" + batch_id[6:], "SUCCESS" if done else "PENDING", sender_item_id, None)
-        return PayoutBatch(batch_id, "SUCCESS" if done else "PENDING", [item])
+        items = [
+            PayoutItem(f"MOCKI-{batch_id[6:]}-{n}", "SUCCESS" if done else "PENDING", sender_item_id, None)
+            for n, sender_item_id in enumerate(sender_item_ids, start=1)
+        ]
+        return PayoutBatch(batch_id, "SUCCESS" if done else "PENDING", items)
 
     async def cancel_payout_item(self, item_id: str) -> str:
         return "CANCELED"
 
     async def get_balance(self, currency: str) -> Balance | None:
-        return Balance(currency.upper(), Decimal(str(settings.PAYPAL_MOCK_BALANCE)), datetime.now(timezone.utc))
+        configured = _mock_balances()
+        if configured is None:
+            return Balance(currency.upper(), Decimal(str(settings.PAYPAL_MOCK_BALANCE)), datetime.now(timezone.utc))
+        # A configured map means only the listed currencies are held, so the guard can be
+        # demonstrated without keys: {"MYR": "25000"} refuses every non-MYR payout.
+        amount = configured.get(currency.upper())
+        if amount is None:
+            return None
+        return Balance(currency.upper(), amount, datetime.now(timezone.utc))
 
     async def verify_webhook(self, headers: Mapping[str, str], event: dict, webhook_id: str) -> bool:
         return True
@@ -364,6 +428,19 @@ def _json_or_empty(resp: httpx.Response) -> dict:
     except ValueError:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _mock_balances() -> dict[str, Decimal] | None:
+    """Per-currency mock balances. None keeps the single-balance default."""
+    raw = (settings.PAYPAL_MOCK_BALANCES or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+        return {str(code).upper(): Decimal(str(amount)) for code, amount in parsed.items()}
+    except (ValueError, TypeError, AttributeError):
+        logger.error("[PAYPAL] PAYPAL_MOCK_BALANCES is not a JSON object of amounts; using the default balance")
+        return None
 
 
 _client: "PayPalClient | MockPayPalClient | None" = None

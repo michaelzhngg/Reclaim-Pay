@@ -195,6 +195,14 @@ def test_hr_is_rejected_with_the_same_failure(client, pg_db, monkeypatch):
     assert action.actor == str(hr.user_id) and action.payload["reason"] == "not_employee"
 
 
+def test_contractor_can_sign_in_with_paypal(client, pg_db, monkeypatch):
+    user = _person(pg_db, role=UserRole.Contractor, payer="CONTRACTORPAYER")
+    res = client.get("/api/v1/auth/me", headers=_bearer(_signin(client, monkeypatch, payer="CONTRACTORPAYER")))
+    assert res.status_code == 200 and res.json()["user_id"] == str(user.user_id)
+    [action] = _actions(pg_db)
+    assert action.actor == str(user.user_id) and action.payload["outcome"] == "signed_in"
+
+
 def test_payer_shared_with_hr_is_rejected(client, pg_db, monkeypatch):
     _person(pg_db, payer="SHARED")
     _person(pg_db, role=UserRole.HR, payer="SHARED")

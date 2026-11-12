@@ -1,5 +1,6 @@
 import logging
 from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
@@ -15,7 +16,14 @@ from core.enums import ReimbursementStatus, UserRole, PayoutStatus, is_vendor_bo
 from engine.jobs.maintenance import MaintenanceReport, StuckPayoutsOut, run_maintenance, stuck_payouts
 from engine.services.approvals import approvals_complete
 from engine.services.funding_service import FundingSummary, alert_hr, funding_summary
-from engine.services.payout_service import initiate_payout_async, payee_for_reim, payout_plan
+from engine.services import fx, payout_guard
+from engine.services.payout_service import (
+    PayoutRefused,
+    initiate_payout_async,
+    payee_for_reim,
+    payout_plan,
+    resolve_payout,
+)
 from engine.services.payout_status import FINAL_STATUSES, refresh_payout
 from engine.services.paypal_client import PayPalError
 from engine.services.reconcile_history import (
@@ -66,12 +74,16 @@ class PayoutLedgerRow(BaseModel):
     kind: str
     amount: float
     currency: str
+    claim_currency: str
+    company_amount: float
+    company_currency: str
     status: PayoutStatus
     tier: Optional[str] = None
     provider_batch_id: Optional[str] = None
     provider_item_id: Optional[str] = None
     attempt: int
     audit_selected: bool
+    failure_code: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -137,6 +149,10 @@ def ledger_row(payout: Payout, reim: Reimbursement, employee: User, vendor: Vend
         kind="VENDOR_BOOKING" if is_booking else "CLAIM",
         amount=float(payout.amount),
         currency=payout.currency,
+        # The payout currency and amount above; the claim's own currency and company value here.
+        claim_currency=reim.currency,
+        company_amount=float(fx.stored_company_amount(reim)),
+        company_currency=fx.company_currency(),
         status=payout.status,
         # tier and audit_selected arrive with the autonomy columns (Chingiz B, DB-1).
         tier=getattr(reim, "tier", None),
@@ -144,6 +160,7 @@ def ledger_row(payout: Payout, reim: Reimbursement, employee: User, vendor: Vend
         provider_item_id=payout.provider_item_id,
         attempt=payout.attempt,
         audit_selected=bool(getattr(reim, "audit_selected", False)),
+        failure_code=payout.failure_code,
         created_at=payout.created_at,
         updated_at=payout.updated_at,
     )
@@ -153,6 +170,7 @@ _SKIP_DETAIL = {
     "SKIP_NOT_APPROVED": "Claim must be APPROVED (or DISBURSEMENT_FAILED for a retry) before it can be paid.",
     "SKIP_EXISTING": "A payout for this claim is already in progress or has succeeded.",
     "SKIP_NO_PAYEE": "The payee has not connected a verified PayPal account.",
+    "SKIP_NO_FX_QUOTE": "No payout quote exists for this claim's currency. HR must fix the rate before it can be paid.",
 }
 
 
@@ -306,10 +324,13 @@ async def create_payout(
     existing = db.exec(select(Payout).where(Payout.reim_id == body.reim_id)).all()
     _require_genuine_approval(reim, current_user, existing)
     net_amount, applied_offsets = offset_for_reim(db, reim)
-    action, _, _ = payout_plan(
-        reim.status, net_amount, [p.status for p in existing],
-        payee_for_reim(db, reim) is not None,
-    )
+    destination = resolve_payout(db, reim, net_amount)
+    if destination is None:
+        action = "SKIP_NO_PAYEE" if payee_for_reim(db, reim) is None else "SKIP_NO_FX_QUOTE"
+    else:
+        action, _, _ = payout_plan(
+            reim.status, destination.amount, [p.status for p in existing], True,
+        )
     if action in _SKIP_DETAIL:
         raise HTTPException(status_code=400, detail=_SKIP_DETAIL[action])
     if action == "SKIP_ZERO":
@@ -318,7 +339,14 @@ async def create_payout(
         await initiate_payout_async(body.reim_id, db)
         raise HTTPException(status_code=400, detail="Nothing to pay: the claim was settled against an earlier overpayment.")
 
-    payout = await initiate_payout_async(body.reim_id, db)
+    try:
+        payout = await initiate_payout_async(body.reim_id, db)
+    except PayoutRefused as refused:
+        # A refusal is not a PayPal error: HR gets the reason and the claim stays approved.
+        raise HTTPException(
+            status_code=409,
+            detail=f"PAYOUT_REFUSED: {refused.code}. {refused.message}",
+        )
     if payout is None:
         raise HTTPException(status_code=502, detail="PayPal did not accept the payout. Try again shortly.")
     return PayoutOut.model_validate(payout)
@@ -342,9 +370,13 @@ async def get_payout(
     if current_user.role != UserRole.HR and reim.user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    payout = db.exec(
+    payouts = db.exec(
         select(Payout).where(Payout.reim_id == reim_uuid).order_by(Payout.attempt.desc())
-    ).first()
+    ).all()
+    if current_user.role != UserRole.HR:
+        # A guard refusal is HR's to fix and not a payment error the claimant can act on.
+        payouts = [p for p in payouts if not payout_guard.is_refusal(p.failure_code)]
+    payout = payouts[0] if payouts else None
     if not payout:
         raise HTTPException(status_code=404, detail="No payout found for this claim")
 

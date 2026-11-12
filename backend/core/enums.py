@@ -4,6 +4,15 @@ import enum
 class UserRole(str, enum.Enum):
     HR = "HR"
     Employee = "Employee"
+    # A limited role: own claims and payouts only, no company-wide reads.
+    Contractor = "Contractor"
+
+
+class ContractRateUnit(str, enum.Enum):
+    HOUR = "HOUR"
+    DAY = "DAY"
+    MONTH = "MONTH"
+    PROJECT = "PROJECT"
 
 
 class PrivilegeLevel(str, enum.Enum):

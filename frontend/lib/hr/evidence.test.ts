@@ -40,6 +40,12 @@ describe("hardStopLabel", () => {
     expect(hardStopLabel("OVER_AUTO_LIMIT")).toBe("Above this employee's auto-pay limit");
     expect(hardStopLabel("AI_NOT_APPROVED")).toBe("AI did not recommend approval");
   });
+
+  it("labels the contractor and contract stops", () => {
+    expect(hardStopLabel("CONTRACTOR_NOT_TRUSTED")).toBe("Contractor payments are reviewed until trusted");
+    expect(hardStopLabel("OVER_CONTRACT_LIMIT")).toBe("Above this contract's limit per claim");
+    expect(hardStopLabel("FX_RATE_UNAVAILABLE")).toBe("No company-currency rate for this claim");
+  });
 });
 
 describe("toClaimAutonomy", () => {

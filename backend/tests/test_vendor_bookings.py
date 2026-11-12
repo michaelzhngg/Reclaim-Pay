@@ -697,7 +697,9 @@ def test_vendor_cooldown_display_uses_live_config(pg_db, monkeypatch):
     from engine.services import autonomy_store
 
     vendor = _vendor(pg_db, "Verified Cab Co.")
-    vendor.payout_destination_changed_at = NOW - timedelta(hours=1)
+    # Relative to the wall clock: this test asserts an active cool-down, so a fixed NOW
+    # would start failing as soon as that date's cool-down window passed.
+    vendor.payout_destination_changed_at = datetime.now(timezone.utc) - timedelta(hours=1)
     pg_db.add(vendor)
     pg_db.commit()
 

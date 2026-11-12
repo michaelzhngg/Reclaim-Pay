@@ -49,6 +49,14 @@ export interface TriageRow {
   serviceStart: string | null;
   serviceEnd: string | null;
   purpose: string | null;
+  /** A contractor invoice is still a CLAIM row, with a work period. */
+  isInvoice: boolean;
+  invoicePeriodStart: string | null;
+  invoicePeriodEnd: string | null;
+  /** Set for a contractor claim: a short contract label for the batch sheet. */
+  contractLabel: string | null;
+  /** A contract check intake already failed, so the claim is not batchable. */
+  contractReason: string | null;
 }
 
 /** HR labels from the copy deck (§13.1). */
@@ -81,6 +89,7 @@ export const SKIP_REASON_LABEL: Record<BatchSkipReason, string> = {
   SELF_APPROVAL: "your own claim",
   NOTHING_TO_PAY: "no approved amount",
   VENDOR_BOOKING: "vendor bookings need individual review",
+  CONTRACT_CHECK: "contract check needs review",
 };
 
 const SEVERITY_RANK: Record<Severity, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
@@ -116,7 +125,20 @@ export function toTriageRow(r: TriageSource): TriageRow {
     serviceStart: r.service_start ?? null,
     serviceEnd: r.service_end ?? null,
     purpose: r.purpose ?? null,
+    isInvoice: Boolean(r.is_invoice),
+    invoicePeriodStart: r.invoice_period_start ?? null,
+    invoicePeriodEnd: r.invoice_period_end ?? null,
+    contractLabel: contractLabel(r.contract ?? null),
+    contractReason: typeof r.ai_reasoning?.contract_reason === "string"
+      ? r.ai_reasoning.contract_reason
+      : null,
   };
+}
+
+/** "Consulting · IDR" for the batch sheet, so HR can tell a contractor row apart. */
+function contractLabel(contract: ReimbursementRaw["contract"]): string | null {
+  if (!contract) return null;
+  return `${contract.service_category || "Contractor"} · ${contract.currency || "Not set"}`;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -163,6 +185,7 @@ export function exclusionReason(row: TriageRow, selfId: string | null | undefine
   if (row.status !== "REVIEW") return "NOT_IN_REVIEW";
   if (selfId && row.userId === selfId) return "SELF_APPROVAL";
   if (row.kind === "VENDOR_BOOKING") return "VENDOR_BOOKING";
+  if (row.contractReason) return "CONTRACT_CHECK";
   return null;
 }
 

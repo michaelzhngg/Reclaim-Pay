@@ -5,6 +5,7 @@
 
 import { formatMoney, type AutonomyDecision, type AutonomyTier } from "./reclaim-pay-types";
 import type { ClaimAutonomy } from "@/lib/hr/evidence";
+import type { ContractRecord } from "@/lib/contracts";
 
 // ─── Generic API Result ──────────────────────────────────────────────────────
 
@@ -24,7 +25,7 @@ export interface User {
   user_code?: string | null;
   email: string;
   name: string;
-  role: "HR" | "Employee";
+  role: "HR" | "Employee" | "Contractor";
   department_id?: string | null;
   department_name?: string | null;
   rank?: number;
@@ -84,6 +85,9 @@ export interface LineItem {
   unit_price?: number;
   claimed_amount: number;
   approved_amount?: number | null;
+  /** Company-currency equivalents, when the backend has a quote. */
+  claimed_company_amount?: number | null;
+  approved_company_amount?: number | null;
   currency: string;
   expense_date?: string | null;
   judgment?: "APPROVED" | "REJECTED" | "PARTIAL" | "NEEDS_INFO" | null;
@@ -120,12 +124,34 @@ export interface ReimbursementRaw {
   department_name?: string;
   policy_id: string | null;
   policy_name?: string | null;
+  /** Set for a contractor claim. */
+  contract_id?: string | null;
+  contract?: ContractRecord | null;
+  /** True for a contractor invoice. It is still a CLAIM row with an invoice period. */
+  is_invoice?: boolean;
+  invoice_period_start?: string | null;
+  invoice_period_end?: string | null;
   settlement_id: string | null;
   main_category: string;
   currency: string;
+  company_currency?: string;
   total_claimed_amount: number;
   total_approved_amount: number | null;
   total_rejected_amount: number | null;
+  /** Company-currency snapshots, and the quote behind them. */
+  amount_company?: number | null;
+  approved_company_amount?: number | null;
+  fx_rate_to_company?: number | null;
+  fx_rate_at?: string | null;
+  fx_source?: string | null;
+  fx_unavailable?: boolean;
+  /** What approval locked: the amount and currency PayPal will send. */
+  payout_amount?: number | null;
+  payout_currency?: string | null;
+  payout_fx_rate?: number | null;
+  payout_fx_at?: string | null;
+  /** What the payout would be if HR approved now. HR only, nothing is locked. */
+  payout_preview?: PayoutPreview | null;
   line_items?: LineItem[];
   judgment: "APPROVED" | "REJECTED" | "PARTIAL" | "NEEDS_INFO";
   confidence: number | null;
@@ -160,6 +186,17 @@ export interface ReimbursementRaw {
   vendor_cooldown_hours?: number | null;
   service_start?: string | null;
   service_end?: string | null;
+}
+
+/** The expected payout HR sees before approving. Nothing is locked until approval. */
+export interface PayoutPreview {
+  amount: number;
+  currency: string;
+  /** Claim currency to payout currency. */
+  rate: number | null;
+  as_of: string | null;
+  source: string | null;
+  company_amount: number | null;
 }
 
 /** Merchant names for a claim, e.g. "Grab, Hilton +1". Empty when none were read. */
@@ -270,6 +307,12 @@ export interface BundleLineItem {
   status: LineItemStatus;
   requested_amount: number;
   approved_amount: number;
+  /** Invoice line quantity and rate, when the row is a contractor invoice. */
+  quantity?: number | null;
+  unit_price?: number | null;
+  /** Company-currency equivalents for the receipt row, when a quote exists. */
+  requested_company_amount?: number | null;
+  approved_company_amount?: number | null;
   deduction_amount: number;
   audit_notes: AuditNote[];
   /** True if the employee manually edited the AI-extracted amount — Fraud Trap. */
@@ -294,6 +337,31 @@ export interface ClaimBundle {
     email: string;
   };
   submitted_at: string;
+  /** Claim currency and the company currency its limits and reports use. */
+  currency: string;
+  company_currency: string;
+  amount_company: number | null;
+  approved_company_amount: number | null;
+  fx_rate_to_company: number | null;
+  fx_rate_at: string | null;
+  fx_source: string | null;
+  fx_unavailable: boolean;
+  /** What approval locked: the amount and currency PayPal will send. */
+  payout_amount: number | null;
+  payout_currency: string | null;
+  payout_fx_rate: number | null;
+  payout_fx_at: string | null;
+  /** What the payout would be if HR approved now. */
+  payout_preview: PayoutPreview | null;
+  /** The contractor's terms, when this claim came from a contract. */
+  contract: ContractRecord | null;
+  /** True for a contractor invoice; the period is the work it covers. */
+  is_invoice: boolean;
+  invoice_period_start: string;
+  invoice_period_end: string;
+  /** HR-only reason from intake. Empty for a normal claim or an invoice at the contract rate. */
+  invoice_contract_reason: string;
+  invoice_over_contract_rate: boolean;
   travel_destination: string;
   travel_purpose: string;
   departure_date: string;

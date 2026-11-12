@@ -52,7 +52,7 @@ describe("employeeHistorySummary", () => {
       row({ id: "c2", status: "Pending", amountNumeric: 10 }),
       row({ id: "b3", status: "Pending", amountNumeric: 300, isVendorBooking: true }),
     ]);
-    expect(summary).toEqual({ total: "MYR 287.45", pending: "MYR 10.00" });
+    expect(summary).toEqual({ total: "MYR 287.45", pending: "MYR 10.00", companyCurrency: "MYR" });
   });
 
   it("matches the dashboard Already paid total when a paid claim was approved for less", () => {
@@ -75,6 +75,6 @@ describe("employeeHistorySummary", () => {
       row({ id: "c1", status: "Approved", amountNumeric: 100, approvedAmount: 80 }),
       row({ id: "c2", status: "Rejected", amountNumeric: 60, approvedAmount: 0 }),
     ]);
-    expect(summary).toEqual({ total: "MYR 80.00", pending: "MYR 0.00" });
+    expect(summary).toEqual({ total: "MYR 80.00", pending: "MYR 0.00", companyCurrency: "MYR" });
   });
 });

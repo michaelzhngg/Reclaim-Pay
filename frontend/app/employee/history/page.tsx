@@ -59,10 +59,20 @@ function mapToHistoryClaim(r: ReimbursementRaw): HistoryClaim {
     amount: formatMoney(r.currency ?? "MYR", requested),
     amountNumeric: requested,
     approvedAmount: net,
+    currency: r.currency ?? "MYR",
+    companyCurrency: r.company_currency ?? "MYR",
+    amountCompany: r.amount_company ?? null,
+    approvedCompanyAmount: r.approved_company_amount ?? null,
+    fxRate: r.fx_rate_to_company ?? null,
+    fxRateAt: r.fx_rate_at ?? null,
+    fxSource: r.fx_source ?? null,
     status: claimStatus,
     hrNote: (r.ai_reasoning?.['hr_note'] as string | undefined),
     isVendorBooking: (r.kind ?? "CLAIM") === "VENDOR_BOOKING",
     vendorName: r.vendor_name ?? undefined,
+    isInvoice: Boolean(r.is_invoice),
+    invoicePeriodStart: r.invoice_period_start ?? null,
+    invoicePeriodEnd: r.invoice_period_end ?? null,
     lineItems,
     receiptCount: (r.kind ?? "CLAIM") === "VENDOR_BOOKING" ? 0 : lineItems.length,
     pdfDownloadUrl: `/api/v1/reimbursements/${r.reim_id}/pdf`,
@@ -179,6 +189,7 @@ function HistoryPageContent() {
           <p className="text-sm md:text-base text-ink-muted font-body leading-relaxed flex flex-wrap items-center gap-x-4 gap-y-1">
             <span>Total reimbursed <span className="font-mono font-medium text-ink">{summary.total}</span></span>
             <span>Pending <span className="font-mono font-medium text-ink">{summary.pending}</span></span>
+            <span className="text-xs text-ink-muted">Company currency: {summary.companyCurrency}</span>
           </p>
         </div>
 

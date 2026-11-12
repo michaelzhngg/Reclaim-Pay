@@ -15,6 +15,7 @@ import {
   getCurrentUser,
 } from "@/lib/actions/auth";
 import type { User } from "@/lib/api/types";
+import { homePathForRole } from "@/lib/roles";
 import LoadingOverlay from "@/components/LoadingOverlay";
 
 // Module-level cache — survives remounts within the same page lifecycle
@@ -95,11 +96,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // The login component will simply unmount when navigation completes.
         await new Promise(resolve => setTimeout(resolve, 1800));
 
-        if (result.user?.role === "HR") {
-          router.push("/hr/dashboard");
-        } else {
-          router.push("/employee/dashboard");
-        }
+        router.push(homePathForRole(result.user?.role));
       } catch (error) {
         // Only reset loading on failure so the form becomes interactive again
         setIsLoading(false);
