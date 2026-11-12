@@ -19,7 +19,7 @@ PAYPAL_MOCK_BALANCES='{"MYR": "25000", "USD": "4000"}' docker compose up --build
 ```
 
 The seed sets payout settings to account country MY and held currencies `MYR`, `USD`. It
-also creates the two contractor contracts and prints the four claim refs. All seeded rows
+also creates the two contractor contracts and prints the five row refs. All seeded rows
 carry `ai_reasoning.demo_seed = reclaim-pay-contractor-demo-v1`, so `--reset-demo`
 removes and recreates them without touching contracts or settings.
 
@@ -36,7 +36,7 @@ Every demo account uses the password `password`.
 
 ## Seeded rows
 
-All four start in `REVIEW` at `HR_QUICK`:
+All five start in `REVIEW` at `HR_QUICK`:
 
 | Row | Claim | Payout |
 |---|---|---|
@@ -44,6 +44,7 @@ All four start in `REVIEW` at `HR_QUICK`:
 | C03 clean | MYR 120 | MYR 120 |
 | C02 refusal | MYR 80 | refused, `MYR_PAYEE_NOT_MALAYSIAN` |
 | C01 contract check | USD 60, category Software | skipped by batch approval |
+| C01 invoice | IDR 750,000, 1 day at the contract rate | IDR 750,000 |
 
 ## Walkthrough
 
@@ -51,7 +52,7 @@ All four start in `REVIEW` at `HR_QUICK`:
 2. Tick the two clean claims and the refusal claim. The contract-check row is listed as
    excluded with "contract check needs review".
 3. Approve and pay. The approvals commit first, then one payout call splits the set by
-   payout currency.
+   payout currency. The invoice stays in the queue unless you tick it too.
 4. Open the payouts ledger. Each claim has its own row and batch ID:
    - the IDR row is one batch,
    - the MYR row is a second batch,

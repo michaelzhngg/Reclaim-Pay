@@ -186,6 +186,11 @@ def test_a_trusted_contractor_can_reach_auto_pay_at_the_contract_rate(pg_db):
     assert decision.tier.value == "AUTO_PAY"
     assert reim.status == ReimbursementStatus.APPROVED
     assert reim.total_approved_amount is not None
+    # The invoice path locks the same payout snapshot as an analyzed claim.
+    assert reim.payout_currency == "MYR"
+    assert float(reim.payout_amount) == 100.0
+    assert float(reim.payout_fx_rate) == 1.0
+    assert reim.payout_fx_at is not None
 
 
 def test_a_trusted_contractor_over_rate_is_still_reviewed(pg_db):

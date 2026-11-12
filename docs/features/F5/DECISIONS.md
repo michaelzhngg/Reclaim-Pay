@@ -5,10 +5,12 @@ plan in `PLAN.md` stays the reference; this file says where the build departs fr
 
 ## 01: Contractor role and personal portal
 
-- **Role named at creation.** `POST /auth/register` now requires an explicit role. The
-  ticket asks for an invalid or missing role to be refused, so the old `Employee` default
-  would silently accept a missing role. Existing users are untouched; the default remains
-  on `UserBase` for read models, and only `UserCreate` makes the field required.
+- **Role named at creation, on main's endpoint.** Main removed `POST /auth/register`
+  in favour of HR-issued invites, so the rebase moves the intent onto
+  `POST /employee/`: HR sends `role`, an unknown role is refused by the enum, and the
+  response carries the role and country. The old `UserCreate` schema is gone with the
+  route; `UserBase` keeps its `Employee` default for read models. A missing role now
+  takes the employee default because that endpoint predates the contractor role.
 - **Company-wide reads are denied per endpoint.** A new `get_current_non_contractor_user`
   dependency guards the policy list and detail, vendor list, and department list and
   detail. A global middleware would also have to allow the policy lookups that some
@@ -162,7 +164,8 @@ plan in `PLAN.md` stays the reference; this file says where the build departs fr
   A non-MYR payout is read from the payout currency first, then any other non-MYR held
   currency, which keeps the "hold USD, pay IDR" case working.
 - **Payee country is data, not request input.** `employees.country_code` and
-  `vendors.country_code` were added and backfilled to MY; registration accepts a country.
+  `vendors.country_code` were added and backfilled to MY; HR employee creation accepts a
+  country and refuses an unsupported one.
   A contractor claim uses `contractor_contracts.country_code` and ignores the user row.
   The contract's country stays editable through `PATCH /contracts/{id}`.
 - **Contractor claims never take offsets and contractor recoveries are refused.**
@@ -236,7 +239,7 @@ plan in `PLAN.md` stays the reference; this file says where the build departs fr
 
 ## 08: Contractor currency demo seed
 
-- **The demo rows have their own tag.** `SEED_CONTRACTOR_TAG` keeps the four new claims
+- **The demo rows have their own tag.** `SEED_CONTRACTOR_TAG` keeps the five new rows
   out of the 120-claim `SEED_TAG` history, so the existing seed tests and the demo
   history counts stay unchanged. `--reset-demo` deletes both tags and their children.
 - **The employee in the MYR group is a demo-only account.** C03 is a fresh Employee with
@@ -257,3 +260,7 @@ plan in `PLAN.md` stays the reference; this file says where the build departs fr
   IDs for the two clean rows, a failed refusal row with no batch ID, the contract-check row
   left in `REVIEW`, and an IDR group failure that leaves only the IDR claim approved while
   the MYR group still pays.
+- **One demo row is a real invoice.** The seed calls `create_invoice` for C01 instead of
+  hand-building the row, so the demo covers invoice intake, the contract rate, the
+  invoice period and the AUTO_PAY payout snapshot. `--reset-demo` removes it with the
+  other tagged rows and recreates it.

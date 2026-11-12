@@ -9,6 +9,9 @@ Known limits of the contractor slice, beyond the explicit gaps in `PLAN.md`.
   its own rule.
 - The contractor role cannot be changed from the UI. HR changes it through the existing
   user-creation/update path; a role change applies on the next request.
+- Main removed `POST /auth/register` in favour of HR invites at `POST /employee/`, so a
+  new contractor is created there with `role`. An omitted role still takes the Employee
+  default that predates the contractor role.
 
 ## Contracts
 

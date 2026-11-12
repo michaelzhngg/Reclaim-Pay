@@ -718,18 +718,18 @@ def _seeded_contractor_reim_ids(db: Session) -> list[uuid.UUID]:
 
 
 def _upsert_demo_contract(db: Session, hr: User, user: User, *, country_code: str,
-                          currency: str):
+                          currency: str, rate_amount: float):
     """One contract per demo contractor. A re-run updates terms instead of adding a second row."""
     existing = contract_service.get_contract(db, user.user_id)
     if existing:
         return contract_service.update_contract(
             db, existing, country_code=country_code, currency=currency,
-            rate_amount=50, rate_unit="DAY", service_category="Consulting",
+            rate_amount=rate_amount, rate_unit="DAY", service_category="Consulting",
             categories=["Meals"], max_company_amount_per_claim=5000,
         )
     return contract_service.create_contract(
         db, user_id=user.user_id, country_code=country_code, currency=currency,
-        rate_amount=50, rate_unit="DAY", service_category="Consulting",
+        rate_amount=rate_amount, rate_unit="DAY", service_category="Consulting",
         categories=["Meals"], policy_id=None, max_company_amount_per_claim=5000,
         created_by=hr.user_id, effective_from=date(2026, 1, 1),
     )
@@ -829,16 +829,19 @@ def _contractor_demo_claim(
 
 
 def write_contractor_demo(db: Session, users: dict[str, User], now: datetime) -> dict:
-    """Contracts, funding settings and four hand-placed REVIEW rows for the currency demo.
+    """Contracts, funding settings and five hand-placed REVIEW rows for the currency demo.
 
     The rows are: a clean IDR payout, a clean MYR payout, a MYR payout the guard refuses
-    because the contract country is not Malaysia, and a contract-check row that the batch
-    approval must skip. Re-running without --reset-demo leaves the existing rows alone.
+    because the contract country is not Malaysia, a contract-check row that the batch
+    approval must skip, and a real invoice from the contract-rate intake. Re-running
+    without --reset-demo leaves the existing rows alone.
     """
     hr = users["HR001"]
     contracts = {
-        "C01": _upsert_demo_contract(db, hr, users["C01"], country_code="ID", currency="IDR"),
-        "C02": _upsert_demo_contract(db, hr, users["C02"], country_code="ID", currency="MYR"),
+        "C01": _upsert_demo_contract(db, hr, users["C01"], country_code="ID", currency="IDR",
+                                    rate_amount=750_000),
+        "C02": _upsert_demo_contract(db, hr, users["C02"], country_code="ID", currency="MYR",
+                                    rate_amount=250),
     }
     contract_service.update_payout_settings(
         db, paypal_account_country="MY", held_currencies=["MYR", "USD"], actor=hr.user_id,
@@ -879,7 +882,30 @@ def write_contractor_demo(db: Session, users: dict[str, User], now: datetime) ->
     for note, spec in specs.items():
         reim = _contractor_demo_claim(db, note=note, now=now, **spec)
         claim_ids[note] = reim.reim_id
+
+    # A real invoice through the intake service, so the demo covers invoice rules end to end.
+    from engine.services.contractor_invoices import create_invoice
+
+    invoice, _decision = create_invoice(
+        db, users["C01"],
+        period_start=(now - timedelta(days=7)).date(),
+        period_end=(now - timedelta(days=6)).date(),
+        description="Contract design sprint",
+        quantity=1,
+        unit_price=750_000,
+        claimed_amount=750_000,
+        currency="IDR",
+        category="Consulting",
+        now=now,
+    )
+    invoice.ai_reasoning = {
+        **(invoice.ai_reasoning or {}),
+        "demo_seed": SEED_CONTRACTOR_TAG,
+        "demo_note": "contractor-invoice",
+    }
+    db.add(invoice)
     db.commit()
+    claim_ids["contractor-invoice"] = invoice.reim_id
     return {"created": True, "claim_ids": claim_ids, "contracts": contracts}
 
 
@@ -918,6 +944,7 @@ _CONTRACTOR_DEMO_LABELS = (
     ("employee-myr", "C03 clean MYR claim"),
     ("refusal-myr", "C02 MYR claim refused before PayPal"),
     ("contract-check", "C01 contract-check row (batch skips it)"),
+    ("contractor-invoice", "C01 contractor invoice at the contract rate"),
 )
 
 
@@ -925,7 +952,7 @@ def _print_contractor_demo(result: dict) -> None:
     demo = result.get("contractors")
     if not demo:
         return
-    print("Contractor currency demo, all four rows in REVIEW:")
+    print("Contractor currency demo, all five rows in REVIEW:")
     for note, label in _CONTRACTOR_DEMO_LABELS:
         reim_id = demo["claim_ids"].get(note)
         if reim_id:

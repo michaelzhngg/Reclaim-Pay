@@ -17,6 +17,7 @@ from core.models import LineItem, Reimbursement, User
 from engine.risk.autonomy import decide
 from engine.risk.types import AutonomyTier, ClaimFacts
 from engine.services import autonomy_store, contracts as contract_service, fx
+from engine.services.payout_service import lock_payout_snapshot
 
 MONEY = Decimal("0.01")
 
@@ -238,6 +239,9 @@ def create_invoice(
             if over_contract_rate else None
         ),
     ))
+    if auto_pay:
+        # An invoice that decide() pays locks the same snapshot as an analyzed claim.
+        lock_payout_snapshot(db, reim, claimed, now)
     db.commit()
     db.refresh(reim)
     return reim, decision

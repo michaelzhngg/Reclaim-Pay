@@ -179,6 +179,9 @@ def test_the_contract_policy_replaces_the_category_lookup(pg_db):
 
     assert contract_service.policy_for_category(pg_db, "Meals", None) == other_policy.policy_id
     assert contract_service.policy_for_category(pg_db, "Meals", contract_policy.policy_id) == contract_policy.policy_id
+    # Contract intake matches category labels case-insensitively, as DECISIONS says.
+    assert contract_service.policy_for_category(pg_db, "meals", None) == other_policy.policy_id
+    assert contract_service.policy_for_category(pg_db, " MEALS ", None) == other_policy.policy_id
 
 
 def test_a_blocked_receipt_claim_links_the_contract_and_waits_for_hr(pg_db):

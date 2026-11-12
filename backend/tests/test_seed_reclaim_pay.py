@@ -182,9 +182,10 @@ def test_seed_creates_the_contractor_currency_demo(pg_db):
     seed(pg_db, now=NOW)
 
     rows = _contractor_rows(pg_db)
-    assert len(rows) == 4
+    assert len(rows) == 5
     by_note = {r.ai_reasoning["demo_note"]: r for r in rows}
-    assert set(by_note) == {"contractor-idr", "employee-myr", "refusal-myr", "contract-check"}
+    assert set(by_note) == {"contractor-idr", "employee-myr", "refusal-myr", "contract-check",
+                            "contractor-invoice"}
     for row in rows:
         assert row.status == ReimbursementStatus.REVIEW
         assert row.tier == "HR_QUICK"
@@ -211,15 +212,23 @@ def test_seed_creates_the_contractor_currency_demo(pg_db):
     assert blocked.ai_reasoning["contract_reason"] == "CATEGORY_NOT_ALLOWED"
     assert blocked.tier == "HR_QUICK"
 
+    invoice = by_note["contractor-invoice"]
+    assert invoice.contract_id and invoice.invoice_period_start
+    assert invoice.currency == "IDR"
+    assert invoice.invoice_period_start < invoice.invoice_period_end
+    assert invoice.status == ReimbursementStatus.REVIEW and invoice.tier == "HR_QUICK"
+    [invoice_line] = pg_db.exec(select(LineItem).where(LineItem.reim_id == invoice.reim_id)).all()
+    assert float(invoice_line.quantity) == 1.0 and float(invoice_line.unit_price) == 750_000.0
+
     settings_row = contract_service.payout_settings_dict(pg_db)
     assert settings_row["paypal_account_country"] == "MY"
     assert settings_row["held_currencies"] == ["MYR", "USD"]
     assert CONTRACTOR_DEMO_BALANCES == '{"MYR": "25000", "USD": "4000"}'
 
     seed(pg_db, now=NOW)
-    assert len(_contractor_rows(pg_db)) == 4
+    assert len(_contractor_rows(pg_db)) == 5
     seed(pg_db, reset=True, now=NOW)
-    assert len(_contractor_rows(pg_db)) == 4
+    assert len(_contractor_rows(pg_db)) == 5
     assert contract_service.get_contract(pg_db, c01.user_id) is not None
 
 

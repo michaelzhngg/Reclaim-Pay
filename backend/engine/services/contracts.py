@@ -7,6 +7,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -194,7 +195,7 @@ def policy_for_category(
         select(PolicyReimbursableCategory, Policy)
         .join(Policy, PolicyReimbursableCategory.policy_id == Policy.policy_id)
         .where(
-            PolicyReimbursableCategory.category == category,
+            func.lower(PolicyReimbursableCategory.category) == (category or "").strip().lower(),
             Policy.status == PolicyStatus.ACTIVE,
         )
         .order_by(Policy.effective_date.desc(), Policy.created_at.desc())
