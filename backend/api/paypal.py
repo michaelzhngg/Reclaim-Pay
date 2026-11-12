@@ -22,8 +22,7 @@ from core.models import User
 from engine.services.action_log import record_action
 from engine.services.payout_service import notify
 from engine.services.paypal_client import PayPalError, PayPalUser, get_paypal_client, mask_email  # noqa: F401
-from engine.services.payout_status import apply_item_update, next_status, reim_status_for  # noqa: F401
-from engine.services.recovery_service import mark_recovered
+from engine.services.webhook_events import InvalidWebhook, ingest_event
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -358,6 +357,15 @@ async def paypal_webhook(request: Request, db: Session = Depends(deps.get_db)):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
+    if not isinstance(event, dict):
+        raise HTTPException(status_code=400, detail="Webhook body must be a JSON object")
+    try:
+        event_id = event.get("id")
+        if not isinstance(event_id, str) or not event_id.strip():
+            raise InvalidWebhook("Webhook event id is missing")
+    except InvalidWebhook:
+        raise HTTPException(status_code=400, detail="Webhook event id is missing")
+
     if not settings.PAYPAL_MOCK_MODE:
         try:
             verified = await get_paypal_client().verify_webhook(request.headers, event, settings.PAYPAL_WEBHOOK_ID)
@@ -365,23 +373,16 @@ async def paypal_webhook(request: Request, db: Session = Depends(deps.get_db)):
             logger.exception("[PAYPAL_WEBHOOK] Signature verification call failed")
             verified = False
         if not verified:
-            logger.warning("[PAYPAL_WEBHOOK] Rejected event id=%s: signature not verified", event.get("id"))
+            logger.warning("[PAYPAL_WEBHOOK] Rejected event id=%s: signature not verified", event_id)
             raise HTTPException(status_code=400, detail="Webhook signature not verified")
 
     event_type = event.get("event_type", "")
-    resource = event.get("resource") or {}
-    logger.info("[PAYPAL_WEBHOOK] Received %s id=%s", event_type, event.get("id"))
+    logger.info("[PAYPAL_WEBHOOK] Received %s id=%s", event_type, event_id)
+    try:
+        result = ingest_event(db, event)
+    except InvalidWebhook as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
-    if event_type.startswith("PAYMENT.PAYOUTS-ITEM."):
-        errors = resource.get("errors")
-        apply_item_update(
-            db,
-            resource.get("payout_item_id"),
-            (resource.get("payout_item") or {}).get("sender_item_id"),
-            resource.get("transaction_status", ""),
-            errors.get("name") if isinstance(errors, dict) else None,
-        )
-    elif event_type == "INVOICING.INVOICE.PAID":
-        mark_recovered(db, resource.get("id") or (resource.get("invoice") or {}).get("id", ""))
-
-    return {"status": "ok"}
+    if result.outcome == "failed":
+        raise HTTPException(status_code=500, detail="Webhook handling failed")
+    return {"status": result.outcome}

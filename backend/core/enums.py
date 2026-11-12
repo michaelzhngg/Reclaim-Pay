@@ -32,6 +32,13 @@ class PayoutStatus(str, enum.Enum):
     REVERSED = "REVERSED"
 
 
+class WebhookEventStatus(str, enum.Enum):
+    RECEIVED = "RECEIVED"
+    PROCESSED = "PROCESSED"
+    IGNORED = "IGNORED"
+    FAILED = "FAILED"
+
+
 class RecoveryStatus(str, enum.Enum):
     NOTICE_SENT = "NOTICE_SENT"
     DISPUTED = "DISPUTED"
