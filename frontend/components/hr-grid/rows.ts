@@ -66,6 +66,7 @@ export const SIGNAL_LABEL: Record<SignalCode, string> = {
   PRICE_ABOVE_MARKET: "Above market price",
   NEAR_THRESHOLD: "Just under the limit",
   NO_CAMERA_METADATA: "No camera data",
+  IMAGE_FORENSICS: "Image check: possible edited region",
 };
 
 export const SKIP_REASON_LABEL: Record<BatchSkipReason, string> = {

@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from engine.risk.shield.arithmetic import check_totals
 from engine.risk.shield.edits import signal_from_visual_anomaly, signals_from_human_edit
 from engine.risk.shield.fingerprint import find_duplicates
+from engine.risk.shield.forensics import forensics_signal
 from engine.risk.shield.gaming import detect_near_threshold, detect_split
 from engine.risk.shield.injection import scan_text
 from engine.risk.shield.market_price import check_market_price
@@ -49,6 +50,8 @@ class ShieldDoc(BaseModel):
     # Provenance signals saved at upload (supporting_documents.shield["provenance"]).
     stored_signals: list[RiskSignal] = Field(default_factory=list)
     fingerprint: DocFingerprint | None = None
+    # Image forensics result saved at upload (supporting_documents.shield["forensics"]).
+    forensics: dict | None = None
 
 
 def _strings(value: Any) -> list[str]:
@@ -122,10 +125,13 @@ def _duplicate_detail(candidates: list[DocFingerprint], docs: list[ShieldDoc]) -
     return f"No match across {n:,} receipt{'s' if n != 1 else ''}"
 
 
-def _provenance(docs: list[ShieldDoc]) -> list[RiskSignal]:
+def _provenance(docs: list[ShieldDoc], forensics_mode: str) -> list[RiskSignal]:
     signals: list[RiskSignal] = []
     for d in docs:
         signals += [s.model_copy(deep=True) for s in d.stored_signals]
+        # Only `score` lets image forensics into the decision; `observe` findings go through observed_signals().
+        if forensics_mode == "score" and (found := forensics_signal(d.forensics, d.document_id, "score")):
+            signals.append(found)
         anomaly = signal_from_visual_anomaly(d.extracted, d.document_id)
         if anomaly:
             signals.append(anomaly)
@@ -211,6 +217,7 @@ def run_shield(
     auto_limit: float,
     emit: Emit,
     price_check: PriceCheck | None = None,
+    forensics_mode: str = "observe",
 ) -> list[RiskSignal]:
     """A check that raises emits `fail` and re-raises, so the claim falls back to manual review.
 
@@ -237,7 +244,7 @@ def run_shield(
         _finish(emit, "shield.duplicate", signals, _duplicate_detail(candidates, docs))
 
     def provenance() -> None:
-        signals = _provenance(docs)
+        signals = _provenance(docs, forensics_mode)
         out.extend(signals)
         _finish(emit, "shield.provenance", signals, "No editing or AI traces found")
 
@@ -264,6 +271,13 @@ def run_shield(
     if price_check and any(_priced_lines(d, price_check) for d in docs):
         run("shield.price", price)
     return out
+
+
+def observed_signals(docs: list[ShieldDoc], forensics_mode: str) -> list[RiskSignal]:
+    """Observe-mode image forensics findings: 0 points, for HR's evidence only. Never pass these to decide()."""
+    if forensics_mode != "observe":
+        return []
+    return [s for d in docs if (s := forensics_signal(d.forensics, d.document_id, "observe"))]
 
 
 def split_related(signals: list[RiskSignal]) -> list[str]:

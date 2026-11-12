@@ -140,7 +140,7 @@ export default function TriageQueue({ rows, isLoading, error, selfId, onRetry, o
       </h3>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between border-b border-line mb-4">
-        <div role="tablist" aria-label="Claims by tier" className="flex gap-1 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div role="tablist" aria-label="Claims by tier" className="flex gap-1 -mx-4 px-4 sm:mx-0 sm:px-0">
           {TIER_TABS.map(({ id, label }, i) => {
             const active = tab === id;
             return (

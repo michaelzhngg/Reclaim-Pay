@@ -1,12 +1,13 @@
 "use server";
 
 // ─── PayPal Server Actions ───────────────────────────────────────────────────
-// Payee linking ("Log in with PayPal"), payout status and the HR payout ledger.
+// Payee linking ("Log in with PayPal"), payout status, the HR payout ledger and the funding check.
 // ──────────────────────────────────────────────────────────────────────────────
 
 import { apiGet, apiDelete, API_PREFIX } from "@/lib/api/client";
 import { withFixture } from "@/lib/api/fixtures";
 import type { LedgerFilters, PayeeStatus, PayoutInfoV2, PayoutLedgerRow } from "@/lib/api/reclaim-pay-types";
+import type { FundingSummary } from "@/components/hr-grid/funding";
 import { ledgerRows, payee, payoutS1 } from "@/src/mocks/reclaimPayFixtures";
 import { FIXTURE_PAYOUTS_EMPTY } from "@/src/mocks/recoveryFixtures";
 
@@ -52,5 +53,29 @@ export async function getLedger(filters: LedgerFilters = {}): Promise<PayoutLedg
     const result = await apiGet<PayoutLedgerRow[]>(`${API_PREFIX}/payouts/${query}`);
     if (result.error) throw new Error(result.error);
     return result.data ?? [];
+  });
+}
+
+const fundingFixture: FundingSummary = {
+  status: "low",
+  currency: "MYR",
+  available: "410.00",
+  expected_daily: "205.00",
+  committed: "96.00",
+  days_of_cover: "2.0",
+  threshold_days: 3,
+  history_days: 14,
+  as_of: "2026-11-12T08:00:00Z",
+  checked_at: "2026-11-12T08:00:05Z",
+  mock: true,
+  message: "MYR 410.00 available covers about 2 days of payouts, under the 3-day minimum, so top up the PayPal business account.",
+};
+
+/** PayPal balance against expected payouts. Throws on a failed request; PayPal itself being down is a normal answer. */
+export async function getFunding(): Promise<FundingSummary> {
+  return withFixture(fundingFixture, async () => {
+    const result = await apiGet<FundingSummary>(`${API_PREFIX}/payouts/funding`);
+    if (result.error || !result.data) throw new Error(result.error ?? "No response");
+    return result.data;
   });
 }

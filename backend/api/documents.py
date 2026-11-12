@@ -15,7 +15,14 @@ from sqlmodel import Session, select
 from engine.progress import ProgressTracker
 
 from api import deps
-from api.rate_limit import limiter
+from api.rate_limit import (
+    DOCUMENT_EDIT_LIMIT,
+    DOCUMENT_EDIT_MESSAGE,
+    TEMPLATE_LIMIT,
+    UPLOAD_LIMIT,
+    UPLOAD_MESSAGE,
+    limiter,
+)
 from api.schemas import DocumentChangeLogResponse, DocumentFieldEditRequest, SupportingDocumentListItem
 from core.models import (
     User, SupportingDocument, TravelSettlement, SettlementReceipt,
@@ -64,7 +71,7 @@ def list_documents(
 
 
 @router.post("/upload")
-@limiter.limit("10/minute")
+@limiter.limit(UPLOAD_LIMIT, error_message=UPLOAD_MESSAGE)
 async def upload_documents(
     request: Request,
     files: List[UploadFile] = File(...),
@@ -266,7 +273,7 @@ def _build_aggregated_from_settlement(
 
 
 @router.post("/generate-template", response_class=HTMLResponse)
-@limiter.limit("10/minute")
+@limiter.limit(TEMPLATE_LIMIT)
 async def generate_template(
     request: Request,
     document_ids: List[str] = Form(...),
@@ -435,7 +442,9 @@ def get_settlement_template(
 
 
 @router.post("/{document_id}/edits")
+@limiter.shared_limit(DOCUMENT_EDIT_LIMIT, scope="document-edits", error_message=DOCUMENT_EDIT_MESSAGE)
 def edit_receipt_fields(
+    request: Request,
     document_id: str,
     edits: dict,
     db: Session = Depends(deps.get_db),
@@ -445,6 +454,10 @@ def edit_receipt_fields(
     User edits receipt fields post-OCR. Original extracted_data is preserved.
     Edits are stored in editable_fields; change severity is pre-computed.
     """
+    return _apply_receipt_edits(document_id, edits, db, current_user)
+
+
+def _apply_receipt_edits(document_id: str, edits: dict, db: Session, current_user: User) -> dict:
     try:
         doc_uuid = UUID(document_id)
     except ValueError:
@@ -498,14 +511,16 @@ def edit_receipt_fields(
 
 
 @router.patch("/{document_id}/fields")
+@limiter.shared_limit(DOCUMENT_EDIT_LIMIT, scope="document-edits", error_message=DOCUMENT_EDIT_MESSAGE)
 def update_document_field(
+    request: Request,
     document_id: str,
     body: DocumentFieldEditRequest,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ) -> dict:
     """Formal PATCH endpoint for editing document fields."""
-    return edit_receipt_fields(document_id, body.edits, db, current_user)
+    return _apply_receipt_edits(document_id, body.edits, db, current_user)
 
 
 @router.get("/{document_id}/history")

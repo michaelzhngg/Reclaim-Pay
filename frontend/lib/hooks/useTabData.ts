@@ -5,8 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 /**
  * Loads one Payouts tab. `fetcher` must be stable and throw on failure. `refresh` updates in the
  * background after an action, keeping the rows on screen; `retry` goes back through the loading state.
+ * `onLoaded` (stable) runs once loading has settled, so slower side checks can start after the tab's data.
  */
-export function useTabData<T>(fetcher: () => Promise<T>, failureMessage: string) {
+export function useTabData<T>(fetcher: () => Promise<T>, failureMessage: string, onLoaded?: () => void) {
   const [data, setData] = useState<T | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +36,10 @@ export function useTabData<T>(fetcher: () => Promise<T>, failureMessage: string)
   useEffect(() => {
     void run(false);
   }, [run]);
+
+  useEffect(() => {
+    if (!isLoading) onLoaded?.();
+  }, [isLoading, onLoaded]);
 
   const retry = useCallback(() => {
     setIsLoading(true);
