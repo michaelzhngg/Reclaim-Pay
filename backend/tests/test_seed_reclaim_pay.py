@@ -6,11 +6,17 @@ from sqlalchemy import func
 from sqlmodel import select
 
 from core.enums import JudgmentResult, RecoveryStatus, ReimbursementStatus, UserRole
-from core.models import Payout, ReconciliationDifference, Recovery, Reimbursement, User
+from core.models import LineItem, Payout, ReconciliationDifference, Recovery, Reimbursement, User
 from engine.risk.autonomy import trust_tier
 from engine.risk.types import AutonomyDecision, AutonomyTier, Severity, TrustTier
+from engine.services import contracts as contract_service
+from engine.services import payout_service
+from engine.services.paypal_client import MockPayPalClient, PayPalError
 from seeds.seed_reclaim_pay import (
+    CONTRACTOR_DEMO_ACCOUNTS,
+    CONTRACTOR_DEMO_BALANCES,
     DEMO_ACCOUNTS,
+    SEED_CONTRACTOR_TAG,
     SEED_TAG,
     _payer_email,
     final_trust,
@@ -153,3 +159,136 @@ def test_clear_takes_removes_live_demo_claims_only(pg_db):
     pg_db.expunge_all()
     assert pg_db.get(Reimbursement, take_id) is None
     assert _counts(pg_db) == before
+
+
+# --- contractor currency demo (F5 ticket 08) ---------------------------------------------------------
+
+
+def _contractor_rows(db):
+    return db.exec(select(Reimbursement).where(
+        Reimbursement.ai_reasoning.op("->>")("demo_seed") == SEED_CONTRACTOR_TAG)).all()
+
+
+def _by_note(db):
+    return {(r.ai_reasoning or {}).get("demo_note"): r for r in _contractor_rows(db)}
+
+
+def _demo_user(db, code):
+    account = next(a for a in CONTRACTOR_DEMO_ACCOUNTS if a.code == code)
+    return db.exec(select(User).where(User.email == account.email)).one()
+
+
+def test_seed_creates_the_contractor_currency_demo(pg_db):
+    seed(pg_db, now=NOW)
+
+    rows = _contractor_rows(pg_db)
+    assert len(rows) == 4
+    by_note = {r.ai_reasoning["demo_note"]: r for r in rows}
+    assert set(by_note) == {"contractor-idr", "employee-myr", "refusal-myr", "contract-check"}
+    for row in rows:
+        assert row.status == ReimbursementStatus.REVIEW
+        assert row.tier == "HR_QUICK"
+        assert pg_db.exec(select(LineItem).where(LineItem.reim_id == row.reim_id)).all()
+
+    c01, c02, c03 = (_demo_user(pg_db, code) for code in ("C01", "C02", "C03"))
+    assert c01.role == UserRole.Contractor and c02.role == UserRole.Contractor
+    assert c03.role == UserRole.Employee
+    assert all(u.paypal_verified and u.paypal_payer_id for u in (c01, c02, c03))
+
+    contract_c01 = contract_service.get_contract(pg_db, c01.user_id)
+    contract_c02 = contract_service.get_contract(pg_db, c02.user_id)
+    assert (contract_c01.currency, contract_c01.country_code) == ("IDR", "ID")
+    assert (contract_c02.currency, contract_c02.country_code) == ("MYR", "ID")
+
+    idr = by_note["contractor-idr"]
+    assert idr.currency == "USD" and float(idr.amount_company) == 564.0
+    assert idr.contract_id == contract_c01.contract_id
+    myr = by_note["employee-myr"]
+    assert myr.currency == "MYR" and myr.contract_id is None
+    refused = by_note["refusal-myr"]
+    assert refused.currency == "MYR" and refused.contract_id == contract_c02.contract_id
+    blocked = by_note["contract-check"]
+    assert blocked.ai_reasoning["contract_reason"] == "CATEGORY_NOT_ALLOWED"
+    assert blocked.tier == "HR_QUICK"
+
+    settings_row = contract_service.payout_settings_dict(pg_db)
+    assert settings_row["paypal_account_country"] == "MY"
+    assert settings_row["held_currencies"] == ["MYR", "USD"]
+    assert CONTRACTOR_DEMO_BALANCES == '{"MYR": "25000", "USD": "4000"}'
+
+    seed(pg_db, now=NOW)
+    assert len(_contractor_rows(pg_db)) == 4
+    seed(pg_db, reset=True, now=NOW)
+    assert len(_contractor_rows(pg_db)) == 4
+    assert contract_service.get_contract(pg_db, c01.user_id) is not None
+
+
+def test_the_seeded_demo_pays_two_batches_and_refuses_the_bad_contract(pg_db):
+    from api.reimbursements import _apply_status
+
+    seed(pg_db, now=NOW)
+    by_note = _by_note(pg_db)
+    hr = pg_db.exec(select(User).where(User.email == "hr@example.com")).one()
+    for note in ("contractor-idr", "employee-myr", "refusal-myr"):
+        _apply_status(pg_db, by_note[note], ReimbursementStatus.APPROVED, hr)
+    pg_db.commit()
+    for note in ("contractor-idr", "employee-myr", "refusal-myr"):
+        pg_db.refresh(by_note[note])
+
+    outcome = payout_service.initiate_batch_payout_sync(
+        [by_note["contractor-idr"].reim_id, by_note["employee-myr"].reim_id,
+         by_note["refusal-myr"].reim_id],
+        pg_db,
+    )
+
+    assert len({p.provider_batch_id for p in outcome.payouts}) == 2
+    assert {(p.currency, float(p.amount)) for p in outcome.payouts} == {
+        ("IDR", 1_920_000.0), ("MYR", 120.0),
+    }
+    assert outcome.refused == [{
+        "reim_id": str(by_note["refusal-myr"].reim_id),
+        "reason": "MYR_PAYEE_NOT_MALAYSIAN",
+    }]
+    pg_db.refresh(by_note["refusal-myr"])
+    pg_db.refresh(by_note["contract-check"])
+    assert by_note["refusal-myr"].status == ReimbursementStatus.APPROVED
+    assert by_note["contract-check"].status == ReimbursementStatus.REVIEW
+    [refused_attempt] = pg_db.exec(
+        select(Payout).where(Payout.reim_id == by_note["refusal-myr"].reim_id)).all()
+    assert refused_attempt.status == "FAILED" and refused_attempt.provider_batch_id is None
+
+
+def test_a_rejected_idr_group_leaves_its_seeded_claim_approved(pg_db, monkeypatch):
+    from api.reimbursements import _apply_status
+
+    seed(pg_db, now=NOW)
+    by_note = _by_note(pg_db)
+    hr = pg_db.exec(select(User).where(User.email == "hr@example.com")).one()
+    for note in ("contractor-idr", "employee-myr"):
+        _apply_status(pg_db, by_note[note], ReimbursementStatus.APPROVED, hr)
+    pg_db.commit()
+    for note in ("contractor-idr", "employee-myr"):
+        pg_db.refresh(by_note[note])
+
+    class _FailIdr:
+        def __init__(self):
+            self._inner = MockPayPalClient()
+
+        async def create_payout_batch(self, *, sender_batch_id, items):
+            if items[0].currency == "IDR":
+                raise PayPalError(500, "SERVICE_UNAVAILABLE")
+            return await self._inner.create_payout_batch(sender_batch_id=sender_batch_id, items=items)
+
+    monkeypatch.setattr(payout_service, "get_paypal_client", lambda: _FailIdr())
+    outcome = payout_service.initiate_batch_payout_sync(
+        [by_note["contractor-idr"].reim_id, by_note["employee-myr"].reim_id], pg_db,
+    )
+
+    assert outcome.failed_currencies == ["IDR"]
+    assert {p.currency for p in outcome.payouts} == {"MYR"}
+    pg_db.refresh(by_note["contractor-idr"])
+    pg_db.refresh(by_note["employee-myr"])
+    assert by_note["contractor-idr"].status == ReimbursementStatus.APPROVED
+    assert by_note["employee-myr"].status == ReimbursementStatus.DISBURSING
+    assert pg_db.exec(select(Payout).where(
+        Payout.reim_id == by_note["contractor-idr"].reim_id)).all() == []

@@ -62,6 +62,18 @@ Known limits of the contractor slice, beyond the explicit gaps in `PLAN.md`.
 - The ledger's company amount comes from the stored company snapshot. A legacy foreign
   claim without one falls back to its raw claim amount and can overstate the company
   figure, as it already does elsewhere.
+
+## Demo seed
+
+- The contractor demo needs `PAYPAL_MOCK_BALANCES='{"MYR": "25000", "USD": "4000"}'` on
+  the API process. The seed writes the payout settings but cannot change a running
+  process's environment, so without it mock mode uses one balance for both groups.
+- `--reset-demo` recreates the four contractor claims and updates the contracts, but it
+  does not reset a contract edited through the UI beyond the fields the seed owns.
+- The contract-check demo row is hand-placed at `HR_QUICK`. A real blocked-category claim
+  is `DUAL_REVIEW`, so the exclusion is visible in the Quick tab only in the demo.
+- Re-running the seed after a demo approval leaves those approved and paid rows in place;
+  use `--reset-demo` to get the four claims back in `REVIEW`.
 - Contractor invoices are ticket 05 and are live: one line item per invoice, no attachment,
   no generated PDF or tax-invoice fields, and no draft. The invoice period is not checked
   against the contract's effective dates, only the contract's active status on submission.

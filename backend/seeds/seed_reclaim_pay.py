@@ -4,7 +4,9 @@
     uv run python -m seeds.seed_reclaim_pay --reset-demo  # delete seeded history, then re-create it
 
 Seeded claims carry ai_reasoning["demo_seed"] = SEED_TAG; --reset-demo deletes only those rows and their children.
+The contractor currency demo uses SEED_CONTRACTOR_TAG and is reset the same way.
 Every tier, score and autonomy blob comes from engine.risk.autonomy.decide() with the default config.
+Walkthrough: docs/features/F5/DEMO.md.
 """
 
 import argparse
@@ -13,7 +15,7 @@ import os
 import random
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import delete, or_
 from sqlmodel import Session, select
@@ -46,6 +48,8 @@ from core.models import (
     VendorBooking,
 )
 from engine.risk.autonomy import NEW_ISSUE_DAYS, TRUSTED_ISSUE_DAYS, decide, trust_tier
+from engine.services import contracts as contract_service
+from engine.services import fx
 from engine.services.autonomy_store import CONFIRMED_RECOVERY_STATUSES
 from engine.risk.types import (
     AgentLedger,
@@ -64,11 +68,14 @@ from engine.risk.types import (
 
 SEED_TAG = "reclaim-pay-demo-v1"
 SEED_BOOKING_TAG = "reclaim-pay-vendor-booking-v1"
+SEED_CONTRACTOR_TAG = "reclaim-pay-contractor-demo-v1"
 SEED_EMAIL_DOMAIN = "seed.reclaim.my"
 # Fixed namespace so the same seed and index always give the same reim_id (and so the same audit sample).
 ID_NAMESPACE = uuid.UUID("6f1d3c2a-8a51-4c1e-9d0b-52a3c1e7d901")
 DEMO_PASSWORD = "password"
 CURRENCY = "MYR"
+# Funding balances for the two-currency demo. Set the same JSON on the API process too.
+CONTRACTOR_DEMO_BALANCES = '{"MYR": "25000", "USD": "4000"}'
 
 # Auto-approval amounts from demo/policy/reclaim-pay-demo-policy.md.
 CATEGORY_BUDGET = {"Transportation": 100.0, "Meals": 100.0, "Accommodations": 250.0, "Equipment": 300.0}
@@ -118,6 +125,16 @@ SEEDED_EMPLOYEES = [
 ]
 
 ACCOUNTS = {a.code: a for a in DEMO_ACCOUNTS + SEEDED_EMPLOYEES}
+
+# The contractor currency demo: two contractors and one employee on a fresh trust history.
+# C01 pays in IDR, C02 has an MYR contract but a non-Malaysian country for the guard refusal,
+# and C03 is the ordinary MYR employee in the second batch group.
+CONTRACTOR_DEMO_ACCOUNTS = [
+    Account("C01", f"c01@{SEED_EMAIL_DOMAIN}", "Rani Kusuma", UserRole.Contractor, 2, "Contractors", 4),
+    Account("C02", f"c02@{SEED_EMAIL_DOMAIN}", "Bima Santoso", UserRole.Contractor, 2, "Contractors", 5),
+    Account("C03", "contractor-demo@seed.reclaim.my", "Nadia Hassan", UserRole.Employee, 2, "Contractors", 6),
+]
+ACCOUNTS.update({a.code: a for a in CONTRACTOR_DEMO_ACCOUNTS})
 HR_CODES = ("HR001", "HR002")
 
 # Claims per employee (120 in total) and the day range their ordinary claims fall in.
@@ -464,7 +481,7 @@ def upsert_accounts(db: Session, now: datetime) -> dict[str, User]:
 
     shared_hash = None
     users = {}
-    for account in DEMO_ACCOUNTS + SEEDED_EMPLOYEES:
+    for account in DEMO_ACCOUNTS + SEEDED_EMPLOYEES + CONTRACTOR_DEMO_ACCOUNTS:
         user = db.exec(select(User).where(User.email == account.email)).first()
         if user is None:
             shared_hash = shared_hash or get_password_hash(DEMO_PASSWORD)
@@ -479,7 +496,7 @@ def upsert_accounts(db: Session, now: datetime) -> dict[str, User]:
         user.is_active = True
         user.privilege_level = user.privilege_level or PrivilegeLevel.Standard
         user.department_id = _department(db, account.department).department_id
-        if account.role == UserRole.Employee:
+        if account.role in (UserRole.Employee, UserRole.Contractor):
             payer_id, from_env = _payer_id(account)
             # Keep a real sandbox link made through "Log in with PayPal" unless the env names one.
             if from_env or not user.paypal_payer_id:
@@ -538,7 +555,8 @@ def _delete_claims(db: Session, reim_ids: list, settlement_ids: list, document_i
 
 
 def delete_seeded_history(db: Session) -> int:
-    reim_ids = _seeded_reim_ids(db) + _seeded_booking_reim_ids(db)
+    reim_ids = (_seeded_reim_ids(db) + _seeded_booking_reim_ids(db)
+                + _seeded_contractor_reim_ids(db))
     if not reim_ids:
         return 0
     settlement_ids = [s for s in db.exec(select(Reimbursement.settlement_id).where(
@@ -694,6 +712,177 @@ def write_vendor_bookings(db: Session, users: dict[str, User], now: datetime) ->
         db.commit()
 
 
+def _seeded_contractor_reim_ids(db: Session) -> list[uuid.UUID]:
+    return list(db.exec(select(Reimbursement.reim_id).where(
+        Reimbursement.ai_reasoning.op("->>")("demo_seed") == SEED_CONTRACTOR_TAG)).all())
+
+
+def _upsert_demo_contract(db: Session, hr: User, user: User, *, country_code: str,
+                          currency: str):
+    """One contract per demo contractor. A re-run updates terms instead of adding a second row."""
+    existing = contract_service.get_contract(db, user.user_id)
+    if existing:
+        return contract_service.update_contract(
+            db, existing, country_code=country_code, currency=currency,
+            rate_amount=50, rate_unit="DAY", service_category="Consulting",
+            categories=["Meals"], max_company_amount_per_claim=5000,
+        )
+    return contract_service.create_contract(
+        db, user_id=user.user_id, country_code=country_code, currency=currency,
+        rate_amount=50, rate_unit="DAY", service_category="Consulting",
+        categories=["Meals"], policy_id=None, max_company_amount_per_claim=5000,
+        created_by=hr.user_id, effective_from=date(2026, 1, 1),
+    )
+
+
+def _demo_decision(*, reim_id: uuid.UUID, user: User, amount_company: float,
+                   is_contractor: bool, now: datetime) -> AutonomyDecision:
+    """A clean claim on a fresh history, decided by the real engine.
+
+    A contractor is stopped by CONTRACTOR_NOT_TRUSTED and a new employee by OVER_AUTO_LIMIT,
+    so both land in HR_QUICK exactly as the product would route them.
+    """
+    return decide(
+        ClaimFacts(
+            reim_id=str(reim_id), user_id=str(user.user_id), amount=amount_company,
+            currency=fx.company_currency(), judgment=JudgmentResult.APPROVED.value,
+            confidence=0.95, over_category_budget=False, claimant_is_hr=False,
+            claimant_is_contractor=is_contractor,
+        ),
+        [],
+        EmployeeHistory(paid_claims=0, confirmed_issues_90d=0, confirmed_issues_180d=0,
+                        auto_paid_today=0, auto_paid_month=0),
+        PayeeStatus(verified=True, linked_at=now - timedelta(days=30), changed_at=None),
+        AgentLedger(auto_paid_today=0, auto_paid_last_hour=0, breaker_active=False),
+        AutonomyConfig(),
+        now,
+    )
+
+
+def _contractor_demo_claim(
+    db: Session,
+    user: User,
+    *,
+    note: str,
+    claim_currency: str,
+    amount: float,
+    category: str,
+    description: str,
+    is_contractor: bool,
+    now: datetime,
+    contract=None,
+    contract_reason: str | None = None,
+    summary: str,
+) -> Reimbursement:
+    reim_id = uuid.uuid5(ID_NAMESPACE, f"contractor-demo:{note}")
+    amount_company, quote = fx.company_amount(amount, claim_currency, now)
+    decision = _demo_decision(
+        reim_id=reim_id, user=user, amount_company=float(amount_company),
+        is_contractor=is_contractor, now=now,
+    )
+    created = now - timedelta(hours=2)
+    reasoning = {
+        "demo_seed": SEED_CONTRACTOR_TAG,
+        "demo_note": note,
+        "reasoning": f"Agent judgment: {JudgmentResult.APPROVED.value}",
+    }
+    if contract is not None:
+        reasoning["contract_id"] = str(contract.contract_id)
+    if contract_reason:
+        reasoning["contract_reason"] = contract_reason
+
+    reim = Reimbursement(
+        reim_id=reim_id,
+        user_id=user.user_id,
+        contract_id=contract.contract_id if contract else None,
+        main_category=category,
+        currency=claim_currency,
+        total_claimed_amount=amount,
+        amount_company=float(amount_company),
+        fx_rate_to_company=float(quote.rate) if quote else None,
+        fx_rate_at=quote.as_of if quote else None,
+        fx_source=quote.source if quote else "UNQUOTED",
+        judgment=JudgmentResult.APPROVED,
+        confidence=0.95,
+        ai_reasoning=reasoning,
+        summary=summary,
+        status=ReimbursementStatus.REVIEW,
+        tier=decision.tier.value,
+        risk_score=decision.risk_score,
+        autonomy=decision.model_dump(mode="json"),
+        audit_selected=decision.audit_selected,
+        approvals=[],
+        created_at=created,
+        updated_at=created,
+    )
+    db.add(reim)
+    db.flush()
+    db.add(LineItem(
+        reim_id=reim_id, description=description, category=category, quantity=1.0,
+        unit_price=amount, claimed_amount=amount,
+        # Approval has a figure to accept, exactly as the invoice path leaves its line item.
+        approved_amount=amount, currency=claim_currency, expense_date=created.date(),
+        judgment=JudgmentResult.APPROVED,
+    ))
+    db.flush()
+    return reim
+
+
+def write_contractor_demo(db: Session, users: dict[str, User], now: datetime) -> dict:
+    """Contracts, funding settings and four hand-placed REVIEW rows for the currency demo.
+
+    The rows are: a clean IDR payout, a clean MYR payout, a MYR payout the guard refuses
+    because the contract country is not Malaysia, and a contract-check row that the batch
+    approval must skip. Re-running without --reset-demo leaves the existing rows alone.
+    """
+    hr = users["HR001"]
+    contracts = {
+        "C01": _upsert_demo_contract(db, hr, users["C01"], country_code="ID", currency="IDR"),
+        "C02": _upsert_demo_contract(db, hr, users["C02"], country_code="ID", currency="MYR"),
+    }
+    contract_service.update_payout_settings(
+        db, paypal_account_country="MY", held_currencies=["MYR", "USD"], actor=hr.user_id,
+    )
+
+    existing = _seeded_contractor_reim_ids(db)
+    if existing:
+        rows = db.exec(select(Reimbursement).where(Reimbursement.reim_id.in_(existing))).all()
+        by_note = {(r.ai_reasoning or {}).get("demo_note"): r.reim_id for r in rows}
+        return {"created": False, "claim_ids": by_note, "contracts": contracts}
+
+    claim_ids: dict[str, uuid.UUID] = {}
+    specs = {
+        "contractor-idr": dict(
+            user=users["C01"], claim_currency="USD", amount=120.0, category="Meals",
+            description="Client workshop lunch in Jakarta", is_contractor=True,
+            contract=contracts["C01"],
+            summary="Contract expense in USD. Payout is IDR at the locked approval quote.",
+        ),
+        "employee-myr": dict(
+            user=users["C03"], claim_currency="MYR", amount=120.0, category="Meals",
+            description="Team lunch during the contractor onboarding", is_contractor=False,
+            summary="Clean MYR claim from the demo employee. Pays in the second batch group.",
+        ),
+        "refusal-myr": dict(
+            user=users["C02"], claim_currency="MYR", amount=80.0, category="Meals",
+            description="Monthly retainer lunch", is_contractor=True,
+            contract=contracts["C02"],
+            summary="MYR contract with a non-Malaysian payee. The guard refuses this payout before PayPal.",
+        ),
+        "contract-check": dict(
+            user=users["C01"], claim_currency="USD", amount=60.0, category="Software",
+            description="Design tool subscription", is_contractor=True,
+            contract=contracts["C01"], contract_reason="CATEGORY_NOT_ALLOWED",
+            summary="Receipt outside the contract categories: Software. HR must check the contract before paying.",
+        ),
+    }
+    for note, spec in specs.items():
+        reim = _contractor_demo_claim(db, note=note, now=now, **spec)
+        claim_ids[note] = reim.reim_id
+    db.commit()
+    return {"created": True, "claim_ids": claim_ids, "contracts": contracts}
+
+
 def _summary(c: SeedClaim) -> str:
     if c.status == ReimbursementStatus.REJECTED:
         return f"Rejected by HR after review: {c.signals[0].message}."
@@ -718,8 +907,33 @@ def seed(db: Session, reset: bool = False, clear: bool = False, now: datetime | 
         write_history(db, history, users)
     if not _seeded_booking_reim_ids(db):
         write_vendor_bookings(db, users, now)
+    contractor_demo = write_contractor_demo(db, users, now)
     db.commit()
-    return {"deleted": deleted, "cleared": cleared, "skipped": existing > 0, "history": history, "users": users}
+    return {"deleted": deleted, "cleared": cleared, "skipped": existing > 0,
+            "history": history, "users": users, "contractors": contractor_demo}
+
+
+_CONTRACTOR_DEMO_LABELS = (
+    ("contractor-idr", "C01 clean USD claim pays IDR"),
+    ("employee-myr", "C03 clean MYR claim"),
+    ("refusal-myr", "C02 MYR claim refused before PayPal"),
+    ("contract-check", "C01 contract-check row (batch skips it)"),
+)
+
+
+def _print_contractor_demo(result: dict) -> None:
+    demo = result.get("contractors")
+    if not demo:
+        return
+    print("Contractor currency demo, all four rows in REVIEW:")
+    for note, label in _CONTRACTOR_DEMO_LABELS:
+        reim_id = demo["claim_ids"].get(note)
+        if reim_id:
+            print(f"  RC-{str(reim_id)[:8]}  {label}")
+    for code, contract in demo["contracts"].items():
+        print(f"  contract {code}: {contract.currency} payouts, country {contract.country_code}")
+    print("  payout settings: account MY, held currencies MYR and USD")
+    print(f"  set PAYPAL_MOCK_BALANCES={CONTRACTOR_DEMO_BALANCES} on the API for per-currency balances")
 
 
 def _print_summary(result: dict, now: datetime) -> None:
@@ -727,6 +941,7 @@ def _print_summary(result: dict, now: datetime) -> None:
         print(f"Deleted {result['deleted']} seeded claims.")
     if result["cleared"]:
         print(f"Cleared {result['cleared']} claims from earlier demo takes.")
+    _print_contractor_demo(result)
     if result["skipped"]:
         print("Seeded history already present; nothing added. Run with --reset-demo to re-create it.")
         return
@@ -742,7 +957,7 @@ def _print_summary(result: dict, now: datetime) -> None:
     s8 = next(c for c in history if c.note == "s8")
     print(f"S8 claim RC-{str(s8.reim_id)[:8]} ({s8.user_code}), recovery MYR {s8.recovery.amount:.2f}, "
           f"dispute window closed {s8.recovery.dispute_until:%Y-%m-%d %H:%M} UTC")
-    for account in DEMO_ACCOUNTS + SEEDED_EMPLOYEES:
+    for account in DEMO_ACCOUNTS + SEEDED_EMPLOYEES + CONTRACTOR_DEMO_ACCOUNTS:
         if account.payer_slot:
             _, from_env = _payer_id(account)
             user = result["users"][account.code]

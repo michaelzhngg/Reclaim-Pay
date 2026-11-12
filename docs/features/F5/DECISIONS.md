@@ -234,6 +234,26 @@ plan in `PLAN.md` stays the reference; this file says where the build departs fr
   `company_amount` and `company_currency`. Those three are derived on read, not stored,
   so 07 adds no schema and the migration head stays `a7c1e9d4b2f6`.
 
+## 08: Contractor currency demo seed
 
-
-
+- **The demo rows have their own tag.** `SEED_CONTRACTOR_TAG` keeps the four new claims
+  out of the 120-claim `SEED_TAG` history, so the existing seed tests and the demo
+  history counts stay unchanged. `--reset-demo` deletes both tags and their children.
+- **The employee in the MYR group is a demo-only account.** C03 is a fresh Employee with
+  no history, so `OVER_AUTO_LIMIT` puts the claim in `HR_QUICK`. Reusing `employee@`
+  would make the tier depend on the existing Standard trust history.
+- **The contract-check row is hand-placed.** Real intake sends a blocked category to
+  `DUAL_REVIEW`, which would skip on tier before the contract rule. The demo row keeps
+  `HR_QUICK` and carries `contract_reason = CATEGORY_NOT_ALLOWED`, so the Quick tab shows
+  the `CONTRACT_CHECK` exclusion the batch rule exists to produce.
+- **The seed writes payout settings, not environment.** Account country MY and held
+  currencies `MYR`, `USD` are database rows and are set on every run. `PAYPAL_MOCK_BALANCES`
+  is process environment, so the seed prints the JSON to set on the API and the walkthrough
+  repeats it. The seed cannot change a running API's balances.
+- **Reset keeps contracts and settings.** `--reset-demo` deletes the tagged claims,
+  payouts and line items only. Contracts are updated in place and payout settings are
+  rewritten, so a reset cannot leave a second contract or a lost funding list.
+- **The demo verifies the 07 behaviour end to end.** Seed tests assert two provider batch
+  IDs for the two clean rows, a failed refusal row with no batch ID, the contract-check row
+  left in `REVIEW`, and an IDR group failure that leaves only the IDR claim approved while
+  the MYR group still pays.
