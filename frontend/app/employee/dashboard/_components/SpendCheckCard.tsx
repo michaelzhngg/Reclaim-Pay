@@ -176,7 +176,7 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
             <button key={m.mode} type="button" aria-pressed={mode === m.mode}
               onClick={() => { setMode(m.mode); setError(null); }}
               className={`flex-1 sm:flex-none min-h-11 px-3 rounded-[8px] text-sm font-medium transition-colors ${
-                mode === m.mode ? "bg-ink text-white" : "text-ink hover:bg-surface-muted"
+                mode === m.mode ? "bg-ink text-on-ink" : "text-ink hover:bg-surface-muted"
               }`}>
               <span className="sm:hidden">{m.short}</span>
               <span className="hidden sm:inline">{m.long}</span>
