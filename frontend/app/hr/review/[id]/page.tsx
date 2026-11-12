@@ -664,8 +664,7 @@ export default function ReviewPage() {
         <div
           role="region"
           aria-label="Claim analysis and decision"
-          tabIndex={0}
-          className="flex flex-col gap-6 rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:sticky lg:top-6 lg:h-fit lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:overscroll-contain lg:-m-2 lg:p-2 lg:*:shrink-0"
+          className="flex flex-col gap-6 lg:sticky lg:top-6 lg:h-fit lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:overscroll-contain lg:-m-2 lg:p-2 lg:*:shrink-0"
         >
 
           <AutonomyPanel
