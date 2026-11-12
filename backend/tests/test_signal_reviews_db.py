@@ -8,7 +8,7 @@ from sqlmodel import select
 
 from api import deps
 from core.enums import AgentActionType, JudgmentResult, ReimbursementStatus, SignalVerdict, UserRole
-from core.models import AgentAction, Reimbursement, User
+from core.models import AgentAction, Reimbursement, SignalReview, User
 from engine.risk.types import Severity, SignalCode, make_signal
 from engine.services import signal_review_service as svc
 from engine.services.action_log import verify_chain
@@ -165,3 +165,32 @@ def test_routes_are_hr_only_and_map_errors(pg_db):
         assert c.get("/api/v1/autonomy/signal-quality").status_code == 403
     finally:
         app.dependency_overrides.clear()
+
+
+def test_quality_report_skips_malformed_signals(pg_db):
+    emp = _user(pg_db, UserRole.Employee)
+    before = _cam(pg_db)
+    good = make_signal(SignalCode.NO_CAMERA_METADATA, Severity.LOW, "No camera data", document_id="doc-1")
+    for autonomy in (
+        {"signals": [None, "NO_CAMERA_METADATA", {}, {"code": None}, good.model_dump(mode="json")]},
+        {"signals": {"code": "NO_CAMERA_METADATA"}},
+        {"signals": "NO_CAMERA_METADATA"},
+    ):
+        r = _claim(pg_db, emp)
+        r.autonomy = autonomy
+        pg_db.add(r)
+        pg_db.commit()
+    rows = {q.code: q for q in svc.signal_quality(pg_db, NOW, days=90)}
+    assert "None" not in rows and "" not in rows
+    assert rows["NO_CAMERA_METADATA"].fired - before.fired == 1
+
+
+def test_a_check_firing_twice_on_one_document_counts_once(pg_db):
+    hr, emp = _user(pg_db), _user(pg_db, UserRole.Employee)
+    before = _cam(pg_db)
+    twice = [make_signal(SignalCode.NO_CAMERA_METADATA, Severity.LOW, "No camera data", document_id="doc-1")] * 2
+    r = _claim(pg_db, emp, signals=twice)
+    svc.record_review(pg_db, r, hr, _in(), NOW)
+    after = _cam(pg_db)
+    assert after.fired - before.fired == 1 and after.false_alarm - before.false_alarm == 1
+

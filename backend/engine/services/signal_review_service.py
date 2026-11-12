@@ -92,8 +92,18 @@ def to_out(row: SignalReview) -> SignalReviewOut:
                            verdict=row.verdict, reviewed_by=row.reviewed_by, updated_at=row.updated_at)
 
 
-def _signals(autonomy: dict | None) -> list[dict]:
-    return list((autonomy or {}).get("signals") or [])
+def _signals(autonomy) -> list[dict]:
+    """The claim's signals, skipping malformed entries so one bad row can't break the report."""
+    raw = (autonomy if isinstance(autonomy, dict) else {}).get("signals")
+    if not isinstance(raw, list):
+        return []
+    return [s for s in raw if isinstance(s, dict) and s.get("code")]
+
+
+def _existing_review(db: Session, reim_id: UUID, code: str, key: str) -> SignalReview | None:
+    return db.exec(select(SignalReview).where(
+        SignalReview.reim_id == reim_id, SignalReview.signal_code == code, SignalReview.document_key == key,
+    ).with_for_update()).first()
 
 
 def record_review(db: Session, r: Reimbursement, hr: User, body: SignalReviewIn, now: datetime) -> SignalReview:
@@ -105,9 +115,7 @@ def record_review(db: Session, r: Reimbursement, hr: User, body: SignalReviewIn,
     if not any(s.get("code") == code and s.get("document_id") == body.document_id for s in _signals(r.autonomy)):
         raise ReviewError("SIGNAL_NOT_ON_CLAIM")
     key = body.document_id or ""
-    row = db.exec(select(SignalReview).where(
-        SignalReview.reim_id == r.reim_id, SignalReview.signal_code == code, SignalReview.document_key == key,
-    ).with_for_update()).first()
+    row = _existing_review(db, r.reim_id, code, key)
     previous = None
     if row is None:
         row = SignalReview(reim_id=r.reim_id, signal_code=code, document_key=key,
@@ -138,9 +146,14 @@ def _outcomes(claims, verdicts: dict[tuple, str]) -> list[SignalOutcome]:
         full = (reviewed and status in APPROVED_STATUSES
                 and float(c.total_approved_amount or 0) >= float(c.total_claimed_amount or 0) - 0.005)
         rejected = reviewed and status == ReimbursementStatus.REJECTED.value
+        seen: set[tuple[str, str]] = set()
         for s in _signals(c.autonomy):
-            code = str(s.get("code"))
-            verdict = verdicts.get((c.reim_id, code, s.get("document_id") or ""))
+            code, key = str(s["code"]), str(s.get("document_id") or "")
+            # One review covers a (check, document) pair, so a check firing twice there counts once.
+            if (code, key) in seen:
+                continue
+            seen.add((code, key))
+            verdict = verdicts.get((c.reim_id, code, key))
             outcomes.append(SignalOutcome(code=code, verdict=verdict, approved_in_full=full, rejected=rejected))
     return outcomes
 
