@@ -76,6 +76,10 @@ class Settings(BaseSettings):
     VAPID_PRIVATE_KEY: str = ""
     VAPID_CLAIMS_EMAIL: str = "reclaim@reclaimai.dev"
 
+    # Transactional email through Resend. Empty key means no email is sent.
+    RESEND_API_KEY: str = ""
+    EMAIL_FROM: str = "Reclaim Pay <onboarding@resend.dev>"
+
     model_config = SettingsConfigDict(env_file="../.env", env_file_encoding="utf-8", extra="ignore")
 
     @model_validator(mode="after")

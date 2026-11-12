@@ -61,6 +61,10 @@ services:
         value: "true"
       - key: VAPID_CLAIMS_EMAIL
         value: reclaim@reclaimai.dev
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: "Reclaim Pay <onboarding@resend.dev>"
       - key: LANGCHAIN_TRACING
         value: "true"
       - key: LANGCHAIN_ENDPOINT

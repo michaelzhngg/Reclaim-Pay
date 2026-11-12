@@ -15,6 +15,7 @@ from core.models import Payout, Reimbursement, User
 from engine.services.action_log import record_action
 from engine.services.payout_service import notify
 from engine.services.paypal_client import get_paypal_client, map_item_status
+from engine.services.trust_notices import notify_if_changed, tier_of
 
 logger = logging.getLogger(__name__)
 
@@ -61,13 +62,13 @@ def _notify_change(db: Session, payout: Payout, status: PayoutStatus):
     link = f"/employee/history?id={payout.reim_id}"
     if status == PayoutStatus.SUCCEEDED:
         notify(db, payout.user_id, "success", f"Payment received for claim {ref}",
-               f"{payout.currency} {float(payout.amount):,.2f} arrived in your PayPal account", link=link)
+               f"{payout.currency} {float(payout.amount):,.2f} arrived in your PayPal account", link=link, email=True)
         return
     if status not in _FAILED_STATUSES:
         return
     reason = payout.failure_code or status.value
     notify(db, payout.user_id, "error", f"Payout failed for claim {ref}",
-           f"Your PayPal payout did not go through ({reason}). HR has been told.", link=link)
+           f"Your PayPal payout did not go through ({reason}). HR has been told.", link=link, email=True)
     for hr in db.exec(select(User).where(User.role == UserRole.HR, User.is_active == True)).all():  # noqa: E712
         notify(db, hr.user_id, "error", f"Payout {status.value.lower()} for claim {ref}",
                f"PayPal payout of {payout.currency} {float(payout.amount):,.2f} ended {status.value} ({reason}).",
@@ -92,12 +93,15 @@ def apply_item_update(
     new = next_status(current, map_item_status(transaction_status))
     payout.updated_at = datetime.now(timezone.utc)
     changed = new != current
+    tier_before = None
     if changed:
         payout.status = new
         if error:
             payout.failure_code = error
         reim_status = reim_status_for(new)
         reim = db.get(Reimbursement, payout.reim_id)
+        if reim and reim_status == ReimbursementStatus.PAID and reim.status != ReimbursementStatus.PAID.value:
+            tier_before = tier_of(db, payout.user_id)
         if reim and reim_status:
             reim.status = reim_status
             reim.updated_at = datetime.now(timezone.utc)
@@ -114,6 +118,8 @@ def apply_item_update(
             "item_id": payout.provider_item_id,
         })
         _notify_change(db, payout, new)
+        if tier_before is not None:
+            notify_if_changed(db, payout.user_id, tier_before, reim_id=payout.reim_id)
     return payout
 
 

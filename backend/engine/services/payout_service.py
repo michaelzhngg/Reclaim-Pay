@@ -23,7 +23,8 @@ from sqlmodel import Session, select
 
 from core.config import settings
 from core.models import User, Reimbursement, Payout, Notification
-from core.enums import AgentActionType, ReimbursementStatus, PayoutStatus
+from core.email_service import fire_and_forget_email
+from core.enums import AgentActionType, ReimbursementStatus, PayoutStatus, UserRole
 from core.push_service import fire_and_forget_push
 from engine.services.action_log import record_action
 from engine.services.paypal_client import (
@@ -59,10 +60,16 @@ def payout_plan(
     return "CREATE", net_amount, len(existing_statuses) + 1
 
 
-def notify(db: Session, user_id: UUID, n_type: str, title: str, message: str, link: str | None = None):
+def notify(db: Session, user_id: UUID, n_type: str, title: str, message: str, link: str | None = None,
+           email: bool = False):
+    """In-app row and web push. `email=True` also emails the user, but only when they are an employee."""
     db.add(Notification(user_id=user_id, type=n_type, title=title, message=message, link=link, is_read=False))
     db.commit()
     fire_and_forget_push(user_id, title, message, link=link or "/")
+    if email:
+        user = db.get(User, user_id)
+        if user and user.email and user.role == UserRole.Employee:
+            fire_and_forget_email(user.email, title, message, link=link)
 
 
 def _claim_ref(reim_id: UUID) -> str:
@@ -86,6 +93,9 @@ def _plan(reim_id: UUID, db: Session):
 
 
 def _settle_without_payout(db: Session, reim: Reimbursement):
+    from engine.services.trust_notices import notify_if_changed, tier_of
+
+    tier_before = tier_of(db, reim.user_id)
     reim.status = ReimbursementStatus.PAID
     reim.updated_at = datetime.now(timezone.utc)
     db.add(reim)
@@ -96,6 +106,7 @@ def _settle_without_payout(db: Session, reim: Reimbursement):
         "Settled against an earlier overpayment. No PayPal transfer was needed.",
         link=f"/employee/history?id={reim.reim_id}",
     )
+    notify_if_changed(db, reim.user_id, tier_before, reim_id=reim.reim_id)
 
 
 def _handle_skip(db: Session, reim: Reimbursement | None, action: str, existing: list[Payout]) -> Payout | None:

@@ -4,6 +4,8 @@ import pytest
 
 os.environ.setdefault("SECRET_KEY", "test-secret-not-default")
 os.environ.setdefault("PAYPAL_MOCK_MODE", "true")
+# Forced, not defaulted: a key in a local .env must never let a test send real email.
+os.environ["RESEND_API_KEY"] = ""
 
 
 @pytest.fixture

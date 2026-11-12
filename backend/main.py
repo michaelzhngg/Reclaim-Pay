@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 # Load .env into os.environ BEFORE LangChain imports so LangSmith tracing activates
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -40,7 +41,12 @@ async def lifespan(app: FastAPI):
     # Initialize VAPID keys for push notifications
     from core.push_service import init_vapid_keys
     init_vapid_keys()
+    from engine.services.reminder_service import reminder_loop
+    reminders = asyncio.create_task(reminder_loop())
     yield
+    reminders.cancel()
+    with suppress(asyncio.CancelledError):
+        await reminders
     # Clean up on shutdown
     engine.dispose()
     
