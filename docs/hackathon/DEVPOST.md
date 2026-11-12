@@ -2,6 +2,8 @@
 
 Paste each section into Devpost as it stands. Everything above "Before submitting" is the submission. The checklist at the end is for the team and does not get pasted.
 
+**Team (12 Nov, evening):** the team reports the submission went in on 11 Nov. The repo holds no copy of the submitted text. Since then the hosting text here was changed from the home server to Render, which matches `render.yaml`.
+
 ---
 
 ## Tagline
@@ -114,7 +116,7 @@ Money moves through two fixed pieces of code. The decision engine is a plain fun
 
 **The record.** Every decision, payout, setting change and recovery step is written to the hash-chained log.
 
-**Hosting.** The app runs in Docker on a home server, and Cloudflare Tunnel makes it public at reclaimai.dev.
+**Hosting.** The app runs in Docker on Render: an API service at api.reclaimai.dev and a web service at reclaimai.dev, both deployed from `main` on each commit.
 
 ---
 
@@ -134,7 +136,7 @@ Money moves through two fixed pieces of code. The decision engine is a plain fun
 - **Bryntum Calendar (trial):** shows employees their claims and payouts by date.
 - **Postman and Newman:** hold and run a 91-request API collection covering login, payouts, autonomy settings, the kill switch, approvals, recoveries and permissions.
 - **Docker:** packages and runs the full stack.
-- **Cloudflare Tunnel:** gives the app its public address.
+- **Render:** hosts the API service, the web service and the PostgreSQL database.
 
 Optional and off without a key, so not part of the demo: Channel3 for the market-price check.
 
@@ -276,8 +278,8 @@ Do not paste this part. Nothing below has been confirmed. As of 4 Nov 2026, no r
 
 ## Live PayPal sandbox run (needs `PAYPAL_MOCK_MODE=false`)
 
-- [ ] **First real payout (story, Built with, Accomplishments):** the money reaches the sandbox personal account and the claim moves to paid.
-- [ ] **MYR or USD (PLAN §12, question 5):** make the decision. If it is USD, update "MYR 48.00" in the story and the MYR challenge text. RM limits remain the policy amounts unless the config changes.
+- [x] **First real payout (story, Built with, Accomplishments):** the money reaches the sandbox personal account and the claim moves to paid. _(4 Nov: S1 paid RM48 to the sandbox account, about 40 s from submit to Paid. Sources: `DEVPOST-FORM.md` "Before submitting", `UI-REVAMP-HANDOFF.md`)_
+- [x] **MYR or USD (PLAN §12, question 5):** make the decision. _(MYR: `render.yaml` `PAYPAL_CURRENCY`)_ If it is USD, update "MYR 48.00" in the story and the MYR challenge text. RM limits remain the policy amounts unless the config changes.
 - [ ] **Webhooks (Built with):** a real signed event is verified and updates the status. Test the status refresh as well.
 - [ ] **Connect PayPal and Sign in with PayPal:** run both against the sandbox with the real return URLs configured.
 - [ ] **Recovery invoice, S8 (Recovering mistakes, Built with):** a real invoice appears in the sandbox business account. Confirm that it went through the Agent Toolkit path and not the REST fallback. If it used the fallback, edit Built with.
@@ -314,6 +316,6 @@ Do not paste this part. Nothing below has been confirmed. As of 4 Nov 2026, no r
 - [ ] **Two-person approval:** a bypass was being fixed when this was written. Confirm that the fix is merged and deployed, then test it on staging. The text states the rule and makes no stronger claim, so keep it that way.
 - [ ] **Six checks:** the code has five steps on every claim and an optional sixth, Channel3. Confirm that `CHANNEL3_API_KEY` stays unset for the demo. If it is set, the "not part of the demo" text is wrong.
 - [ ] **Default limits (PLAN §12, question 4):** if the team changes RM50, RM100, RM200, RM1,000 or RM15, update What it does.
-- [ ] **Render and APIMatic:** both are left out as instructed. `docs/hackathon/paypal-sandbox.md` still mentions Render, so make sure the landing page and the README don't.
+- [ ] **Render and APIMatic:** APIMatic is left out. Render is now in Built with and Hosting, because production moved there on 4 and 5 Nov (`render.yaml`, commits `80c76be` and `916c852`). The README says so too.
 - [ ] **Sources:** items 1 to 7 and their figures were checked against the linked pages on 4 Nov 2026. The articles behind [4] don't give the survey's sample size. The plan's ACFE figures, the BTN approval times and the "96.1% of businesses" figure are left out because they couldn't be confirmed at the source.
 - [ ] Read the final text aloud as a team, and re-run the dash check on the pasted version.

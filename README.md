@@ -5,7 +5,7 @@
 *Automation where it's safe, judgment where it matters.*
 
 - **Live demo:** https://reclaimai.dev
-- **Video:** `[Video link: coming soon]`
+- **Video:** `[video link: add after upload]`
 - **Sandbox only:** every payment uses the PayPal sandbox or the built-in mock mode. No real money moves. See [Project status](#project-status) for what has been verified so far.
 
 Built by Team Bogosort for PayPal's *Build What's Next with PayPal and AI* hackathon.
@@ -88,7 +88,7 @@ Red-team suite: every PR runs 66 fake receipts across 7 attack families, plus 28
 | No AI rejections | Sends a claim the AI wouldn't approve to a person. Rejection is an HR decision. | Nobody loses money on a model's word. |
 | Live timeline | Shows each check as it runs, in employee-safe wording. | The wait is visible, so claims don't feel like a black box. |
 | Money flow | Shows the claim's path from approved to "in your PayPal". | Employees know where their money is. |
-| Trust card | Shows the current instant-pay limit and progress to the next level. | The rules for faster payment are open. |
+| Badge panel | Shows the instant-pay limit as a Bronze (RM50), Silver (RM100) or Gold (RM200) badge, an arc with progress to the next badge, and the claim totals. Tapping the badge in the middle lists all badges, recent level changes and how instant payouts work. | The rules for faster payment are open. |
 | Overpayment notice with dispute | Tells the employee what's owed and why, and gives them a form to dispute it. | Nothing is collected without notice and a chance to respond. |
 | Calendar | Shows claims and payouts on a Bryntum calendar (trial version, with its watermark). | Employees can see at a glance what was paid and when. |
 | Privacy rules | Hides risk scores, signal names and HR's explanations from employees, and shows two-person review as ordinary review. Employees do see the AI's verdict and confidence on their claim. | Honest staff aren't made to feel accused, and fraudsters can't easily learn the checks. |
@@ -191,7 +191,7 @@ Open https://reclaimai.dev. The password for every account is `password`. The lo
 
 **As an employee:**
 
-5. **Dashboard:** see the trust card. Sign in as `e04@seed.reclaim.my` to see an overpayment notice. Its dispute window has already passed for the S8 scenario, so the dispute form stays closed on this one.
+5. **Dashboard:** see the badge panel. Sign in as `e04@seed.reclaim.my` to see an overpayment notice. Its dispute window has already passed for the S8 scenario, so the dispute form stays closed on this one.
 6. **Settings:** see the Connect PayPal card.
 7. **Calendar:** see past claims and payouts.
 8. **Claims:** submit [`demo/receipts/s1_ride.jpg`](demo/receipts/s1_ride.jpg), then [`demo/receipts/s4_injection.jpg`](demo/receipts/s4_injection.jpg), and watch the timeline. Then return to HR to see what was caught. If someone already uploaded S1, yours is flagged as a duplicate, which is that check doing its job.
@@ -208,16 +208,17 @@ The demo is shared, so please don't change the kill switch or run the S7 flood t
 | AG Grid | HR triage queue, payouts ledger, audit queue, recoveries, agent log |
 | AG Charts | Back-test chart on the Autonomy page |
 | Bryntum Calendar (trial) | Employee calendar of claims and payouts |
-| Postman and Newman | API regression collection of 91 requests in [`postman/`](postman/). `[Public Postman link: coming soon]` |
+| Postman and Newman | API regression collection of 91 requests in [`postman/`](postman/). `[Postman link: add after the public workspace is published]` |
 | Channel3 | Optional market-price check on equipment. Off without a key. |
 | LangGraph | Document, policy and compliance agents |
-| Google Gemini 3.6 Flash (Gemini API), on the live site | Reads receipt images, extracts policy rules, judges claims and writes HR's explanations. The models are set by environment variables; the live settings are in [`deploy/homeserver/.env.example`](deploy/homeserver/.env.example). |
+| Google Gemini 3.6 Flash (Gemini API), on the live site | Reads receipt images, extracts policy rules, judges claims and writes HR's explanations. The models are set by environment variables; the live settings are in [`render.yaml`](render.yaml). |
 | OpenRouter | Gemini 3.1 Flash Lite as the automatic fallback, and OpenAI text-embedding-3-small for policy search |
 | FastAPI, SQLModel, Alembic | Backend API, data model and migrations |
 | PostgreSQL with pgvector | Claims, action log and policy search |
 | imagehash, Pillow | Image fingerprints for duplicate detection |
 | Next.js, React, Tailwind CSS | Employee and HR web app, installable as a PWA with push notifications |
-| Docker Compose, Caddy, Cloudflare Tunnel | Local setup, and the public deployment on a home server |
+| Docker Compose | Local setup |
+| Render | Hosts the live site: the API service `reclaim-pay-api` at api.reclaimai.dev, the web service `reclaim-pay-web` at reclaimai.dev, and the PostgreSQL database. Both services deploy from `main` on each commit ([`render.yaml`](render.yaml)). |
 | pytest, vitest | Automated tests |
 
 ## What's new since the original Reclaim (April 2026)
@@ -246,21 +247,32 @@ The demo is shared, so please don't change the kill switch or run the S7 flood t
 
 ## Project status
 
-Status as of 4 Nov 2026. We will update this section after the live run.
+Status as of 12 Nov 2026, evening.
 
-**Verified by automated tests:** at the latest run, 438 backend tests and 203 frontend tests passed and the type check was clean. These counts change as work continues. The tests cover the rule engine, the shield checks, approvals, recovery and the action log, with PayPal in mock mode and the AI stubbed. The Postman collection has 91 requests and has passed against a local stack with Newman.
+**Hosting.** The live site runs on Render: the API service `reclaim-pay-api` at https://api.reclaimai.dev and the web service `reclaim-pay-web` at https://reclaimai.dev. Both deploy from `main` on each commit ([`render.yaml`](render.yaml)). The home-server setup in [`deploy/homeserver/`](deploy/homeserver/) is no longer used for deploys. Payments still go through the PayPal sandbox, in MYR.
 
-**Pending live verification:**
+**Verified on the live site on 4 Nov:**
 
-- A real claim end to end with the live AI, including the demo policy upload and OCR of the S1 to S8 receipts
-- A real PayPal sandbox payout, including its webhook and the choice of MYR or USD
-- Log in with PayPal and Sign in with PayPal against the sandbox
+- S1: the RM48 ride receipt was auto-paid to the sandbox personal account, about 40 seconds from submit to Paid ("MYR 48.00 in your PayPal").
+- S4 (hidden instruction) and S5 (cropped duplicate) landed in two-person review.
+- The demo policy was uploaded and the seeded history was present, and all five demo logins worked. This has not been re-checked on the Render database.
+- Connect PayPal: the Log in with PayPal code exchange and userinfo worked against the sandbox.
+
+**Verified by automated tests:** on 12 Nov, 566 backend tests passed, 136 were skipped (database tests, which need `TEST_DATABASE_URL`) and 26 were expected failures (the red-team suite's known gaps and false positives, listed in [`backend/tests/redteam/README.md`](backend/tests/redteam/README.md)). Frontend tests and the type check run on every PR in CI; we did not re-count them for this update. The tests cover the rule engine, the shield checks, approvals, recovery and the action log, with PayPal in mock mode and the AI stubbed. The Postman collection has 91 requests and has passed against a local stack with Newman.
+
+**Not yet verified live:**
+
+- S2, S3, S6, S7 and S8 on the live site. No full S1 to S8 run is recorded.
+- A signed PayPal webhook updating a payout on the live site
+- Sign in with PayPal against the sandbox
 - A real PayPal sandbox invoice through the Agent Toolkit
-- Reconciliation against the real sandbox ledger
+- Reconciliation against the sandbox ledger. On 4 Nov the live site showed "PayPal can't be reached", probably because Transaction Search is not enabled on the sandbox app.
+- The funding card on HR Payouts, which reads the balance through the same permission
 - A live Channel3 call
-- OCR reading the faint line on the S4 receipt
+- OCR reading the faint line on the main S4 receipt. The repo doesn't record whether the 4 Nov run used it or the more visible backup.
 - The S3 receipt with a real C2PA marker. The file in the repo has none yet, so today it would land in HR review.
-- Timing from submission to payout, which hasn't been measured
+
+**Built, on a branch, not merged:** email notifications (branch `feat/u2-notifications`) and account invitations with forgot password (branch `feat/account-invites`). The notifications branch adds two settings, `RESEND_API_KEY` and `EMAIL_FROM`; they are not in `.env.example` on `main`.
 
 ## Run locally
 
@@ -268,7 +280,7 @@ You need Docker with Compose. For tests outside Docker, you also need [uv](https
 
 ```bash
 git clone https://github.com/michaelzhngg/Reclaim-Pay.git && cd Reclaim-Pay
-cp .env.example .env              # add LLM_API_KEY and OPENROUTER_API_KEY for the AI steps (see deploy/homeserver/.env.example for the live Gemini settings)
+cp .env.example .env              # add LLM_API_KEY and OPENROUTER_API_KEY for the AI steps (render.yaml has the live Gemini settings)
 docker compose up --build -d      # app on :3000, API docs on :8000/docs
 docker compose exec backend python -m seeds.seed_reclaim_pay    # demo accounts and 120 past claims
 ```
