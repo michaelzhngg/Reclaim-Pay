@@ -346,6 +346,8 @@ export default function ReviewPage() {
   const [reviewedStatus, setReviewedStatus] = useState<string | null>(null);
   const [vendorBusy, setVendorBusy] = useState(false);
   const [vendorError, setVendorError] = useState<string | null>(null);
+  const [showAccountChange, setShowAccountChange] = useState(false);
+  const [vendorEmail, setVendorEmail] = useState("");
 
   const didInitRef = useRef(false);
 
@@ -468,6 +470,23 @@ export default function ReviewPage() {
     if (updated) setBundle(updated);
   }
 
+  async function handleChangeVendorAccount() {
+    if (!bundle?.vendor_id || !vendorEmail.trim()) return;
+    setVendorBusy(true);
+    setVendorError(null);
+    const { changeVendorAccount } = await import("@/lib/actions/bookings");
+    const res = await changeVendorAccount(bundle.vendor_id, vendorEmail.trim());
+    setVendorBusy(false);
+    if (!res.ok) {
+      setVendorError(approvalErrorMessage(res.error ?? "Could not change the vendor account."));
+      return;
+    }
+    setShowAccountChange(false);
+    setVendorEmail("");
+    const updated = await getHRClaimBundle(bundle.id);
+    if (updated) setBundle(updated);
+  }
+
   return (
     <div className="relative min-h-full px-4 py-5 sm:px-6 md:p-10 pb-32 lg:pb-10">
       <div className="mb-6 md:mb-8">
@@ -534,6 +553,42 @@ export default function ReviewPage() {
                   <p className="font-body text-xs text-ink-muted">
                     Verification lets future bookings for this vendor skip the manual check. This booking still needs your decision.
                   </p>
+                  {vendorError && (
+                    <p role="alert" className="font-body text-xs text-danger">{vendorError}</p>
+                  )}
+                </div>
+              )}
+              {bundle.vendor_verified && (
+                <div className="px-4 sm:px-6 pb-5 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAccountChange((open) => !open)}
+                    className="inline-flex w-fit min-h-11 items-center rounded-full border border-line-strong px-5 py-2.5 font-body text-sm font-semibold text-ink hover:bg-surface-muted"
+                  >
+                    Change payout account
+                  </button>
+                  <p className="font-body text-xs text-ink-muted">
+                    Changing the account pauses vendor auto-pay for 72 hours.
+                  </p>
+                  {showAccountChange && (
+                    <div className="flex flex-col sm:flex-row gap-2 mt-1">
+                      <input
+                        type="email"
+                        value={vendorEmail}
+                        onChange={(event) => setVendorEmail(event.target.value)}
+                        placeholder="vendor-billing@example.com"
+                        className="min-h-11 flex-1 rounded-control border border-line-strong bg-surface px-3 font-body text-sm text-ink"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleChangeVendorAccount}
+                        disabled={vendorBusy || !vendorEmail.trim()}
+                        className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-5 py-2.5 font-body text-sm font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-60"
+                      >
+                        {vendorBusy ? "Saving" : "Save account"}
+                      </button>
+                    </div>
+                  )}
                   {vendorError && (
                     <p role="alert" className="font-body text-xs text-danger">{vendorError}</p>
                   )}

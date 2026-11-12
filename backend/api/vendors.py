@@ -43,6 +43,10 @@ class VendorPaypalVerify(BaseModel):
     paypal_email: Optional[EmailStr] = None
 
 
+class VendorPaypalChange(BaseModel):
+    paypal_email: EmailStr
+
+
 class VendorBookingCreate(BaseModel):
     vendor_id: Optional[UUID] = None
     vendor_name: Optional[str] = Field(default=None, max_length=200)
@@ -115,6 +119,43 @@ def verify_vendor(
     email = (str(body.paypal_email) if body and body.paypal_email
              else f"billing+{vendor_id.hex[:8]}@vendor.example")
     identity = _mock_vendor_paypal(email)
+    if _identity_taken(db, identity.payer_id, vendor.vendor_id):
+        raise HTTPException(status_code=409, detail="PAYEE_ALREADY_LINKED")
+
+    now = datetime.now(timezone.utc)
+    update = link_update(vendor.paypal_payer_id, vendor.paypal_linked_at is not None, identity, now)
+    for field, value in update.items():
+        setattr(vendor, field, value)
+    db.add(vendor)
+    db.commit()
+    db.refresh(vendor)
+
+    record_action(db, AgentActionType.PAYEE_LINKED, str(current_user.user_id), None, {
+        "vendor_id": str(vendor.vendor_id),
+        "email": mask_email(vendor.paypal_email or ""),
+        "verified": True,
+        "changed": update.get("payout_destination_changed_at") is not None,
+    })
+    return vendor_out(vendor, viewer_is_hr=True)
+
+
+@router.patch("/vendors/{vendor_id}/paypal", response_model=VendorOut)
+def change_vendor_paypal(
+    vendor_id: UUID,
+    body: VendorPaypalChange,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    """Change a vendor's payout account. A payer change after the first link starts the pause."""
+    vendor = db.get(Vendor, vendor_id)
+    if not vendor or not vendor.is_active:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    if not settings.PAYPAL_MOCK_MODE:
+        raise HTTPException(status_code=409, detail="VENDOR_MERCHANT_ONBOARDING_UNAVAILABLE")
+
+    identity = _mock_vendor_paypal(str(body.paypal_email))
+    if identity.payer_id == vendor.paypal_payer_id:
+        return vendor_out(vendor, viewer_is_hr=True)
     if _identity_taken(db, identity.payer_id, vendor.vendor_id):
         raise HTTPException(status_code=409, detail="PAYEE_ALREADY_LINKED")
 

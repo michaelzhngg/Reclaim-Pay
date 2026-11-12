@@ -65,3 +65,9 @@ Non-obvious choices, with the alternative rejected. Newest ticket last.
 **Chosen:** extract `link_update` and `cooldown_until` from the PayPal connect route into a shared service. The employee route re-exports them, and vendor verification and account changes use the same rules.
 
 **Rejected:** copying the link rules into the vendor module. The 72-hour pause is a security control, and two copies would drift.
+
+## 11. A same-account resubmission is a no-op, not a re-link
+
+**Chosen:** the change endpoint returns early when the derived payer identity equals the stored one, leaving `payout_destination_changed_at` untouched.
+
+**Rejected:** writing the link fields again. That would refresh `paypal_linked_at` and could restart the 72-hour pause, turning a harmless HR retry into a lockout.

@@ -60,7 +60,7 @@ def _policy(db, owner, category="Transportation", budget=100.0):
 def _vendor(db, name, verified=True, payer="VENDORPAYER1"):
     vendor = Vendor(name=name, name_key=vendor_name_key(name), default_category="Transportation",
                     paypal_verified=verified, paypal_payer_id=payer if verified else None,
-                    paypal_email="vendor@example.test" if verified else None,
+                    paypal_email="vendor@example.com" if verified else None,
                     paypal_linked_at=NOW - timedelta(days=30) if verified else None)
     db.add(vendor)
     db.flush()
@@ -150,7 +150,7 @@ def test_employee_response_redacts_risk_and_vendor_account(pg_db):
     hr_view = _build_reimbursement_response(reim, pg_db, include_line_items=True, viewer_is_hr=True)
     assert hr_view["vendor_verified"] is True
     assert hr_view["vendor_paypal_masked"] and "***" in hr_view["vendor_paypal_masked"]
-    assert "vendor@example.test" != hr_view["vendor_paypal_masked"]
+    assert "vendor@example.com" != hr_view["vendor_paypal_masked"]
     assert hr_view["risk_score"] == reim.risk_score
     assert hr_view["autonomy"]["hard_stops"] == reim.autonomy["hard_stops"]
 
@@ -183,7 +183,7 @@ def test_hr_approval_pays_the_vendor(pg_db, monkeypatch):
 
     vendor.paypal_verified = True
     vendor.paypal_payer_id = "VENDORPAYER-NEW"
-    vendor.paypal_email = "vendor@example.test"
+    vendor.paypal_email = "vendor@example.com"
     pg_db.add(vendor)
     pg_db.commit()
 
@@ -263,9 +263,9 @@ def test_verification_refuses_a_payer_used_elsewhere(pg_db):
     hr = _user(pg_db, "hr", role=UserRole.HR, verified=False, paid_claims=0)
     first_vendor = _vendor(pg_db, "First Vendor")
     second_vendor = _vendor(pg_db, "Second Vendor")
-    first_vendor.paypal_email = "shared@vendor.example"
-    second_vendor.paypal_email = "shared@vendor.example"
-    first_vendor.paypal_payer_id = "MOCKV" + hashlib.sha256(b"shared@vendor.example").hexdigest()[:12].upper()
+    first_vendor.paypal_email = "shared@vendor.com"
+    second_vendor.paypal_email = "shared@vendor.com"
+    first_vendor.paypal_payer_id = "MOCKV" + hashlib.sha256(b"shared@vendor.com").hexdigest()[:12].upper()
     pg_db.add(first_vendor)
     pg_db.add(second_vendor)
     pg_db.commit()
@@ -275,7 +275,7 @@ def test_verification_refuses_a_payer_used_elsewhere(pg_db):
     try:
         res = TestClient(app).post(
             f"/api/v1/vendors/{second_vendor.vendor_id}/verify",
-            json={"paypal_email": "shared@vendor.example"},
+            json={"paypal_email": "shared@vendor.com"},
         )
         assert res.status_code == 409 and res.json()["detail"] == "PAYEE_ALREADY_LINKED"
     finally:
@@ -320,6 +320,97 @@ def test_employee_vendor_list_hides_payout_details(pg_db):
         assert rows[0]["paypal_ready"] is True
         assert rows[0]["paypal_email_masked"] is None
         assert rows[0]["paypal_verified"] is False
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_vendor_account_change_starts_the_72_hour_pause(pg_db):
+    from main import app
+
+    requester = _user(pg_db, "requester")
+    hr = _user(pg_db, "hr", role=UserRole.HR, verified=False, paid_claims=0)
+    _policy(pg_db, requester)
+    vendor = _vendor(pg_db, "Verified Cab Co.")
+    old_payer = vendor.paypal_payer_id
+
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: hr
+    try:
+        res = TestClient(app).patch(
+            f"/api/v1/vendors/{vendor.vendor_id}/paypal",
+            json={"paypal_email": "new-billing@vendor.com"},
+        )
+        assert res.status_code == 200, res.text
+        assert res.json()["cooldown_until"] is not None
+    finally:
+        app.dependency_overrides.clear()
+
+    pg_db.refresh(vendor)
+    assert vendor.paypal_payer_id != old_payer
+    assert vendor.payout_destination_changed_at is not None
+
+    reim, _booking_row, _vendor_row, _created = _booking(pg_db, requester, "Verified Cab Co.", amount=40.0)
+    assert reim.tier != "AUTO_PAY"
+    assert "PAYEE_COOLDOWN" in reim.autonomy["hard_stops"]
+    assert initiate_payout_sync(reim.reim_id, pg_db) is None
+
+    # The payout resolver reads the new account, never the old one.
+    payee = payee_for_reim(pg_db, reim)
+    assert payee is not None and payee.payer_id == vendor.paypal_payer_id
+
+
+def test_same_vendor_account_does_not_restart_the_pause(pg_db):
+    from main import app
+
+    hr = _user(pg_db, "hr", role=UserRole.HR, verified=False, paid_claims=0)
+    vendor = _vendor(pg_db, "Verified Cab Co.")
+    vendor.paypal_email = "vendor@example.com"
+    vendor.paypal_payer_id = "MOCKV" + hashlib.sha256(b"vendor@example.com").hexdigest()[:12].upper()
+    vendor.payout_destination_changed_at = NOW - timedelta(hours=10)
+    pg_db.add(vendor)
+    pg_db.commit()
+    changed_at = vendor.payout_destination_changed_at
+
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: hr
+    try:
+        res = TestClient(app).patch(
+            f"/api/v1/vendors/{vendor.vendor_id}/paypal",
+            json={"paypal_email": "vendor@example.com"},
+        )
+        assert res.status_code == 200, res.text
+    finally:
+        app.dependency_overrides.clear()
+
+    pg_db.refresh(vendor)
+    assert vendor.payout_destination_changed_at == changed_at
+
+
+def test_cooldown_expiry_unlocks_auto_pay(pg_db):
+    requester = _user(pg_db)
+    _policy(pg_db, requester)
+    vendor = _vendor(pg_db, "Verified Cab Co.")
+    vendor.payout_destination_changed_at = NOW - timedelta(hours=73)
+    pg_db.add(vendor)
+    pg_db.commit()
+
+    reim, _booking_row, _vendor_row, _created = _booking(pg_db, requester, "Verified Cab Co.", amount=40.0)
+    assert reim.tier == "AUTO_PAY"
+
+
+def test_vendor_account_change_requires_hr(pg_db):
+    from main import app
+
+    employee = _user(pg_db, "employee")
+    vendor = _vendor(pg_db, "Verified Cab Co.")
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: employee
+    try:
+        res = TestClient(app).patch(
+            f"/api/v1/vendors/{vendor.vendor_id}/paypal",
+            json={"paypal_email": "new-billing@vendor.com"},
+        )
+        assert res.status_code == 403
     finally:
         app.dependency_overrides.clear()
 
