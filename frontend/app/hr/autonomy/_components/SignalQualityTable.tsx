@@ -35,7 +35,7 @@ export default function SignalQualityTable() {
     <section aria-labelledby="quality-title" className="rounded-card shadow-ambient bg-surface px-4 py-5 sm:px-5">
       <h3 id="quality-title" className="font-display font-semibold text-base text-ink">How accurate are the checks</h3>
       <p className="mt-1 max-w-prose text-sm text-ink-muted">
-        Counted from the &ldquo;Real problem&rdquo; and &ldquo;False alarm&rdquo; answers HR gave on claims from the last {DAYS} days.
+        Counted from the &ldquo;Real problem&rdquo; and &ldquo;False alarm&rdquo; answers HR gave on claims from the last {`${DAYS} days`}.
         Accuracy is the share of answers that were a real problem, shown once a check has 10 answers.
         &ldquo;Approved in full&rdquo; counts claims HR approved for the whole amount claimed while the check fired, a hint
         that it may have been wrong.
@@ -60,7 +60,7 @@ export default function SignalQualityTable() {
 
         {rows && rows.length === 0 && (
           <div className="rounded-card bg-surface-muted px-4 py-6 text-sm">
-            <p className="font-semibold text-ink">No checks fired in the last {DAYS} days</p>
+            <p className="font-semibold text-ink">No checks fired in the last {`${DAYS} days`}</p>
             <p className="mt-1 text-ink-muted">
               When Receipt Shield flags a claim, mark each finding on the review page and the results show up here.
             </p>
@@ -91,7 +91,7 @@ export default function SignalQualityTable() {
 
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
-                <caption className="sr-only">Accuracy per check, last {DAYS} days</caption>
+                <caption className="sr-only">Accuracy per check, last {`${DAYS} days`}</caption>
                 <thead>
                   <tr className="border-b border-line text-left text-ink-muted">
                     <th scope="col" className="py-2 pr-3 font-medium">Check</th>
