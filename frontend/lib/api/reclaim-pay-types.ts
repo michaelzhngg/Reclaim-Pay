@@ -592,3 +592,40 @@ export interface QuestionSummary {
   top_sections: { policy_title: string; section: string; excerpt: string; count: number }[];
   recent_unanswered: { asked_on: string; question: string }[];
 }
+
+// ─── Month-end report (F12) ──────────────────────────────────────────────────
+
+/** One number on the report and where its claims are listed (an /hr/history link). */
+export interface ReportGroup {
+  key: string;
+  value: number;
+  count: number;
+  link: string;
+}
+
+export interface ReportMetrics {
+  month: string;
+  label: string;
+  timezone: string;
+  currency: string;
+  reimbursed: { value: number; count: number; link: string };
+  by_category: ReportGroup[];
+  by_team: ReportGroup[];
+  auto_pay: { auto: number; decided: number; rate: number | null; link: string; decided_link: string };
+  fakes_caught: { count: number; value: number; link: string };
+  recovered: { value: number; count: number; link: string };
+  breaches: { code: string; count: number; link: string }[];
+  other_currency_claims: number;
+}
+
+export interface MonthlyReport {
+  month: string;
+  /** True once the month has ended: the report is stored and stays put until regenerated. */
+  final: boolean;
+  metrics: ReportMetrics;
+  narrative: string;
+  /** "model" when the model's text passed the number check, "template" otherwise. */
+  narrative_source: "model" | "template";
+  generated_at: string;
+  generated_by: string | null;
+}

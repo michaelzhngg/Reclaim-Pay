@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
   ChevronRight,
@@ -12,9 +13,19 @@ import {
   Clock,
   Banknote,
   Filter,
+  X,
+  ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
-import { getHRHistory, type HistoryClaim } from "@/lib/actions/hr";
+import { getHRHistory, getReportClaims, type HistoryClaim, type ReportClaims } from "@/lib/actions/hr";
+import {
+  applyHistoryFilters,
+  filterChips,
+  historySearch,
+  parseHistoryParams,
+  reportTitle,
+  type HistoryFilters,
+} from "./_lib/historyFilters";
 import { formatMoney } from "@/lib/format";
 import PayoutCell, { payoutDisplay } from "./_components/PayoutCell";
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -71,39 +82,67 @@ function SkeletonRow() {
 
 const ITEMS_PER_PAGE = 6;
 
+// useSearchParams needs a Suspense boundary so the page can still be prerendered.
 export default function HRHistoryPage() {
+  return (
+    <Suspense>
+      <HRHistory />
+    </Suspense>
+  );
+}
+
+function HRHistory() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  // Filters live in the URL, so the month-end report (and later the HR assistant) can link here.
+  const filters = useMemo(() => parseHistoryParams(new URLSearchParams(params.toString())), [params]);
+  const setFilters = (next: HistoryFilters) => router.replace(`${pathname}${historySearch(next)}`, { scroll: false });
+  const reportQuery = filters.report;
+  const reportKey = reportQuery ? JSON.stringify(reportQuery) : "";
+
   const [data, setData] = useState<HistoryClaim[]>([]);
+  const [report, setReport] = useState<ReportClaims | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"All" | ClaimStatus>("All");
+  const [searchQuery, setSearchQuery] = useState(filters.q);
+  const statusFilter = filters.status;
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    setIsLoading(true);
-    getHRHistory()
-      .then(setData)
-      .catch(() => setError("Failed to load claim history. Please try again."))
-      .finally(() => setIsLoading(false));
-  }, []);
+    let cancelled = false;
+    const q: HistoryFilters["report"] = reportKey ? JSON.parse(reportKey) : null;
+    const load = q
+      ? getReportClaims(q).then((r) => {
+          if (!r) throw new Error("report");
+          if (!cancelled) setReport(r);
+          return r.claims;
+        })
+      : getHRHistory();
+    load
+      .then((rows) => {
+        if (!cancelled) {
+          setData(rows);
+          setError(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError(q ? "Couldn't load the claims behind this number. Please try again." : "Failed to load claim history. Please try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reportKey]);
 
   // ── Filtering ──
-  const filtered = useMemo(() => {
-    let result = data;
-    if (statusFilter !== "All") {
-      result = result.filter((c) => c.status === statusFilter);
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (c) =>
-          c.employeeName.toLowerCase().includes(q) ||
-          c.id.toLowerCase().includes(q) ||
-          c.policyName.toLowerCase().includes(q),
-      );
-    }
-    return result;
-  }, [data, searchQuery, statusFilter]);
+  const filtered = useMemo(
+    () => applyHistoryFilters(data, { ...filters, q: searchQuery }),
+    [data, filters, searchQuery],
+  );
+  const chips = filterChips(filters);
 
   // ── Pagination ──
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
@@ -112,9 +151,13 @@ export default function HRHistoryPage() {
     currentPage * ITEMS_PER_PAGE,
   );
 
-  useEffect(() => {
+  // Back to page 1 whenever the filters change (adjusting state during render, not in an effect).
+  const filterKey = `${searchQuery}|${historySearch(filters)}`;
+  const [pageKey, setPageKey] = useState(filterKey);
+  if (pageKey !== filterKey) {
+    setPageKey(filterKey);
     setCurrentPage(1);
-  }, [searchQuery, statusFilter]);
+  }
 
   // ── KPI Summary ──
   const kpis = useMemo(() => {
@@ -155,6 +198,53 @@ export default function HRHistoryPage() {
           ))}
         </dl>
 
+        {/* ── The claims behind a number on the month-end report ── */}
+        {reportQuery && (
+          <section aria-label="Report filter" className="mb-4 bg-surface shadow-ambient border-l-4 border-accent rounded-card px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-ink">{reportTitle(reportQuery)}</p>
+              <p className="text-xs text-ink-muted mt-0.5">
+                {report ? (
+                  <>
+                    {report.count} {report.count === 1 ? "claim" : "claims"}, total{" "}
+                    <span className="font-mono">{formatMoney(report.currency, report.total)}</span>. Amounts below are what each claim adds to that number.
+                  </>
+                ) : (
+                  "Loading the claims behind this number…"
+                )}
+              </p>
+            </div>
+            <Link
+              href={`/hr/reports?month=${reportQuery.month}`}
+              className="inline-flex items-center gap-1.5 min-h-[44px] px-3 rounded-control text-sm font-semibold text-ink hover:bg-surface-muted"
+            >
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+              Back to report
+            </Link>
+            <Link href="/hr/history" className="inline-flex items-center min-h-[44px] px-3 rounded-control text-sm font-semibold text-ink underline underline-offset-2">
+              Show all history
+            </Link>
+          </section>
+        )}
+
+        {chips.length > 0 && (
+          <ul aria-label="Active filters" className="mb-4 flex flex-wrap gap-2">
+            {chips.map((chip) => (
+              <li key={chip.key}>
+                <button
+                  type="button"
+                  onClick={() => setFilters({ ...filters, [chip.key]: null })}
+                  aria-label={`Remove filter ${chip.label}`}
+                  className="inline-flex items-center gap-1.5 min-h-[44px] px-3 rounded-full border border-line-strong bg-surface text-sm text-ink hover:bg-surface-muted cursor-pointer"
+                >
+                  {chip.label}
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
         {/* ── Search & Filter Bar ── */}
         <div className="mb-4 flex flex-col sm:flex-row gap-3">
           <div className="flex-1 relative">
@@ -164,7 +254,10 @@ export default function HRHistoryPage() {
               aria-label="Search claims"
               placeholder="Search by employee name, claim ID, or policy…"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setFilters({ ...filters, q: e.target.value });
+              }}
               className="w-full min-h-[44px] pl-10 pr-3 bg-surface border border-line-strong rounded-control text-sm focus:border-accent outline-none placeholder:text-ink-muted"
             />
           </div>
@@ -174,7 +267,7 @@ export default function HRHistoryPage() {
             <select
               aria-label="Filter by status"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value as "All" | ClaimStatus })}
               className="flex-1 sm:flex-none min-h-[44px] bg-surface border border-line-strong rounded-control px-3 text-sm font-medium text-ink outline-none focus:border-accent cursor-pointer"
             >
               <option value="All">All Statuses</option>
