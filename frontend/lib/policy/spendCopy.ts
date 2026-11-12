@@ -38,11 +38,19 @@ export function verdictMessage(r: SpendCheckResult): { tone: SpendTone; text: st
   switch (r.verdict) {
     case "WITHIN":
       return { tone: "ok", text: `Within your limit. You can claim the full ${m(r.reimbursable_up_to)}.` };
-    case "OVER":
+    case "OVER": {
+      const p = r.pre_approval;
+      const cents = (n: number) => Math.round(n * 100);
+      const needsApproval = p?.amount != null
+        && cents((r.limit_total ?? 0) + (r.employee_pays ?? 0)) > cents(p.amount * r.quantity);
+      const approval = p && needsApproval
+        ? ` HR approval is also needed above ${formatMoney(p.currency, p.amount!)} ${unitLabel(p.unit)}.`
+        : "";
       return {
         tone: "warn",
-        text: `Above your limit. You can claim up to ${m(r.limit_total)}${counted(r.cap?.unit, r.quantity)}. You pay the other ${m(r.employee_pays)}.`,
+        text: `Above your limit. You can claim up to ${m(r.limit_total)}${counted(r.cap?.unit, r.quantity)}. You pay the other ${m(r.employee_pays)}.${approval}`,
       };
+    }
     case "ACTUAL_COST":
       return { tone: "ok", text: "Paid at actual cost for your grade. Keep the itemised receipt." };
     case "NEEDS_PRE_APPROVAL": {
@@ -85,10 +93,15 @@ export function zoneText(zone: string | null, place: string | null): string | nu
 }
 
 export function tripSummary(est: TripEstimate): string {
-  if (est.lines.length === 0) return "No daily or nightly limit in the policy applies to this trip.";
+  if (est.lines.length === 0) {
+    return est.nights === 0
+      ? "A same-day trip has no overnight stay, so no lodging limit applies."
+      : "No daily or nightly limit in the policy applies to this trip.";
+  }
   const span = est.nights > 0
     ? `${plural(est.days, ["day", "days"])} and ${plural(est.nights, ["night", "nights"])}`
     : plural(est.days, ["day", "days"]);
+  if (est.total_up_to === 0 && est.has_actual_cost) return `Paid at actual cost for ${span}.`;
   const actual = est.has_actual_cost ? ", plus items paid at actual cost" : "";
   return `Up to ${formatMoney(est.currency, est.total_up_to)} for ${span}${actual}.`;
 }
@@ -108,7 +121,9 @@ const MISSING_NOTE: Partial<Record<SpendVerdict, (categories: string) => string>
 export function tripNotes(est: TripEstimate): string[] {
   const notes = est.other_limits
     .filter((r) => r.amount !== null)
-    .map((r) => `Also: ${r.category} ${upTo(r)}.`);
+    .map((r) => r.kind === "PRE_APPROVAL"
+      ? `Also: ${r.category} needs HR approval above ${formatMoney(r.currency, r.amount ?? 0)} ${unitLabel(r.unit)}.`
+      : `Also: ${r.category} ${upTo(r)}.`);
   const byReason = new Map<SpendVerdict | undefined, string[]>();
   for (const c of est.missing) {
     const reason = est.missing_reasons[c];

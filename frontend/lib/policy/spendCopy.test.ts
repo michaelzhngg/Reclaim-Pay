@@ -31,6 +31,25 @@ describe("verdictMessage", () => {
     );
   });
 
+  it("over the limit also says when the amount needs HR approval", () => {
+    const meals = { ...cap, category: "Meals", unit: "PER_MEAL" as const, amount: 100 };
+    const approval = { ...meals, kind: "PRE_APPROVAL" as const, amount: 150 };
+    const r = {
+      ...base, verdict: "OVER" as const, cap: meals, pre_approval: approval, limit_total: 100,
+      reimbursable_up_to: 100, employee_pays: 100,
+    };
+    expect(verdictMessage(r).text).toBe(
+      "Above your limit. You can claim up to MYR 100.00. You pay the other MYR 100.00. " +
+        "HR approval is also needed above MYR 150.00 a meal.",
+    );
+    expect(verdictMessage({ ...r, employee_pays: 20 }).text).toBe(
+      "Above your limit. You can claim up to MYR 100.00. You pay the other MYR 20.00.",
+    ); // 120 is under the approval line
+    const three = { ...r, quantity: 3, limit_total: 300, employee_pays: 100 };
+    expect(verdictMessage(three).text).not.toMatch(/approval/); // 400 is under 3 x 150
+    expect(verdictMessage({ ...three, employee_pays: 200 }).text).toMatch(/HR approval is also needed above MYR 150\.00 a meal/);
+  });
+
   it("limit only, with the total for several nights", () => {
     expect(verdictMessage({ ...base, verdict: "LIMIT_ONLY", reimbursable_up_to: null }).text).toBe(
       "Your limit: up to MYR 400.00 a night.",
@@ -101,10 +120,31 @@ describe("trip wording", () => {
     );
   });
 
+  it("does not show a zero total when everything is paid at actual cost", () => {
+    const allActual = { ...est, lines: [est.lines[2]], total_up_to: 0, has_actual_cost: true };
+    expect(tripSummary(allActual)).toBe("Paid at actual cost for 3 days and 2 nights.");
+    expect(tripSummary({ ...allActual, days: 1, nights: 0 })).toBe("Paid at actual cost for 1 day.");
+  });
+
+  it("explains an empty same-day trip by the missing overnight stay", () => {
+    const sameDay = { ...est, days: 1, nights: 0, lines: [], total_up_to: 0, has_actual_cost: false };
+    expect(tripSummary(sameDay)).toBe("A same-day trip has no overnight stay, so no lodging limit applies.");
+    expect(tripSummary({ ...sameDay, days: 2, nights: 1 })).toBe(
+      "No daily or nightly limit in the policy applies to this trip.",
+    );
+  });
+
   it("formats lines, singular and plural", () => {
     expect(tripLineText(est.lines[0], "MYR")).toBe("3 days at MYR 75.00 = MYR 225.00");
     expect(tripLineText(est.lines[1], "MYR")).toBe("1 night at MYR 375.00 = MYR 375.00");
     expect(tripLineText(est.lines[2], "MYR")).toBe("Actual cost");
+  });
+
+  it("lists an approval-only limit as a threshold, not a cap", () => {
+    const equipment = { ...cap, category: "Equipment", kind: "PRE_APPROVAL" as const, unit: "PER_ITEM" as const, amount: 300 };
+    expect(tripNotes({ ...est, other_limits: [equipment], missing: [] })).toEqual([
+      "Also: Equipment needs HR approval above MYR 300.00 an item.",
+    ]);
   });
 
   it("adds notes for per-meal limits and each reason a category is left out", () => {
