@@ -12,12 +12,30 @@ from api import deps
 from api.rate_limit import limiter
 from api.schemas import PolicyResponse, PolicyCategoryWithBudget, PolicyCategoriesUpdateRequest
 from core.models import User, Policy, PolicyReimbursableCategory, PolicySection
-from core.enums import PolicyStatus, UserRole
+from core.enums import AgentActionType, PolicyStatus, UserRole
 from engine.agents.policy_agent import run_policy_workflow
+from engine.services.action_log import record_action
 
 router = APIRouter()
 
 STORAGE_POLICIES_DIR = Path(__file__).parent.parent / "storage" / "policies"
+
+
+def _budget(value) -> float | None:
+    return None if value is None else round(float(value), 2)
+
+
+def budget_changes(
+    old: dict[str, float | None], new: dict[str, float | None]
+) -> tuple[dict[str, float | None], dict[str, float | None]]:
+    """The categories whose budget changed, as (old, new). A category only on one side was
+    added or removed, so it appears in only one of the two dicts. None means no limit."""
+    changed = sorted(k for k in old.keys() | new.keys() if k not in old or k not in new or old[k] != new[k])
+    return ({k: old[k] for k in changed if k in old}, {k: new[k] for k in changed if k in new})
+
+
+def _status_value(status) -> str | None:
+    return status.value if hasattr(status, "value") else status
 
 
 @router.get("/health")
@@ -80,6 +98,12 @@ async def upload_policy(
     if not policy:
         raise HTTPException(status_code=500, detail="Policy saved but could not be retrieved")
 
+    record_action(db, AgentActionType.POLICY_UPLOADED, str(current_user.user_id), None, {
+        "policy_id": str(policy.policy_id),
+        "alias": policy.alias,
+        "files": [Path(p).name for p in saved_paths],
+    })
+
     # Fetch categories for response
     cats = db.exec(
         select(PolicyReimbursableCategory).where(
@@ -128,10 +152,16 @@ def deprecate_policy(
         raise HTTPException(status_code=404, detail="Policy not found")
 
     from datetime import datetime, timezone
+    previous_status = _status_value(policy.status)
     policy.status = PolicyStatus.DEPRECATED
     policy.expiry_date = datetime.now(timezone.utc)
     db.add(policy)
-    db.commit()
+    # record_action commits, so the status change and its log entry land together.
+    record_action(db, AgentActionType.POLICY_DEPRECATED, str(current_user.user_id), None, {
+        "policy_id": str(policy.policy_id),
+        "alias": policy.alias,
+        "previous_status": previous_status,
+    })
     db.refresh(policy)
 
     return {
@@ -194,10 +224,12 @@ def delete_policy(
         except Exception:
             pass  # Best-effort deletion; don't fail the request if file removal fails
 
+    deleted = {"policy_id": str(policy.policy_id), "alias": policy.alias, "status": _status_value(policy.status)}
     db.delete(policy)
-    db.commit()
+    # record_action commits, so the deletion and its log entry land together.
+    record_action(db, AgentActionType.POLICY_DELETED, str(current_user.user_id), None, deleted)
 
-    return {"policy_id": str(policy.policy_id), "deleted": True}
+    return {"policy_id": deleted["policy_id"], "deleted": True}
 
 
 @router.patch("/{policy_id}/categories")
@@ -221,6 +253,14 @@ def update_policy_categories(
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
 
+    old_budgets = {
+        c.category: _budget(c.auto_approval_budget)
+        for c in db.exec(
+            select(PolicyReimbursableCategory).where(PolicyReimbursableCategory.policy_id == policy.policy_id)
+        ).all()
+    }
+    new_budgets = {c.category: _budget(c.auto_approval_budget) for c in request.categories}
+
     # Delete existing categories
     from sqlalchemy import delete
     db.exec(
@@ -238,7 +278,17 @@ def update_policy_categories(
         )
         db.add(new_cat)
 
-    db.commit()
+    old_changed, new_changed = budget_changes(old_budgets, new_budgets)
+    if old_changed or new_changed:
+        # record_action commits, so the new budgets and their log entry land together.
+        record_action(db, AgentActionType.POLICY_BUDGETS_CHANGED, str(current_user.user_id), None, {
+            "policy_id": str(policy.policy_id),
+            "alias": policy.alias,
+            "old": old_changed,
+            "new": new_changed,
+        })
+    else:
+        db.commit()
 
     # Fetch and return updated policy
     return _get_policy_with_categories(policy.policy_id, db)

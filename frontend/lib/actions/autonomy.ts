@@ -106,6 +106,36 @@ export async function getAutonomyOverview(limit = 50): Promise<
   return { settings, ...rest };
 }
 
+/**
+ * Settings change history (D3): only the given action types, optionally about one policy,
+ * newest first. Pass the oldest `action_id` shown as `before` to load the next page.
+ */
+export async function getSettingsHistory(opts: {
+  types: readonly string[];
+  policyId?: string;
+  before?: number;
+  limit?: number;
+}): Promise<Outcome<"result", AgentActionsResult>> {
+  const limit = opts.limit ?? 20;
+  if (FIXTURES_ON) {
+    const names = fixtureActorNames();
+    const all = fixtureActions(500);
+    const actions = all.actions
+      .filter((a) => opts.types.includes(a.action_type))
+      .filter((a) => !opts.policyId || a.payload.policy_id === opts.policyId)
+      .filter((a) => opts.before === undefined || a.action_id < opts.before)
+      .slice(0, limit)
+      .map((a) => ({ ...a, actor_name: names[a.actor] ?? null }));
+    return { result: { chain_valid: all.chain_valid, actions }, error: null };
+  }
+  const query = new URLSearchParams({ limit: String(limit) });
+  opts.types.forEach((t) => query.append("types", t));
+  if (opts.policyId) query.set("policy_id", opts.policyId);
+  if (opts.before !== undefined) query.set("before", String(opts.before));
+  const res = await apiGet<AgentActionsResult>(`${API_PREFIX}/autonomy/actions?${query}`);
+  return { result: res.data, error: res.data ? null : (res.error ?? NO_RESPONSE) };
+}
+
 /** The Agent log tab: the chain plus the names behind the user IDs. Names are a nicety, so losing them isn't an error. */
 export async function getAgentLog(
   limit = 200,

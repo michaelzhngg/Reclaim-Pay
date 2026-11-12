@@ -17,6 +17,8 @@ import {
 } from './_lib/policy';
 import { uploadPolicy } from '@/lib/actions/hr';
 import { getPolicies, deletePolicy, deprecatePolicy, updatePolicyCategories } from '@/lib/actions/policies';
+import { ChangeHistory } from '../hr_components/ChangeHistory';
+import { POLICY_HISTORY_TYPES } from '../autonomy/_lib/settingsHistory';
 
 const SAVE_STEPS = [
   { id: "upload", label: "Uploading documents...", subtitle: "Securely storing policy files." },
@@ -80,6 +82,11 @@ export function HrProcessingScreen({ currentStep, onBack }: { currentStep: numbe
       </div>
     </div>
   );
+}
+
+/** Changes when the saved budgets change, so the history reloads after a save. */
+function budgetsSignature(p: Policy): string {
+  return p.reimbursable_categories_with_budgets.map((c) => `${c.category}:${c.auto_approval_budget ?? ""}`).join("|");
 }
 
 function ReadOnlyField({ label, value }: { label: string; value: React.ReactNode }) {
@@ -608,6 +615,18 @@ export default function PolicyStudio() {
                     )}
                   </div>
                 </div>
+              )}
+
+              {current && (
+                <ChangeHistory
+                  title="Change history"
+                  description="Uploads, budget changes and retirement for this policy."
+                  types={POLICY_HISTORY_TYPES}
+                  policyId={current.policy_id}
+                  currency="MYR"
+                  refreshKey={`${current.status}-${budgetsSignature(current)}`}
+                  emptyText="No changes recorded for this policy yet. Changes made before change history was added aren't listed."
+                />
               )}
 
               {/* ── Danger Zone ─────────────────────────────────────────────── */}
