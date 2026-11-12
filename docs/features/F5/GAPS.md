@@ -33,3 +33,17 @@ Known limits of the contractor slice, beyond the explicit gaps in `PLAN.md`.
   currency or a quote exists.
 - Payouts still send the company currency in this stage. The payout snapshot fields and
   the contract payout currency land in ticket 06.
+
+## Contractor claims
+
+- Contract receipt matching is by category label, case-insensitive. A policy edit that
+  renames a category can leave a contract pointing at a label the policy no longer lists.
+- Receipts outside the contract categories are grouped into one review claim per
+  submission, not one claim per receipt.
+- There is no per-contract approval route or contract-specific batch rule yet. Contract
+  claims sit in the normal HR queue, and are excluded from batch approval because the
+  blocked ones are `DUAL_REVIEW` and the ticket does not add contractor batching.
+- Contractor invoices are ticket 05. Until then a contractor can only submit expense
+  claims.
+- The contractor trust card reuses the employee badge design. Only its limit label and
+  review sentence are contractor-specific.

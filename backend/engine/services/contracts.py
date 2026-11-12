@@ -171,6 +171,37 @@ def contract_categories(db: Session, contract_id: UUID) -> list[str]:
     return [str(c) for c in rows]
 
 
+def receipt_is_allowed(category: str | None, contract_category_set: set[str]) -> bool:
+    return (category or "").strip().lower() in contract_category_set
+
+
+def split_receipts_by_contract(receipts: list, contract_category_set: set[str]) -> tuple[list, list]:
+    """(receipts the contract covers, receipts it does not). Order is preserved."""
+    allowed, blocked = [], []
+    for receipt in receipts:
+        (allowed if receipt_is_allowed(getattr(receipt, "category", None), contract_category_set)
+         else blocked).append(receipt)
+    return allowed, blocked
+
+
+def policy_for_category(
+    db: Session, category: str | None, contract_policy_id: UUID | None = None
+) -> UUID | None:
+    """The contract policy when set, otherwise the newest active policy listing the category."""
+    if contract_policy_id is not None:
+        return contract_policy_id
+    rows = db.exec(
+        select(PolicyReimbursableCategory, Policy)
+        .join(Policy, PolicyReimbursableCategory.policy_id == Policy.policy_id)
+        .where(
+            PolicyReimbursableCategory.category == category,
+            Policy.status == PolicyStatus.ACTIVE,
+        )
+        .order_by(Policy.effective_date.desc(), Policy.created_at.desc())
+    ).all()
+    return rows[0][1].policy_id if rows else None
+
+
 def get_contract(db: Session, user_id: UUID) -> ContractorContract | None:
     return db.exec(
         select(ContractorContract).where(ContractorContract.user_id == user_id)

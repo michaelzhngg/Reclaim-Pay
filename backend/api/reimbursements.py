@@ -28,7 +28,7 @@ from core.models import (
     User, Reimbursement, SupportingDocument, TravelSettlement, Policy,
     LineItem, ReimbursementSubCategory,
     Department, Payout, Notification, SettlementReceipt, PolicyReimbursableCategory,
-    Vendor, VendorBooking,
+    Vendor, VendorBooking, ContractorContract,
 )
 from core.enums import AgentActionType, UserRole, ReimbursementStatus, JudgmentResult, PolicyStatus, is_vendor_booking
 from core.database import engine as db_engine
@@ -36,6 +36,7 @@ from engine.agents.compliance_agent import run_compliance_workflow, timeline_emi
 from engine.progress import ProgressTracker
 from engine.services.action_log import record_action
 from engine.services import autonomy_store
+from engine.services import contracts as contract_service
 from engine.services import fx
 from engine.services.approvals import DUAL_TIER, register_approval, required_approvals, split_batch
 from engine.services.payee_link import cooldown_until
@@ -132,12 +133,14 @@ def _build_reimbursement_response(
     employee_name: Optional[str] = None,
     department_name: Optional[str] = None,
     viewer_is_hr: bool = False,
+    viewer_is_contractor: bool = False,
     prefetched: Optional["_ListContext"] = None,
 ) -> dict:
     """Build a response dict for a Reimbursement row, including joined data.
 
     Non-HR viewers get no AI or HR judgment text: summary, reasoning, signals and the
-    autonomy explanation are left out. The HR note stays, since the employee is notified of it.
+    autonomy explanation are left out. Employees keep the HR note, since they are notified
+    of it. Contractors keep no HR note either: their claim view is limited to money and status.
     `prefetched` carries the list view's bulk lookups, so a page of rows costs a fixed number of queries.
     """
     if prefetched is not None:
@@ -185,6 +188,13 @@ def _build_reimbursement_response(
             if policy:
                 policy_name = policy.title
 
+    contract = None
+    if r.contract_id:
+        if prefetched is not None:
+            contract = prefetched.contracts.get(r.contract_id)
+        else:
+            contract = db.get(ContractorContract, r.contract_id)
+
     result = {
         "reim_id": str(r.reim_id),
         "user_id": str(r.user_id),
@@ -193,6 +203,8 @@ def _build_reimbursement_response(
         "department_name": department_name,
         "policy_id": str(r.policy_id) if r.policy_id else None,
         "policy_name": policy_name,
+        "contract_id": str(r.contract_id) if r.contract_id else None,
+        "contract": contract_service.contract_dict(db, contract) if contract else None,
         "settlement_id": str(r.settlement_id) if r.settlement_id else None,
         "main_category": r.main_category,
         "currency": r.currency,
@@ -211,7 +223,11 @@ def _build_reimbursement_response(
         "judgment": _enum_val(r.judgment),
         "status": _enum_val(r.status),
         "summary": r.summary if viewer_is_hr else None,
-        "ai_reasoning": r.ai_reasoning if viewer_is_hr else _employee_reasoning(r.ai_reasoning),
+        "ai_reasoning": (
+            r.ai_reasoning if viewer_is_hr
+            else None if viewer_is_contractor
+            else _employee_reasoning(r.ai_reasoning)
+        ),
         "reviewed_by": str(r.reviewed_by) if r.reviewed_by else None,
         "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None,
         "created_at": r.created_at.isoformat() if r.created_at else None,
@@ -329,6 +345,7 @@ class _ListContext:
     policy_titles: dict
     merchants: dict
     latest_payouts: dict
+    contracts: dict
     bookings: dict
     vendors: dict
     cooldown_hours: int
@@ -340,6 +357,7 @@ def _list_context(db: Session, reimbursements: list) -> _ListContext:
     user_ids = {r.user_id for r in reimbursements}
     policy_ids = {r.policy_id for r in reimbursements if r.policy_id}
     settlement_ids = {r.settlement_id for r in reimbursements if r.settlement_id}
+    contract_ids = {r.contract_id for r in reimbursements if r.contract_id}
 
     users = {u.user_id: u for u in db.exec(select(User).where(User.user_id.in_(user_ids))).all()} if user_ids else {}
     dept_ids = {u.department_id for u in users.values() if u.department_id}
@@ -355,6 +373,10 @@ def _list_context(db: Session, reimbursements: list) -> _ListContext:
     policy_titles = dict(
         db.exec(select(Policy.policy_id, Policy.title).where(Policy.policy_id.in_(policy_ids))).all()
     ) if policy_ids else {}
+    contracts = {
+        c.contract_id: c
+        for c in db.exec(select(ContractorContract).where(ContractorContract.contract_id.in_(contract_ids))).all()
+    } if contract_ids else {}
 
     merchants: dict = {}
     if settlement_ids:
@@ -384,7 +406,7 @@ def _list_context(db: Session, reimbursements: list) -> _ListContext:
     )
 
     return _ListContext(users, departments, receipt_counts, policy_titles, merchants, latest_payouts,
-                        bookings, vendors, autonomy_store.payee_cooldown_hours(db))
+                        contracts, bookings, vendors, autonomy_store.payee_cooldown_hours(db))
 
 
 @router.get("/health")
@@ -404,6 +426,7 @@ def list_reimbursements(
     current_user: User = Depends(deps.get_current_user),
 ) -> List[dict]:
     viewer_is_hr = current_user.role == UserRole.HR
+    viewer_is_contractor = current_user.role == UserRole.Contractor
     if viewer_is_hr:
         stmt = select(Reimbursement)
     else:
@@ -428,6 +451,7 @@ def list_reimbursements(
             db,
             include_line_items=False,
             viewer_is_hr=viewer_is_hr,
+            viewer_is_contractor=viewer_is_contractor,
             prefetched=ctx,
         )
         for r in reimbursements
@@ -457,7 +481,8 @@ def get_reimbursement(
         _refresh_stale_quote(db, r, datetime.now(timezone.utc))
 
     return _build_reimbursement_response(
-        r, db, include_line_items=True, viewer_is_hr=current_user.role == UserRole.HR
+        r, db, include_line_items=True, viewer_is_hr=current_user.role == UserRole.HR,
+        viewer_is_contractor=current_user.role == UserRole.Contractor,
     )
 
 
@@ -930,7 +955,26 @@ async def analyze_reimbursement(
             detail="Settlement does not belong to current user",
         )
 
+    # A contractor needs an active contract before any analysis starts. No claim is created
+    # when this refuses, not even a review claim.
+    contract = None
+    if current_user.role == UserRole.Contractor:
+        contract = contract_service.active_contract(db, current_user.user_id)
+        if contract is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="NO_ACTIVE_CONTRACT",
+            )
+    contract_id = contract.contract_id if contract else None
+    contract_policy_id = str(contract.policy_id) if contract and contract.policy_id else None
+    contract_limit = float(contract.max_company_amount_per_claim) if contract else None
+    contract_categories = (
+        {c.lower() for c in contract_service.contract_categories(db, contract.contract_id)}
+        if contract else None
+    )
+
     viewer_is_hr = current_user.role == UserRole.HR
+    viewer_is_contractor = current_user.role == UserRole.Contractor
 
     # Cache check: return cached results if no human edits
     has_edits = bool(
@@ -949,7 +993,10 @@ async def analyze_reimbursement(
     if not has_edits and cached_reims:
         logger.info("[API_ANALYZE] Returning %d cached reimbursements", len(cached_reims))
         results = [
-            _build_reimbursement_response(r, db, include_line_items=True, viewer_is_hr=viewer_is_hr)
+            _build_reimbursement_response(
+                r, db, include_line_items=True, viewer_is_hr=viewer_is_hr,
+                viewer_is_contractor=viewer_is_contractor,
+            )
             for r in cached_reims
         ]
         return {"reimbursements": results}
@@ -986,25 +1033,26 @@ async def analyze_reimbursement(
                     tracker.publish(task_id, "error", {"message": "No receipts found for this settlement"})
                     return
 
-                # 2. Map each unique category → best active policy (latest effective_date)
-                unique_categories = list({r.category for r in all_receipts if r.category})
+                # Contract intake: disallowed categories never reach the policy or agent.
+                if contract_categories is not None:
+                    allowed_receipts, blocked_receipts = contract_service.split_receipts_by_contract(
+                        all_receipts, contract_categories
+                    )
+                else:
+                    allowed_receipts, blocked_receipts = all_receipts, []
+
+                # 2. Map each unique category → the contract policy, or the best active policy
+                unique_categories = list({r.category for r in allowed_receipts if r.category})
                 cat_to_policy_id: dict[str, Optional[str]] = {}
+                contract_policy_uuid = UUID(contract_policy_id) if contract_policy_id else None
                 for cat in unique_categories:
-                    rows = bg_db.exec(
-                        select(PolicyReimbursableCategory, Policy)
-                        .join(Policy, PolicyReimbursableCategory.policy_id == Policy.policy_id)
-                        .where(
-                            PolicyReimbursableCategory.category == cat,
-                            Policy.status == PolicyStatus.ACTIVE,
-                        )
-                        .order_by(Policy.effective_date.desc(), Policy.created_at.desc())
-                    ).all()
-                    cat_to_policy_id[cat] = str(rows[0][1].policy_id) if rows else None
+                    policy_id = contract_service.policy_for_category(bg_db, cat, contract_policy_uuid)
+                    cat_to_policy_id[cat] = str(policy_id) if policy_id else None
                 logger.info("[API_ANALYZE_BG] Category→policy map: %s", cat_to_policy_id)
 
                 # 3. Group document_ids by resolved policy_id (None = unmatched)
                 groups: dict[Optional[str], list[str]] = {}
-                for receipt in all_receipts:
+                for receipt in allowed_receipts:
                     if not receipt.document_id:
                         continue
                     pid = cat_to_policy_id.get(receipt.category)
@@ -1022,7 +1070,7 @@ async def analyze_reimbursement(
                 if unmatched_doc_ids:
                     logger.info("[API_ANALYZE_BG] Creating MANUAL_REVIEW for %d unmatched receipts", len(unmatched_doc_ids))
                     unmatched_receipts = [
-                        r for r in all_receipts
+                        r for r in allowed_receipts
                         if r.document_id and str(r.document_id) in unmatched_doc_ids
                     ]
                     unmatched_total = Decimal(str(sum(
@@ -1032,6 +1080,7 @@ async def analyze_reimbursement(
                         user_id=UUID(user_id_str),
                         policy_id=None,
                         settlement_id=settlement_uuid,
+                        contract_id=contract_id,
                         main_category="Uncategorized",
                         currency=settlement_currency,
                         total_claimed_amount=unmatched_total,
@@ -1041,7 +1090,38 @@ async def analyze_reimbursement(
                     bg_db.add(unmatched_reim)
                     bg_db.commit()
                     bg_db.refresh(unmatched_reim)
-                    all_results.append(_build_reimbursement_response(unmatched_reim, bg_db, include_line_items=False, viewer_is_hr=viewer_is_hr))
+                    all_results.append(_build_reimbursement_response(unmatched_reim, bg_db, include_line_items=False, viewer_is_hr=viewer_is_hr, viewer_is_contractor=viewer_is_contractor))
+
+                # Contract receipts outside the billable categories: HR sees the reason, the
+                # contractor sees a normal review claim with no risk language.
+                if blocked_receipts:
+                    blocked_categories = sorted({
+                        (r.category or "Uncategorised").strip() for r in blocked_receipts
+                    })
+                    blocked_total = Decimal(str(sum(float(r.claimed_amount or 0) for r in blocked_receipts)))
+                    contract_reim = _undecided_claim(
+                        user_id=UUID(user_id_str),
+                        policy_id=None,
+                        settlement_id=settlement_uuid,
+                        contract_id=contract_id,
+                        main_category="Contract review",
+                        currency=settlement_currency,
+                        total_claimed_amount=blocked_total,
+                        summary=("Receipts outside the contract categories: "
+                                 + ", ".join(blocked_categories) + ". HR review required."),
+                        ai_reasoning={
+                            "contract_reason": "CATEGORY_NOT_ALLOWED",
+                            "categories": blocked_categories,
+                            "contract_id": str(contract_id) if contract_id else None,
+                        },
+                    )
+                    bg_db.add(contract_reim)
+                    bg_db.commit()
+                    bg_db.refresh(contract_reim)
+                    all_results.append(_build_reimbursement_response(
+                        contract_reim, bg_db, include_line_items=False, viewer_is_hr=viewer_is_hr,
+                        viewer_is_contractor=viewer_is_contractor,
+                    ))
 
                 # 5. Run compliance agent once per matched policy group
                 for i, (policy_id_str, doc_ids) in enumerate(matched_groups):
@@ -1055,7 +1135,7 @@ async def analyze_reimbursement(
                         "policy_alias": policy_alias,
                     })
 
-                    group_receipts = [r for r in all_receipts if r.document_id and str(r.document_id) in doc_ids]
+                    group_receipts = [r for r in allowed_receipts if r.document_id and str(r.document_id) in doc_ids]
                     group_categories = list({r.category for r in group_receipts if r.category})
                     cat_counts = Counter(r.category for r in group_receipts if r.category)
                     group_main_category = cat_counts.most_common(1)[0][0] if cat_counts else "General"
@@ -1072,6 +1152,8 @@ async def analyze_reimbursement(
                             session=bg_db,
                             document_ids=doc_ids,
                             progress_callback=progress_callback,
+                            contract_id=str(contract_id) if contract_id else None,
+                            contract_max_company_amount=contract_limit,
                         )
                         reim_id = result.get("reimbursement_id")
                         if not reim_id:
@@ -1084,7 +1166,7 @@ async def analyze_reimbursement(
                             _auto_payout(bg_db, reim, loop, timeline_emitter(progress_callback))
                         except Exception:
                             logger.exception("[API_ANALYZE_BG] Payout step failed for reim=%s", reim_id)
-                        all_results.append(_build_reimbursement_response(reim, bg_db, include_line_items=True, viewer_is_hr=viewer_is_hr))
+                        all_results.append(_build_reimbursement_response(reim, bg_db, include_line_items=True, viewer_is_hr=viewer_is_hr, viewer_is_contractor=viewer_is_contractor))
                     except Exception as group_err:
                         logger.exception("[API_ANALYZE_BG] Compliance failed for policy=%s", policy_alias)
                         try:
@@ -1095,6 +1177,7 @@ async def analyze_reimbursement(
                                 user_id=UUID(user_id_str),
                                 policy_id=UUID(policy_id_str),
                                 settlement_id=settlement_uuid,
+                                contract_id=contract_id,
                                 main_category=group_main_category,
                                 currency=settlement_currency,
                                 total_claimed_amount=Decimal(str(total_claimed)),
@@ -1104,7 +1187,7 @@ async def analyze_reimbursement(
                             bg_db.add(fail_reim)
                             bg_db.commit()
                             bg_db.refresh(fail_reim)
-                            all_results.append(_build_reimbursement_response(fail_reim, bg_db, include_line_items=False, viewer_is_hr=viewer_is_hr))
+                            all_results.append(_build_reimbursement_response(fail_reim, bg_db, include_line_items=False, viewer_is_hr=viewer_is_hr, viewer_is_contractor=viewer_is_contractor))
                         except Exception as fallback_err:
                             logger.exception("[API_ANALYZE_BG] Fallback MANUAL_REVIEW failed: %s", fallback_err)
 

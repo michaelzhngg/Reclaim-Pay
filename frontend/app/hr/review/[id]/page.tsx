@@ -6,6 +6,7 @@ import { ArrowLeft, AlertTriangle, Clock, ShieldCheck, ShieldX, ChevronDown, Zoo
 import type { ClaimBundle } from "@/lib/api/types";
 import { formatClaimRef, formatMoney } from "@/lib/format";
 import { companyLineAmount, fxQuoteText } from "@/lib/fx";
+import { contractSummaryRows } from "@/lib/contracts";
 import { SuccessModal, isAwaitingSecondApproval } from "../../hr_components/SuccessModal";
 import { useAuth } from "@/context/AuthContext";
 import { updateReimbursementStatus } from "@/lib/actions/hr";
@@ -528,6 +529,17 @@ export default function ReviewPage() {
               {identityFields.map(([l, v]) => <Field key={l} label={l} value={v} />)}
             </div>
           </Card>
+
+          {/* The contract that scopes a contractor claim, before any money decision */}
+          {bundle.contract && (
+            <Card title="Contract">
+              <div className="p-4 sm:p-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {contractSummaryRows(bundle.contract).map((row) => (
+                  <Field key={row.label} label={row.label} value={row.value} />
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Claim Context: shown only when at least one value was recorded */}
           {contextFields.length > 0 && (

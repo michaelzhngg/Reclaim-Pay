@@ -98,6 +98,7 @@ function mapToBundle(r: TriageSource): ClaimBundle {
     fx_rate_at: r.fx_rate_at ?? null,
     fx_source: r.fx_source ?? null,
     fx_unavailable: r.fx_unavailable ?? false,
+    contract: r.contract ?? null,
     travel_destination: r.destination ?? "",
     // The settlement's stated purpose. r.summary is the AI's risk summary and belongs in the AI panel only.
     travel_purpose: r.purpose ?? "",

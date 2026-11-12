@@ -231,6 +231,9 @@ def my_trust(
     current_user: User = Depends(deps.get_current_user),
 ):
     """HR users get 403: their own claims never auto-pay (HR_SELF_CLAIM)."""
-    if current_user.role != UserRole.Employee:
+    if current_user.role not in (UserRole.Employee, UserRole.Contractor):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Trust tiers apply to employees only")
-    return employee_trust(db, current_user.user_id, store.get_config(db), _now())
+    return employee_trust(
+        db, current_user.user_id, store.get_config(db), _now(),
+        is_contractor=current_user.role == UserRole.Contractor,
+    )

@@ -5,6 +5,7 @@
 
 import { formatMoney, type AutonomyDecision, type AutonomyTier } from "./reclaim-pay-types";
 import type { ClaimAutonomy } from "@/lib/hr/evidence";
+import type { ContractRecord } from "@/lib/contracts";
 
 // ─── Generic API Result ──────────────────────────────────────────────────────
 
@@ -123,6 +124,9 @@ export interface ReimbursementRaw {
   department_name?: string;
   policy_id: string | null;
   policy_name?: string | null;
+  /** Set for a contractor claim. */
+  contract_id?: string | null;
+  contract?: ContractRecord | null;
   settlement_id: string | null;
   main_category: string;
   currency: string;
@@ -317,6 +321,8 @@ export interface ClaimBundle {
   fx_rate_at: string | null;
   fx_source: string | null;
   fx_unavailable: boolean;
+  /** The contractor's terms, when this claim came from a contract. */
+  contract: ContractRecord | null;
   travel_destination: string;
   travel_purpose: string;
   departure_date: string;

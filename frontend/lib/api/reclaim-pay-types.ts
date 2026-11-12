@@ -208,6 +208,8 @@ export interface TrustInfo {
   trust_tier: TrustTier;
   auto_limit: number;
   paid_claims: number;
+  /** Set for a contractor: payments are reviewed until TRUSTED. */
+  is_contractor?: boolean;
   /** null at the top tier. */
   next_tier: TrustTier | null;
   claims_to_next_tier: number;

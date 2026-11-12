@@ -72,6 +72,9 @@ class ComplianceWorkflowState(TypedDict):
     document_ids: Optional[List[str]]
     # Generated before the shield runs, so the claim's own documents can be told apart from others.
     reim_id: str
+    # Set for a contractor claim. The limit is already in company currency.
+    contract_id: Optional[str]
+    contract_max_company_amount: Optional[float]
 
     # Context loaded from DB
     user: Optional[Any]
@@ -786,6 +789,11 @@ def save_reimbursement(
     fx_at = claimed_quote.as_of if claimed_quote else None
     fx_source = claimed_quote.source if claimed_quote else "UNQUOTED"
     fx_unavailable = claimed_quote is None or approved_quote is None
+    is_contractor = user.role == UserRole.Contractor
+    contract_limit = state.get("contract_max_company_amount")
+    over_contract_limit = (
+        contract_limit is not None and float(max(amount_company, approved_company)) > float(contract_limit)
+    )
 
     judgment_str = state.get("judgment", "MANUAL REVIEW")
     judgment_enum = _map_agent_status_to_enum(judgment_str)
@@ -807,6 +815,8 @@ def save_reimbursement(
             over_category_budget=bool(budget_violations),
             claimant_is_hr=_is_hr(user),
             fx_unavailable=fx_unavailable,
+            claimant_is_contractor=is_contractor,
+            over_contract_limit=over_contract_limit,
         )
         decision = _decide(state, session, facts, now)
     except Exception:
@@ -850,6 +860,7 @@ def save_reimbursement(
         user_id=UUID(state["user_id"]),
         policy_id=UUID(state["policy_id"]),
         settlement_id=settlement_uuid,
+        contract_id=UUID(state["contract_id"]) if state.get("contract_id") else None,
         main_category=state["main_category"],
         currency=state.get("currency") or fx.company_currency(),
         total_claimed_amount=float(total_claimed),
@@ -1063,6 +1074,8 @@ def run_compliance_workflow(
     session: Session,
     document_ids: Optional[List[str]] = None,
     progress_callback=None,
+    contract_id: Optional[str] = None,
+    contract_max_company_amount: Optional[float] = None,
 ) -> dict:
     """
     Compile and run the compliance graph.
@@ -1139,6 +1152,8 @@ def run_compliance_workflow(
         "all_category": all_category or [],
         "document_ids": document_ids or [],
         "reim_id": str(uuid4()),
+        "contract_id": contract_id,
+        "contract_max_company_amount": contract_max_company_amount,
         "user": None,
         "policy": None,
         "receipts": [],

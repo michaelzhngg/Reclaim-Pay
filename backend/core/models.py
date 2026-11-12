@@ -421,6 +421,12 @@ class Reimbursement(SQLModel, table=True):
         default=None,
         foreign_key="travel_settlements.settlement_id"
     )
+    # Set for a contractor claim. All of a contractor's claims carry their contract.
+    contract_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="contractor_contracts.contract_id",
+        index=True,
+    )
     # A vendor booking uses this row as its financial record. Existing rows are claims.
     kind: str = Field(
         default=ReimbursementKind.CLAIM.value,

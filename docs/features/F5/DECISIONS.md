@@ -72,4 +72,36 @@ plan in `PLAN.md` stays the reference; this file says where the build departs fr
   The documented false-positive risk on foreign receipts remains, because the thresholds
   themselves are still tuned to one currency.
 
+## 04: Contractor claims under contract policy, never auto-paid
+
+- **The contractor trust stop lives in `decide()`.** `CONTRACTOR_NOT_TRUSTED` is reported
+  whenever `claimant_is_contractor` is true and the trust tier is below `TRUSTED`. No
+  route can turn it off, and a trusted contractor still goes through every normal rule.
+- **The contract ceiling is `OVER_CONTRACT_LIMIT`, compared in company currency.** The
+  claim is decided on `max(amount_company, approved_company_amount)`, so the raw foreign
+  amount cannot dodge the ceiling. The limit is passed into the compliance workflow with
+  the contract id, never read from the request.
+- **Contract intake splits receipts before the agent.** A receipt whose category is not
+  in the contract is removed from the agent groups and becomes a `DUAL_REVIEW` claim with
+  `contract_reason = CATEGORY_NOT_ALLOWED`. It is still a `Reimbursement` linked to the
+  contract, so HR sees it in the same queue and the contractor sees a normal review claim.
+  Blocked receipts from one submission are grouped into one claim.
+- **A contract policy replaces the category lookup.** When the contract names a policy,
+  every allowed receipt is evaluated against it. Without one, the existing newest active
+  policy that lists the category still applies. Category matching is case-insensitive.
+- **All contractor claims carry `contract_id`.** The compliance save links the contract
+  it was given; review claims created without the agent are linked the same way.
+- **Contractor claim responses drop the HR note too.** Employees still see the HR note,
+  because they are notified of it. A contractor sees status, amounts and currency only.
+  Risk score, signals, hard stops and the explanation were already stripped.
+- **The trust card names the role.** `/autonomy/me` admits contractors and returns
+  `is_contractor`, and the card says "Reviewed payouts up to" plus a sentence that
+  contractor payments are reviewed until trusted. It carries no score, signal or stop.
+- **The backtest loads the role from the users table.** It no longer infers the claimant
+  from a stored hard stop, so a trusted contractor's older claims re-run with the
+  contractor flag and the company amount.
+- **Contractors cannot create vendor bookings.** The booking route now uses the
+  non-contractor dependency, matching the nav that hides bookings from them.
+
+
 

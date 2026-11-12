@@ -64,6 +64,10 @@ class HardStop(str, Enum):
     EXPECTED_LOSS = "EXPECTED_LOSS"
     # A claim in a currency with no deterministic quote cannot be compared to company limits.
     FX_RATE_UNAVAILABLE = "FX_RATE_UNAVAILABLE"
+    # Contractors are paid only after the trusted tier, whatever their limit says.
+    CONTRACTOR_NOT_TRUSTED = "CONTRACTOR_NOT_TRUSTED"
+    # The contract's company-currency ceiling on a single claim.
+    OVER_CONTRACT_LIMIT = "OVER_CONTRACT_LIMIT"
 
 
 SEVERITY_POINTS: dict[Severity, int] = {Severity.LOW: 5, Severity.MEDIUM: 20, Severity.HIGH: 50}
@@ -95,6 +99,8 @@ class ClaimFacts(BaseModel):
     claimant_is_hr: bool
     # No deterministic quote for the claim currency: compare nothing and let HR look.
     fx_unavailable: bool = False
+    claimant_is_contractor: bool = False
+    over_contract_limit: bool = False
 
 
 class EmployeeHistory(BaseModel):

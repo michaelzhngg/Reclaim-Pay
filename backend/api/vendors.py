@@ -184,7 +184,7 @@ def change_vendor_paypal(
 async def create_vendor_booking(
     body: VendorBookingCreate,
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(deps.get_current_non_contractor_user),
 ) -> dict:
     if body.service_end < body.service_start:
         raise HTTPException(status_code=422, detail="SERVICE_END_BEFORE_START")
