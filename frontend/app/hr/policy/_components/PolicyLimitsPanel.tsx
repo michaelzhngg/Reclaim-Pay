@@ -11,7 +11,19 @@ import {
   type TravelScope,
 } from "@/lib/api/reclaim-pay-types";
 import { confirmPolicyLimits, getPolicyLimits, suggestPolicyLimits } from "@/lib/actions/policyLimits";
-import { gradeLabel, limitProblem, parseAmount, parseGrade, unitLabel, whereLabel, zoneSummary } from "@/lib/policy/limits";
+import {
+  confirmedMessage,
+  gradeLabel,
+  limitProblem,
+  limitsErrorMessage,
+  parseAmount,
+  parseGrade,
+  rowName,
+  unitLabel,
+  visibilityNote,
+  whereLabel,
+  zoneSummary,
+} from "@/lib/policy/limits";
 
 type Row = LimitRule & { key: string; suggested: boolean; amountText: string };
 
@@ -27,7 +39,14 @@ type Draft = {
 };
 
 const EMPTY_DRAFT: Draft = {
-  category: "", kind: "CAP", unit: "PER_NIGHT", amount: "", gradeMin: "", gradeMax: "", scope: "ANY", zone: "",
+  category: "",
+  kind: "CAP",
+  unit: "PER_NIGHT",
+  amount: "",
+  gradeMin: "",
+  gradeMax: "",
+  scope: "ANY",
+  zone: "",
 };
 
 // Inputs get the app's focus ring explicitly: the global :focus-visible rule only covers buttons and links.
@@ -49,7 +68,8 @@ function toRows(data: PolicyLimits | null): Row[] {
 }
 
 function toRule(row: Row): LimitRule {
-  const { category, kind, unit, amount, currency, grade_min, grade_max, scope, zone, source_section, source_quote } = row;
+  const { category, kind, unit, amount, currency, grade_min, grade_max, scope, zone, source_section, source_quote } =
+    row;
   return { category, kind, unit, amount, currency, grade_min, grade_max, scope, zone, source_section, source_quote };
 }
 
@@ -59,14 +79,27 @@ function LimitAmount({ rule }: { rule: LimitRule }) {
   if (Number.isNaN(rule.amount)) return <>Amount not valid</>;
   const money = <span className="tabular-nums font-medium text-ink">{formatMoney(rule.currency, rule.amount)}</span>;
   return rule.kind === "PRE_APPROVAL" ? (
-    <>Approval needed above {money} {unitLabel(rule.unit)}</>
+    <>
+      Approval needed above {money} {unitLabel(rule.unit)}
+    </>
   ) : (
-    <>Up to {money} {unitLabel(rule.unit)}</>
+    <>
+      Up to {money} {unitLabel(rule.unit)}
+    </>
   );
 }
 
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
 /** HR checks the limits Reclaim suggested from the policy text, then confirms them. Employees only ever see confirmed limits. */
-export default function PolicyLimitsPanel({ policyId }: { policyId: string }) {
+export default function PolicyLimitsPanel({
+  policyId,
+  onDirtyChange,
+}: {
+  policyId: string;
+  /** Told whenever there are edits HR hasn't confirmed, so the page can stop them being lost. */
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
   const ids = useId();
   const [data, setData] = useState<PolicyLimits | null | undefined>(undefined);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -84,6 +117,12 @@ export default function PolicyLimitsPanel({ policyId }: { policyId: string }) {
   }, []);
 
   const load = useCallback(async () => apply(await getPolicyLimits(policyId)), [apply, policyId]);
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   useEffect(() => {
     let current = true;
@@ -118,7 +157,10 @@ export default function PolicyLimitsPanel({ policyId }: { policyId: string }) {
   };
 
   const confirm = async () => {
-    const problem = rows.map(limitProblem).find((p) => p !== null);
+    const stale = rows.find((r) => !(data?.categories ?? []).some((c) => sameName(c, r.category)));
+    const problem = stale
+      ? limitsErrorMessage(`UNKNOWN_CATEGORY: ${stale.category}`, 422)
+      : rows.map(limitProblem).find((p) => p !== null);
     if (problem) {
       setMessage({ text: problem, tone: "error" });
       return;
@@ -132,7 +174,7 @@ export default function PolicyLimitsPanel({ policyId }: { policyId: string }) {
       setData(res.limits);
       setRows(toRows(res.limits));
       setDirty(false);
-      setMessage({ text: "Limits confirmed. Employees see them from now on.", tone: "info" });
+      setMessage({ text: confirmedMessage(res.limits, res.limits.limits.length), tone: "info" });
     } else {
       setMessage({ text: res.error ?? "No response from the server. Try again.", tone: "error" });
     }
@@ -149,11 +191,13 @@ export default function PolicyLimitsPanel({ policyId }: { policyId: string }) {
       current.map((row) => (row.key === key ? { ...row, amountText: text, amount: parseAmount(text) } : row)),
     );
     setDirty(true);
+    setMessage(null);
   };
 
   const remove = (key: string) => {
     setRows((current) => current.filter((row) => row.key !== key));
     setDirty(true);
+    setMessage(null);
   };
 
   const add = () => {
@@ -222,17 +266,19 @@ export default function PolicyLimitsPanel({ policyId }: { policyId: string }) {
     suggestedCount > 0
       ? `${suggestedCount} suggested ${suggestedCount === 1 ? "limit needs" : "limits need"} checking. Employees don't see suggestions.`
       : rows.length > 0 && nothingToConfirm
-        ? "All limits are confirmed. Employees see them."
+        ? data.policy_active
+          ? "All limits are confirmed."
+          : "All limits are confirmed. Employees will see them once the policy is active."
         : null;
 
   return (
-    <section aria-labelledby={`${ids}-heading`} className={shell}>
+    <section aria-labelledby={`${ids}-heading`} tabIndex={-1} className={shell}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1 basis-60">
           {heading}
           <p className="mt-1 text-sm text-ink-muted">
-            Employees see these limits before they spend. Reclaim suggests them from the policy text and only
-            shows them to employees after you confirm.
+            {visibilityNote(data)} Reclaim suggests limits from the policy text; employees only see them after you
+            confirm. Separate from auto-approval budgets, which only decide whether a claim is paid without an HR check.
           </p>
         </div>
         {!noCategories && (
@@ -257,59 +303,73 @@ export default function PolicyLimitsPanel({ policyId }: { policyId: string }) {
       ) : (
         <>
           {rows.length === 0 ? (
-            <p className="mt-2 text-sm text-ink-muted">
-              No limits yet. Find them in the policy or add them below.
-            </p>
+            <p className="mt-2 text-sm text-ink-muted">No limits yet. Find them in the policy or add them below.</p>
           ) : (
             <ul className="@container mt-2 divide-y divide-line border-y border-line">
-              {rows.map((row) => (
-                <li key={row.key} className="py-3 flex flex-col gap-2 @md:flex-row @md:items-center @md:gap-4">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-ink break-words">
-                      {row.category}
-                      {row.suggested && (
-                        <span className="mt-1 block w-fit rounded-control bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning">
-                          Suggested, not confirmed
-                        </span>
+              {rows.map((row) => {
+                const name = rowName(row);
+                const stale = !data.categories.some((c) => sameName(c, row.category));
+                const problem = stale ? "This category isn't in the policy any more. Remove it." : limitProblem(row);
+                const errorId = `${ids}-${row.key}-error`;
+                return (
+                  <li key={row.key} className="py-3 flex flex-col gap-2 @md:flex-row @md:items-center @md:gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-ink break-words">
+                        {row.category}
+                        {row.suggested && (
+                          <span className="mt-1 block w-fit rounded-control bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning">
+                            Suggested, not confirmed
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-ink-muted">
+                        {gradeLabel(row.grade_min, row.grade_max)}, {whereLabel(row.scope, row.zone).toLowerCase()}.{" "}
+                        <LimitAmount rule={row} />
+                      </p>
+                      {row.source_section && (
+                        <p className="mt-0.5 text-xs text-ink-muted break-words">From {row.source_section}</p>
                       )}
-                    </p>
-                    <p className="text-xs text-ink-muted">
-                      {gradeLabel(row.grade_min, row.grade_max)}, {whereLabel(row.scope, row.zone).toLowerCase()}.{" "}
-                      <LimitAmount rule={row} />
-                    </p>
-                    {row.source_section && (
-                      <p className="mt-0.5 text-xs text-ink-muted break-words">From {row.source_section}</p>
-                    )}
-                    {row.source_quote && (
-                      <p className="mt-0.5 text-xs text-ink-muted break-words">Policy text: &ldquo;{row.source_quote}&rdquo;</p>
-                    )}
-                  </div>
-                  <div className="flex items-end gap-2 shrink-0">
-                    {row.unit !== "ACTUAL" && (
-                      <label className={LABEL}>
-                        Amount ({row.currency})
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          autoComplete="off"
-                          value={row.amountText}
-                          onChange={(e) => setAmount(row.key, e.target.value)}
-                          aria-invalid={limitProblem(row) !== null}
-                          className={`${FIELD} w-32 font-mono tabular-nums`}
-                        />
-                      </label>
-                    )}
-                    <button
-                      type="button"
-                      aria-label={`Remove ${row.category} limit, ${gradeLabel(row.grade_min, row.grade_max)}`}
-                      onClick={() => remove(row.key)}
-                      className="inline-flex items-center justify-center min-h-11 min-w-11 rounded-control text-ink-muted hover:text-danger hover:bg-danger-soft transition-colors"
-                    >
-                      <Trash2 size={18} aria-hidden="true" />
-                    </button>
-                  </div>
-                </li>
-              ))}
+                      {row.source_quote && (
+                        <p className="mt-0.5 text-xs text-ink-muted break-words">
+                          Policy text: &ldquo;{row.source_quote}&rdquo;
+                        </p>
+                      )}
+                      {problem && (
+                        <p id={errorId} className="mt-1 text-xs font-medium text-danger">
+                          {problem}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-end gap-2 shrink-0">
+                      {row.unit !== "ACTUAL" && (
+                        <label className={LABEL}>
+                          Amount ({row.currency})
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            autoComplete="off"
+                            value={row.amountText}
+                            onChange={(e) => setAmount(row.key, e.target.value)}
+                            aria-label={`${name}: amount`}
+                            aria-invalid={problem !== null}
+                            aria-describedby={problem ? errorId : undefined}
+                            className={`${FIELD} w-32 font-mono tabular-nums`}
+                          />
+                        </label>
+                      )}
+                      <button
+                        type="button"
+                        aria-label={`Remove limit: ${name}`}
+                        aria-describedby={stale ? errorId : undefined}
+                        onClick={() => remove(row.key)}
+                        className="inline-flex items-center justify-center min-h-11 min-w-11 rounded-control text-ink-muted hover:text-danger hover:bg-danger-soft transition-colors"
+                      >
+                        <Trash2 size={18} aria-hidden="true" />
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
 

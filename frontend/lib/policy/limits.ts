@@ -1,6 +1,7 @@
 import {
   formatMoney,
   type LimitRule,
+  type PolicyLimits,
   type LimitUnit,
   type TravelScope,
   type ZonePlace,
@@ -99,13 +100,48 @@ export function limitProblem(rule: LimitRule): string | null {
 
 /** Maps an error from the limits endpoints to a sentence HR can act on. */
 export function limitsErrorMessage(error: string | null, status: number | undefined): string {
-  if (error === "UNKNOWN_CATEGORY") return "One limit uses a category this policy doesn't have. Remove it and confirm again.";
-  if (error === "CONFLICTING_LIMITS") return "Two limits cover the same grades and place with different amounts. Remove one.";
+  if (error?.startsWith("UNKNOWN_CATEGORY")) {
+    const name = error.slice("UNKNOWN_CATEGORY".length).replace(/^:\s*/, "") || "One category";
+    return `${name} isn't a category in this policy any more. Remove that limit and confirm again.`;
+  }
+  if (error === "CONFLICTING_LIMITS")
+    return "Two limits cover the same grades and place with different amounts. Remove one.";
   if (status === 404) return "This policy no longer exists. Go back to Policy Studio.";
   if (status === 422) return "The server rejected one of the limits. Check the amounts and grades, then confirm again.";
   if (status === 503) return "Couldn't read the policy right now. Try again later or add limits by hand.";
   if (status === 429) return "You can ask Reclaim to read the policy 3 times a minute. Wait a minute and try again.";
   if (status === 403) return "Only HR can change spending limits.";
-  if (error?.startsWith("Network request failed")) return "Couldn't reach the server. Check your connection and try again.";
+  if (error?.startsWith("Network request failed"))
+    return "Couldn't reach the server. Check your connection and try again.";
   return "No response from the server. Try again.";
+}
+
+type Visibility = Pick<PolicyLimits, "policy_active" | "categories" | "employee_visible_categories">;
+
+const listOf = (items: string[]) =>
+  items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+/** Whether employees see this policy's confirmed limits, and which categories a newer policy takes over. */
+export function visibilityNote(v: Visibility): string {
+  if (!v.policy_active) return "Employees won't see these limits: the policy isn't active.";
+  const hidden = v.categories.filter((c) => !v.employee_visible_categories.includes(c));
+  if (hidden.length === 0) return "Employees see these limits before they spend.";
+  if (v.employee_visible_categories.length === 0) {
+    return `Employees won't see these limits: a newer active policy covers ${listOf(hidden)}.`;
+  }
+  const it = hidden.length === 1 ? "it" : "them";
+  return `Employees see these limits before they spend, except for ${listOf(hidden)}: a newer active policy covers ${it}.`;
+}
+
+export function confirmedMessage(v: Visibility, count: number): string {
+  if (count === 0) return "No limits confirmed. Employees see no limits for this policy.";
+  if (!v.policy_active) return "Limits confirmed. Employees will see them once the policy is active.";
+  return "Limits confirmed. Employees see them from now on.";
+}
+
+/** Category, grades and place, so each row's controls have a distinct accessible name. */
+export function rowName(rule: LimitRule): string {
+  const parts = [rule.category, gradeLabel(rule.grade_min, rule.grade_max), whereLabel(rule.scope, rule.zone)];
+  if (rule.kind === "PRE_APPROVAL") parts.push("approval threshold");
+  return parts.join(", ");
 }
