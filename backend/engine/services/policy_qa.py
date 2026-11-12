@@ -250,15 +250,26 @@ def answer_question(db: Session, user: User, question: str, now: datetime) -> Qa
     return result
 
 
+_TABLE_RULE = re.compile(r"^\|?(?:\s*:?-{3,}:?\s*\|)+\s*$", re.MULTILINE)
+_PLACEHOLDER_COLUMN = re.compile(r"(?<=\|)\s*Col\d+\s*(?=\|)")
+_BR = re.compile(r"<br\s*/?>", re.IGNORECASE)
+
+
+def _readable(content: str | None) -> str:
+    """Section text for HR to read: no table rules, made-up column names or <br> tags."""
+    text = _PLACEHOLDER_COLUMN.sub("", _TABLE_RULE.sub("", content or ""))
+    return _plain(_BR.sub(" ", text))
+
+
 def _section_label(s: PolicySection) -> str:
     if s.section_title:
         return s.section_title
-    heading = _plain((s.content or "").strip().split("\n", 1)[0])
+    heading = _readable((s.content or "").strip().split("\n", 1)[0])
     return heading if 0 < len(heading) <= 80 else f"Part {(s.section_order or 0) + 1}"
 
 
 def _excerpt(s: PolicySection, label: str) -> str:
-    text = _plain(s.content)
+    text = _readable(s.content)
     return text[len(label):].strip() if text.startswith(label) else text  # don't repeat a heading used as the label
 
 

@@ -153,3 +153,17 @@ def test_cells_from_different_rows_are_not_a_quote():
     assert qa.quote_section("MYR 200 … Grade 6", [TABLE_SECTION]) is None
     assert qa.quote_section("Grade 6 … MYR 240", [TABLE_SECTION]) is TABLE_SECTION  # any order within the row
     assert qa.quote_section("MYR 240 … Grade 3", [TABLE_SECTION]) is None
+
+
+def test_hr_sees_a_table_section_without_markdown_table_syntax():
+    table = SimpleNamespace(
+        section_id="s2", section_title=None, section_order=2,
+        content="| Do mes tic |Col2|Col3| PT RECLAIM Grade |\n|---|---|---|---|\n"
+                "| Daily Trip <br> Allowance | Daily Trip <br> Allowance | Accomodations | Grade |\n"
+                "| MYR 75 per day | MYR 90 per day | 4-star Max MYR 375 per day | Grade 6 |",
+    )
+    label = qa._section_label(table)
+    excerpt = qa._excerpt(table, label)
+    assert label == "Do mes tic PT RECLAIM Grade"
+    assert excerpt.startswith("Daily Trip Allowance Daily Trip Allowance Accomodations Grade MYR 75 per day")
+    assert not any(mark in label + excerpt for mark in ("Col2", "---", "<br"))
