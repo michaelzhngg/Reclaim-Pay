@@ -58,6 +58,7 @@ The Receipt Shield is six fixed checks, plus one optional price check. None of t
 | Totals that don't add up | Compares line items with the printed total. | Generated and edited receipts often get the sums wrong. |
 | Split claims | Flags claims by one employee at one merchant on one day that are each under the limit but together over it, and claims just under a limit. | One bill can't be divided to slip past a cap. |
 | Edits | Flags amounts changed after the AI read them, and files saved by editing software. | Shows HR exactly what changed. |
+| Image check | Looks for a pasted-in or typed-over area, such as a changed total, by finding blocks with far less camera noise than the rest of the photo, plus a strict JPEG error-level check. Runs once at upload, well under a second for a phone photo. Observe-only by default (`IMAGE_FORENSICS_MODE=observe`): HR sees the finding marked "not scored", and it adds no points and changes no lane. | Edited photos reach HR with the suspect area named, without a new check that can misfire moving any claim the night it ships. |
 | Channel3 price check | Optional, and off without an API key. Flags an equipment line priced over 1.5 times the median of at least 3 market offers. | Inflated equipment prices reach HR with a market comparison. |
 
 ### HR stays in control
@@ -119,6 +120,7 @@ The AI can never move money by itself, because no path in the product lets it.
 - **Receipts are data.** The prompts mark receipt text as untrusted, and a separate check scans that text for instructions.
 - **Only the payout service sends money,** and only after auto-pay from `decide()` or the required HR approvals.
 - **The one AI step near a PayPal call is the recovery note,** and that invoice goes out only after HR clicks send.
+- **Claim endpoints are rate-limited per employee:** analysis 5 a minute and 200 a day, receipt upload 10 a minute and 300 a day, draft saves 30 a minute, receipt edits 60 a minute. A throttled request gets a 429 with a `Retry-After` header and a plain message. The limits are in `backend/api/rate_limit.py`.
 
 ```mermaid
 flowchart TD
