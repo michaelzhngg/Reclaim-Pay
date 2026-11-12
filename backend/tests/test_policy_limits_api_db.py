@@ -206,3 +206,88 @@ def test_upload_still_succeeds_when_limit_extraction_fails(hr_api, monkeypatch, 
     res = c.post("/api/v1/policies/upload", data={"alias": p.alias},
                  files={"files": ("policy.pdf", b"%PDF-1.4", "application/pdf")})
     assert res.status_code == 200 and res.json()["limits_found"] == 0
+
+
+def test_get_starts_empty_and_lists_categories(hr_api):
+    c, db, hr, _ = hr_api
+    p = make_policy(db, hr)
+    body = c.get(f"/api/v1/policies/{p.policy_id}/limits").json()
+    assert body["limits"] == [] and sorted(body["categories"]) == ["Accommodations", "Meals"]
+    assert body["has_suggestions"] is False
+
+
+def test_get_shows_suggestions_to_hr(hr_api):
+    c, db, hr, _ = hr_api
+    p = make_policy(db, hr)
+    store.replace_proposed(db, p.policy_id, [HOTEL], [ZonePlace(zone="2", place="*")])
+    db.commit()
+    body = c.get(f"/api/v1/policies/{p.policy_id}/limits").json()
+    assert body["has_suggestions"] is True
+    assert body["limits"][0]["status"] == "PROPOSED" and body["limits"][0]["amount"] == 250
+    assert body["zones"] == [{"zone": "2", "place": "*", "status": "PROPOSED"}]
+
+
+def test_put_confirms_the_set(hr_api):
+    c, db, hr, _ = hr_api
+    p = make_policy(db, hr)
+    payload = {"limits": [MEAL.model_dump(mode="json")], "zones": [{"zone": "1", "place": "Ipoh"}]}
+    res = c.put(f"/api/v1/policies/{p.policy_id}/limits", json=payload)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["limits"][0]["status"] == "CONFIRMED" and body["zones"][0]["place"] == "Ipoh"
+    assert body["has_suggestions"] is False
+
+
+def test_put_stores_the_category_as_the_policy_spells_it(hr_api):
+    c, db, hr, _ = hr_api
+    p = make_policy(db, hr)
+    meal = {**MEAL.model_dump(mode="json"), "category": " meals "}
+    body = c.put(f"/api/v1/policies/{p.policy_id}/limits", json={"limits": [meal], "zones": []}).json()
+    assert body["limits"][0]["category"] == "Meals"
+
+
+def test_put_rejects_a_category_the_policy_does_not_have(hr_api):
+    c, db, hr, _ = hr_api
+    p = make_policy(db, hr)
+    bad = LimitRule(category="Parking", unit=LimitUnit.PER_DAY, amount=10).model_dump(mode="json")
+    res = c.put(f"/api/v1/policies/{p.policy_id}/limits", json={"limits": [bad], "zones": []})
+    assert res.status_code == 422 and res.json()["detail"] == "UNKNOWN_CATEGORY"
+
+
+def test_put_rejects_a_capped_limit_without_an_amount(hr_api):
+    c, db, hr, _ = hr_api
+    p = make_policy(db, hr)
+    meal = {**MEAL.model_dump(mode="json"), "amount": None}
+    assert c.put(f"/api/v1/policies/{p.policy_id}/limits", json={"limits": [meal], "zones": []}).status_code == 422
+
+
+def test_employees_cannot_read_or_change_limits(hr_api):
+    c, db, hr, acting = hr_api
+    p = make_policy(db, hr)
+    acting["user"] = make_user(db, role=UserRole.Employee)
+    assert c.get(f"/api/v1/policies/{p.policy_id}/limits").status_code == 403
+    assert c.put(f"/api/v1/policies/{p.policy_id}/limits", json={"limits": [], "zones": []}).status_code == 403
+    assert c.post(f"/api/v1/policies/{p.policy_id}/limits/extract").status_code == 403
+
+
+def test_unknown_policy_is_404(hr_api):
+    c, *_ = hr_api
+    res = c.get(f"/api/v1/policies/{uuid4()}/limits")
+    assert res.status_code == 404 and res.json()["detail"] == "POLICY_NOT_FOUND"
+
+
+def test_extract_reports_counts_and_maps_failure_to_503(hr_api, monkeypatch):
+    import api.policy_limits as mod
+    from engine.services.policy_limits_extraction import ExtractionResult
+
+    c, db, hr, _ = hr_api
+    p = make_policy(db, hr)
+    monkeypatch.setattr(mod, "extract_limits", lambda db, pid: ExtractionResult(proposed=3, zone_places=0, dropped=1))
+    assert c.post(f"/api/v1/policies/{p.policy_id}/limits/extract").json()["proposed"] == 3
+
+    def boom(db, pid):
+        raise RuntimeError("quota")
+
+    monkeypatch.setattr(mod, "extract_limits", boom)
+    res = c.post(f"/api/v1/policies/{p.policy_id}/limits/extract")
+    assert res.status_code == 503 and res.json()["detail"] == "LIMITS_EXTRACTION_FAILED"
