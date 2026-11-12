@@ -108,6 +108,11 @@ describe("sourceFileName", () => {
     expect(sourceFileName("")).toBe("");
     expect(sourceFileName(undefined)).toBe("");
   });
+
+  it("names every file of a policy uploaded with an appendix", () => {
+    expect(sourceFileName("/storage/policies/Travel Policy.pdf | /storage/policies/Appendix1.pdf"))
+      .toBe("Travel Policy.pdf, Appendix1.pdf");
+  });
 });
 
 describe("budgetInputs", () => {

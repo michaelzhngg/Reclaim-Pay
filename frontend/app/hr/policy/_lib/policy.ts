@@ -89,10 +89,10 @@ export function toPolicy(p: BackendPolicy): Policy {
   };
 }
 
-/** The stored file's name, from a server path like "storage/policies/travel.pdf". */
+/** The stored files' names, from server paths like "storage/policies/travel.pdf", joined by " | " when there are several. */
 export function sourceFileName(url: string | null | undefined): string {
   if (!url) return "";
-  return url.split(/[\\/]/).pop() ?? "";
+  return url.split(" | ").map((path) => path.trim().split(/[\\/]/).pop() ?? "").filter(Boolean).join(", ");
 }
 
 /** Second line under a policy's name in lists, e.g. "Effective Nov 1, 2026 · 4 categories". */
