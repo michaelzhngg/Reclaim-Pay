@@ -29,8 +29,8 @@ def seed(db: Session, alias: str = "RP-DEMO-2026", now: datetime | None = None) 
         match = next((c for c in categories if same_category(c, rule.category)), None)
         if match:
             rules.append(rule.model_copy(update={"category": match}))
-    store.confirm_all(db, policy.policy_id, rules, DEMO_ZONES, policy.created_by,
-                      now or datetime.now(timezone.utc))
+    # No person confirmed these, so the action log records the actor as "seed".
+    store.confirm_all(db, policy.policy_id, rules, DEMO_ZONES, None, now or datetime.now(timezone.utc))
     return len(rules)
 
 

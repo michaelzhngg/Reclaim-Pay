@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { LimitRule } from "@/lib/api/reclaim-pay-types";
 import {
-  gradeLabel, limitLabel, limitProblem, limitsErrorMessage, parseAmount, parseGrade, quantityLabel, unitLabel,
-  whereLabel, zoneSummary,
+  confirmedMessage, gradeLabel, limitLabel, limitProblem, limitsErrorMessage, parseAmount, parseGrade, quantityLabel,
+  rowName, unitLabel, visibilityNote, whereLabel, zoneSummary,
 } from "./limits";
 
 const rule = (over: Partial<LimitRule>): LimitRule => ({
@@ -66,6 +66,8 @@ describe("policy limit input", () => {
     expect(parseAmount("-1")).toBeNaN();
     expect(parseAmount("1e3")).toBeNaN();
     expect(parseAmount("12.345")).toBeNaN();
+    expect(parseAmount("9999999999.99")).toBe(9999999999.99);
+    expect(parseAmount("10000000000")).toBeNaN();
   });
 
   it("reads grades as whole numbers", () => {
@@ -93,8 +95,8 @@ describe("policy limit input", () => {
   });
 
   it("turns server errors into sentences HR can act on", () => {
-    expect(limitsErrorMessage("UNKNOWN_CATEGORY", 422)).toBe(
-      "One limit uses a category this policy doesn't have. Remove it and confirm again.",
+    expect(limitsErrorMessage("UNKNOWN_CATEGORY: Parking", 422)).toBe(
+      "Parking isn't a category in this policy any more. Remove that limit and confirm again.",
     );
     expect(limitsErrorMessage("CONFLICTING_LIMITS", 422)).toBe(
       "Two limits cover the same grades and place with different amounts. Remove one.",
@@ -110,5 +112,42 @@ describe("policy limit input", () => {
       "You can ask Reclaim to read the policy 3 times a minute. Wait a minute and try again.",
     );
     expect(limitsErrorMessage(null, undefined)).toBe("No response from the server. Try again.");
+  });
+});
+
+describe("policy limit visibility", () => {
+  const view = (over: Partial<{ policy_active: boolean; categories: string[]; employee_visible_categories: string[] }>) => ({
+    policy_active: true,
+    categories: ["Meals", "Accommodations"],
+    employee_visible_categories: ["Meals", "Accommodations"],
+    ...over,
+  });
+
+  it("says whether employees see the limits", () => {
+    expect(visibilityNote(view({}))).toBe("Employees see these limits before they spend.");
+    expect(visibilityNote(view({ policy_active: false, employee_visible_categories: [] }))).toBe(
+      "Employees won't see these limits: the policy isn't active.",
+    );
+    expect(visibilityNote(view({ employee_visible_categories: ["Accommodations"] }))).toBe(
+      "Employees see these limits before they spend, except for Meals: a newer active policy covers it.",
+    );
+    expect(visibilityNote(view({ employee_visible_categories: [] }))).toBe(
+      "Employees won't see these limits: a newer active policy covers Meals and Accommodations.",
+    );
+  });
+
+  it("confirms in words that match what employees see", () => {
+    expect(confirmedMessage(view({}), 3)).toBe("Limits confirmed. Employees see them from now on.");
+    expect(confirmedMessage(view({ policy_active: false, employee_visible_categories: [] }), 3)).toBe(
+      "Limits confirmed. Employees will see them once the policy is active.",
+    );
+    expect(confirmedMessage(view({}), 0)).toBe("No limits confirmed. Employees see no limits for this policy.");
+  });
+
+  it("names a row uniquely for screen readers", () => {
+    expect(rowName(rule({ grade_min: 4, grade_max: 7, scope: "DOMESTIC", zone: "1" }))).toBe(
+      "Accommodations, Grades 4 to 7, Domestic, zone 1",
+    );
+    expect(rowName(rule({ kind: "PRE_APPROVAL" }))).toBe("Accommodations, Every grade, Anywhere, approval threshold");
   });
 });

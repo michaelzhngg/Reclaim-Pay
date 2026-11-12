@@ -1,12 +1,15 @@
 "use client";
 
-import React, { JSX, useRef, useState, useEffect } from 'react';
+import React, { JSX, useCallback, useRef, useState, useEffect } from 'react';
 import { Plus, Search, ChevronUp, ChevronDown, ChevronRight, FileText, Shield, Archive, Pencil, Trash2, ArrowLeft, X, SlidersHorizontal, Upload, Settings, CheckCircle2, History, Clock, User, PlusCircle, AlertCircle, ShieldCheck, Users, Calendar, BarChart3 } from 'lucide-react';
 import { POLICY_STATUS_STYLE, type Policy, type PolicyStatus } from '../hr_components/mockData';
 import type { Policy as BackendPolicy } from '@/lib/api/types';
 import { uploadPolicy } from '@/lib/actions/hr';
 import { getPolicies, deletePolicy, updatePolicyCategories } from '@/lib/actions/policies';
 import PolicyLimitsPanel from './_components/PolicyLimitsPanel';
+import { Sheet, btnBase } from '@/components/ui/Sheet';
+
+const LIMITS_UNCONFIRMED = "Confirm or undo your spending limit changes first.";
 
 const SAVE_STEPS = [
   { id: "upload", label: "Uploading documents...", subtitle: "Securely storing policy files." },
@@ -236,6 +239,31 @@ export default function PolicyStudio() {
   const [policiesStatus, setPoliciesStatus] = useState<"loading" | "ready" | "error">("loading");
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Spending limits are confirmed inside their own panel. Unconfirmed edits there must not vanish on
+  // Save Changes, Cancel or Back, so the page tracks them and stops or asks first.
+  const [limitsDirty, setLimitsDirty] = useState(false);
+  const [discardLimitsOpen, setDiscardLimitsOpen] = useState(false);
+  const limitsRef = useRef<HTMLDivElement>(null);
+
+  const onLimitsDirtyChange = useCallback((dirty: boolean) => {
+    setLimitsDirty(dirty);
+    if (!dirty) setSaveError((e) => (e === LIMITS_UNCONFIRMED ? null : e));
+  }, []);
+
+  const leaveEditor = () => {
+    if (limitsDirty) {
+      setDiscardLimitsOpen(true);
+      return;
+    }
+    setEditingPolicy(null);
+  };
+
+  const discardLimitsAndLeave = () => {
+    setDiscardLimitsOpen(false);
+    setLimitsDirty(false);
+    setEditingPolicy(null);
+  };
+
   useEffect(() => {
     getPolicies()
       .then((backendPolicies) => {
@@ -352,6 +380,13 @@ export default function PolicyStudio() {
 
   const handleSave = async () => {
     if (!editingPolicy) return;
+    if (limitsDirty) {
+      setSaveError(LIMITS_UNCONFIRMED);
+      const panel = limitsRef.current?.querySelector<HTMLElement>("section");
+      panel?.scrollIntoView({ behavior: "smooth", block: "start" });
+      panel?.focus({ preventScroll: true });
+      return;
+    }
     setSaveError(null);
     setIsSaving(true);
     setSavingStep(0);
@@ -545,7 +580,7 @@ export default function PolicyStudio() {
           className="flex-1 flex flex-col p-6 max-w-7xl mx-auto w-full min-h-0 overflow-y-auto scroll-smooth"
         >
           <div className="mb-6 flex flex-wrap items-center gap-4 shrink-0">
-            <button type="button" onClick={() => setEditingPolicy(null)} className="flex items-center gap-2 min-h-[44px] -ml-1 px-1 rounded-control text-ink-muted hover:text-ink transition-colors cursor-pointer" aria-label="Back to Policy Studio">
+            <button type="button" onClick={leaveEditor} className="flex items-center gap-2 min-h-[44px] -ml-1 px-1 rounded-control text-ink-muted hover:text-ink transition-colors cursor-pointer" aria-label="Back to Policy Studio">
               <ArrowLeft size={18} strokeWidth={2.25} aria-hidden="true" />
               <span className="font-semibold font-body text-sm">Back to Policy Studio</span>
             </button>
@@ -613,7 +648,11 @@ export default function PolicyStudio() {
                 </div>
               )}
 
-              {!isNew && <PolicyLimitsPanel policyId={editingPolicy} />}
+              {!isNew && (
+                <div ref={limitsRef}>
+                  <PolicyLimitsPanel policyId={editingPolicy} onDirtyChange={onLimitsDirtyChange} />
+                </div>
+              )}
 
               {policyFileError && (
                 <div className="flex items-start gap-3 bg-danger/10 border border-danger/30 text-danger rounded-control px-4 py-3 text-sm font-body">
@@ -1026,10 +1065,33 @@ export default function PolicyStudio() {
           onConfirm={handleConfirmDelete}
         />
         
+        <Sheet
+          open={discardLimitsOpen}
+          titleId="discard-limits-title"
+          title="Discard spending limit changes?"
+          busy={false}
+          onClose={() => setDiscardLimitsOpen(false)}
+        >
+          <div className="px-5 py-4 flex flex-col gap-4">
+            <p className="text-sm text-ink-muted">
+              You changed spending limits but didn&apos;t confirm them. If you leave now, those changes are lost and
+              employees keep seeing the limits that were confirmed before.
+            </p>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+              <button type="button" onClick={() => setDiscardLimitsOpen(false)} className={`${btnBase} border border-line-strong text-ink hover:bg-surface-muted`}>
+                Keep editing
+              </button>
+              <button type="button" onClick={discardLimitsAndLeave} className={`${btnBase} bg-danger text-on-accent hover:bg-danger/90`}>
+                Discard changes
+              </button>
+            </div>
+          </div>
+        </Sheet>
+
         {/* Bottom Action Bar */}
         <div className="shrink-0 bg-paper border-t border-line p-4 z-40">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-6 px-4 sm:px-8">
-            <button type="button" onClick={() => setEditingPolicy(null)} className="min-h-[44px] px-6 border border-line-strong text-ink rounded-control font-body font-medium hover:bg-surface-muted transition-colors cursor-pointer">
+            <button type="button" onClick={leaveEditor} className="min-h-[44px] px-6 border border-line-strong text-ink rounded-control font-body font-medium hover:bg-surface-muted transition-colors cursor-pointer">
               Cancel
             </button>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-6">

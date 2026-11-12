@@ -2,8 +2,6 @@
 
 DEMO_*: demo/policy/reclaim-pay-demo-policy.md (RP-DEMO-2026). seeds/seed_policy_limits.py writes these.
 RECLAIM_*: docs/policy_example (PT RECLAIM Business Travel Policy HR 3.06, Appendix 1). Used by tests only.
-  Appendix 1 is a rotated table; the domestic allowance grade split (3-5 vs 6-7) is our reading of it
-  and must be confirmed by HR before this policy is used for real.
 """
 from engine.policy.limits import LimitKind, LimitRule, LimitUnit, TravelScope, ZonePlace
 

@@ -410,6 +410,9 @@ export interface PolicyLimits {
   limits: (LimitRule & { limit_id: string; status: LimitStatus })[];
   zones: (ZonePlace & { status: LimitStatus })[];
   has_suggestions: boolean;
+  policy_active: boolean;
+  /** Categories whose confirmed limits employees see: the policy is ACTIVE and claims use it for them. */
+  employee_visible_categories: string[];
 }
 
 // Signal reviews (R1a): HR's verdict on each Receipt Shield signal. HR only.

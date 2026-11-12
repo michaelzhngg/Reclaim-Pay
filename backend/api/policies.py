@@ -6,6 +6,7 @@ from typing import List, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from sqlmodel import Session, select
 
@@ -88,7 +89,7 @@ async def upload_policy(
     # HR can retry from Policy Studio or add limits by hand.
     limits_found = 0
     try:
-        limits_found = extract_limits(db, policy.policy_id).proposed
+        limits_found = (await run_in_threadpool(extract_limits, db, policy.policy_id)).proposed
     except Exception:
         logger.exception("[POLICY_LIMITS] extraction failed for policy %s", policy.policy_id)
         db.rollback()

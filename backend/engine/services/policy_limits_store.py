@@ -2,7 +2,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import delete
+from sqlalchemy import delete, text
 from sqlmodel import Session, select
 
 from core.enums import AgentActionType, LimitStatus, PolicyStatus
@@ -78,8 +78,9 @@ def active_limits(db: Session) -> tuple[list[LimitRule], list[ZonePlace]]:
     return rules, places
 
 
-def _rule_key(rule: LimitRule) -> tuple:
-    d = rule.model_dump(exclude={"source_section", "source_quote", "category"})
+def _rule_key(rule: LimitRule, *, with_amount: bool = True) -> tuple:
+    exclude = {"source_section", "source_quote", "category"} | (set() if with_amount else {"amount"})
+    d = rule.model_dump(exclude=exclude)
     return (" ".join(rule.category.split()).casefold(), *sorted(d.items()))
 
 
@@ -103,17 +104,18 @@ def _rows(policy_id: UUID, rules: list[LimitRule], places: list[ZonePlace], stat
 def replace_proposed(db: Session, policy_id: UUID, rules: list[LimitRule], places: list[ZonePlace]) -> int:
     """Swap the suggested rows for a new set and return how many limits were suggested. Caller commits.
 
-    Confirmed rows stay. A suggestion that repeats a confirmed row (or another suggestion) is skipped,
-    so re-reading the policy after HR confirmed does not list every limit twice.
+    Confirmed rows stay. A suggestion for a row HR already confirmed is skipped even if its amount differs
+    (HR may have corrected it), and repeated suggestions are written once.
     """
     for model in (PolicyLimit, PolicyZonePlace):
         db.exec(delete(model).where(model.policy_id == policy_id, model.status == LimitStatus.PROPOSED.value))
     confirmed_rules, confirmed_places = load_limits(db, policy_id)
-    seen_rules = {_rule_key(r) for r in confirmed_rules}
+    confirmed_keys = {_rule_key(r, with_amount=False) for r in confirmed_rules}
+    seen_rules: set[tuple] = set()
     seen_places = {_place_key(p) for p in confirmed_places}
     new_rules: list[LimitRule] = []
     for r in rules:
-        if _rule_key(r) not in seen_rules:
+        if _rule_key(r, with_amount=False) not in confirmed_keys and _rule_key(r) not in seen_rules:
             seen_rules.add(_rule_key(r))
             new_rules.append(r)
     new_places: list[ZonePlace] = []
@@ -128,6 +130,8 @@ def replace_proposed(db: Session, policy_id: UUID, rules: list[LimitRule], place
 def confirm_all(db: Session, policy_id: UUID, rules: list[LimitRule], places: list[ZonePlace],
                 actor_id: UUID | None, now: datetime) -> None:
     """HR's checked set replaces every row for the policy. Logged in the hash-chained action log."""
+    # Two confirms for one policy at once would otherwise both delete, then both insert.
+    db.exec(text("SELECT pg_advisory_xact_lock(:key)").bindparams(key=policy_id.int >> 65))
     delete_for_policy(db, policy_id)
     db.add_all(_rows(policy_id, rules, places, LimitStatus.CONFIRMED, actor_id, now))
     record_action(db, AgentActionType.POLICY_LIMITS_CHANGED, str(actor_id) if actor_id else "seed", None,

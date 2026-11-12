@@ -259,3 +259,32 @@ def test_the_lower_amount_wins_an_exact_tie():
     for rules in ([a, b], [b, a]):
         c = check_spend(rules, [], category="Meals", grade=4, overseas=False, destination=None, amount=None)
         assert c.cap.amount == 70
+
+
+# --- full review fixes ---------------------------------------------------------
+
+def test_zone_matching_ignores_punctuation():
+    assert zone_for(RECLAIM_ZONES, "Kuala-Lumpur") == "1"
+    assert zone_for(RECLAIM_ZONES, "Shah Alam, Selangor.") == "1"
+
+
+def test_the_longest_matching_place_wins():
+    places = [ZonePlace(zone="1", place="Johor"), ZonePlace(zone="2", place="Johor Bahru")]
+    assert zone_for(places, "Johor Bahru city centre") == "2"
+    assert zone_for(places, "Johor state") == "1"
+
+
+def test_trip_length_limit_is_inclusive():
+    start = date(2026, 1, 1)
+    e = estimate_trip(DEMO_RULES, DEMO_ZONES, grade=1, overseas=False, destination=None,
+                      depart=start, return_date=start + timedelta(days=MAX_TRIP_DAYS - 1))
+    assert e.days == MAX_TRIP_DAYS
+    with pytest.raises(ValueError, match="TRIP_TOO_LONG"):
+        estimate_trip(DEMO_RULES, DEMO_ZONES, grade=1, overseas=False, destination=None,
+                      depart=start, return_date=start + timedelta(days=MAX_TRIP_DAYS))
+
+
+def test_amount_cap_matches_the_numeric_12_2_column():
+    assert LimitRule(category="Meals", unit=LimitUnit.PER_MEAL, amount=9_999_999_999.99).amount == 9_999_999_999.99
+    with pytest.raises(ValidationError):
+        LimitRule(category="Meals", unit=LimitUnit.PER_MEAL, amount=10_000_000_000)
