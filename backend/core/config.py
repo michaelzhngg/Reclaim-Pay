@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -63,6 +64,10 @@ class Settings(BaseSettings):
     CHANNEL3_API_KEY: str = ""
     CHANNEL3_CATEGORIES: str = "Equipment,Office Supplies,IT Equipment"
     FX_TO_USD: float = 0.0
+
+    # Image forensics on uploaded receipts (pasted-in numbers). off: not run. observe: stored and shown to HR
+    # as information, 0 points, never feeds decide(). score: a MEDIUM signal like any other (never HIGH).
+    IMAGE_FORENSICS_MODE: Literal["off", "observe", "score"] = "observe"
 
     # Autonomous reimbursement — kill switch (set to false to force all claims through HR)
     AUTO_REIMBURSE_ENABLED: bool = True

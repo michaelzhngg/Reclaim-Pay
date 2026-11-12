@@ -8,6 +8,7 @@ import {
   hardStopLabel,
   scoreBreakdown,
   signalEvidence,
+  signalLabel,
   sortSignals,
   summarySentence,
   toClaimAutonomy,
@@ -225,5 +226,32 @@ describe("signalEvidence", () => {
     const v = signalEvidence(signal({ code: "ARITHMETIC_MISMATCH", evidence: { total: "450" } }), "MYR");
     expect(v).toEqual({ facts: [], claims: [], snippets: [], note: null });
     expect(signalEvidence({ ...signal({}), evidence: undefined as never }, "MYR").facts).toEqual([]);
+  });
+});
+
+describe("image forensics evidence", () => {
+  const finding = (scored: boolean) =>
+    signal({
+      code: "IMAGE_FORENSICS",
+      points: scored ? 20 : 0,
+      severity: scored ? "MEDIUM" : "LOW",
+      evidence: { regions: [{ x: 0.68, y: 0.71, w: 0.13, h: 0.04, method: "noise" }], score: 71, scored },
+    });
+
+  it("names the area and says an observe-mode finding is not scored", () => {
+    const v = signalEvidence(finding(false), "MYR");
+    expect(v.facts).toEqual([
+      { label: "Where on the image", value: "Lower right" },
+      { label: "Check score", value: "71/100" },
+    ]);
+    expect(v.note).toMatch(/^Not scored/);
+  });
+
+  it("warns that a scored finding can misfire", () => {
+    expect(signalEvidence(finding(true), "MYR").note).toMatch(/can misfire/);
+  });
+
+  it("has an HR label, not the raw code", () => {
+    expect(signalLabel("IMAGE_FORENSICS")).toBe("Image check: possible edited region");
   });
 });
