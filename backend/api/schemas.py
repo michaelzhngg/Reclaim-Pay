@@ -71,7 +71,8 @@ class CreateEmployeeRequest(BaseModel):
     email: EmailStr
     user_code: Optional[str] = Field(default=None, max_length=40)
     department_id: Optional[UUID] = None
-    role: UserRole = UserRole.Employee
+    # HR names the role. Omitted or unknown roles are refused, matching ticket 01.
+    role: UserRole
     # The payee country the MYR guard reads. Defaults to Malaysia like the model.
     country_code: Optional[str] = "MY"
 

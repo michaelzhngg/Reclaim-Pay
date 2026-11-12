@@ -7,10 +7,9 @@ plan in `PLAN.md` stays the reference; this file says where the build departs fr
 
 - **Role named at creation, on main's endpoint.** Main removed `POST /auth/register`
   in favour of HR-issued invites, so the rebase moves the intent onto
-  `POST /employee/`: HR sends `role`, an unknown role is refused by the enum, and the
-  response carries the role and country. The old `UserCreate` schema is gone with the
-  route; `UserBase` keeps its `Employee` default for read models. A missing role now
-  takes the employee default because that endpoint predates the contractor role.
+  `POST /employee/`: HR sends `role`, and an invalid or missing role is refused by the
+  enum. The response carries the role and country. The old `UserCreate` schema is gone
+  with the route; `UserBase` keeps its `Employee` default for read models only.
 - **Company-wide reads are denied per endpoint.** A new `get_current_non_contractor_user`
   dependency guards the policy list and detail, vendor list, and department list and
   detail. A global middleware would also have to allow the policy lookups that some

@@ -86,10 +86,12 @@ def test_hr_creates_a_contractor_and_the_contractor_signs_in(client, pg_db):
     assert me.json()["role"] == "Contractor"
 
 
-@pytest.mark.parametrize("role", ["Wizard", ""])
-def test_employee_creation_refuses_an_invalid_role(client, pg_db, role):
+@pytest.mark.parametrize("role", ["Wizard", "", None])
+def test_employee_creation_refuses_an_invalid_or_missing_role(client, pg_db, role):
     hr = _person(pg_db, role=UserRole.HR)
-    body = {"email": f"bad-{uuid4().hex[:8]}@example.com", "name": "Bad Role", "role": role}
+    body = {"email": f"bad-{uuid4().hex[:8]}@example.com", "name": "Bad Role"}
+    if role is not None:
+        body["role"] = role
     res = client.post("/api/v1/employee/", json=body, headers=_login(client, hr))
     assert res.status_code == 422
 

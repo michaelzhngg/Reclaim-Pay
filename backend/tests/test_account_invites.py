@@ -122,7 +122,8 @@ def _dept(db):
 
 
 def _create(client, hr_headers, **fields):
-    body = {"name": "Aisha Rahman", "email": f"{uuid4().hex[:8]}@example.com", **fields}
+    body = {"name": "Aisha Rahman", "email": f"{uuid4().hex[:8]}@example.com",
+            "role": "Employee", **fields}
     return client.post("/api/v1/employee/", json=body, headers=hr_headers)
 
 
@@ -182,7 +183,7 @@ def test_token_lifecycle(pg_db):
 def test_only_hr_can_create(client, pg_db):
     employee = _person(pg_db)
     assert _create(client, _bearer(pg_db, employee)).status_code == 403
-    assert client.post("/api/v1/employee/", json={"name": "A", "email": "a@example.com"}).status_code == 401
+    assert client.post("/api/v1/employee/", json={"name": "A", "email": "a@example.com", "role": "Employee"}).status_code == 401
 
 
 def test_create_invites_and_returns_the_link_once(client, pg_db, resend):

@@ -1,7 +1,7 @@
 """claims: payout currency snapshot and payee country
 
 Revision ID: a7c1e9d4b2f6
-Revises: f4a8d3e5b6c7
+Revises: b3e5f7a9c1d2
 Create Date: 2026-11-12 20:00:00.000000
 
 """

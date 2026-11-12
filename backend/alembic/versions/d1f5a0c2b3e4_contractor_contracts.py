@@ -1,7 +1,7 @@
 """contractor contracts, contract categories and company payout settings
 
 Revision ID: d1f5a0c2b3e4
-Revises: c8d2e3f4a5b6
+Revises: 5b8d3f0a9c21
 Create Date: 2026-11-12 16:00:00.000000
 
 """
