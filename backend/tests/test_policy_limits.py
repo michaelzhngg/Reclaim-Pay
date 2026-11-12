@@ -282,3 +282,9 @@ def test_trip_length_limit_is_inclusive():
     with pytest.raises(ValueError, match="TRIP_TOO_LONG"):
         estimate_trip(DEMO_RULES, DEMO_ZONES, grade=1, overseas=False, destination=None,
                       depart=start, return_date=start + timedelta(days=MAX_TRIP_DAYS))
+
+
+def test_amount_cap_matches_the_numeric_12_2_column():
+    assert LimitRule(category="Meals", unit=LimitUnit.PER_MEAL, amount=9_999_999_999.99).amount == 9_999_999_999.99
+    with pytest.raises(ValidationError):
+        LimitRule(category="Meals", unit=LimitUnit.PER_MEAL, amount=10_000_000_000)

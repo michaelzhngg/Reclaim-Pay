@@ -43,7 +43,7 @@ class LimitRule(BaseModel):
     category: str = Field(min_length=1, max_length=120)
     kind: LimitKind = LimitKind.CAP
     unit: LimitUnit
-    amount: float | None = Field(default=None, ge=0, le=9_999_999_999)
+    amount: float | None = Field(default=None, ge=0, le=9_999_999_999.99)
     currency: str = Field(default="MYR", min_length=3, max_length=3)
     grade_min: int | None = Field(default=None, ge=0, le=50)
     grade_max: int | None = Field(default=None, ge=0, le=50)

@@ -390,5 +390,7 @@ def test_get_says_which_categories_employees_see(only_these_policies, hr_api):
     older = make_policy(db, hr, categories=("Meals", "Accommodations"), effective=NOW - timedelta(days=30))
     make_policy(db, hr, categories=("Meals",), effective=NOW)
     draft = make_policy(db, hr, status=PolicyStatus.DRAFT)
-    assert c.get(f"/api/v1/policies/{older.policy_id}/limits").json()["employee_visible_categories"] == ["Accommodations"]
-    assert c.get(f"/api/v1/policies/{draft.policy_id}/limits").json()["employee_visible_categories"] == []
+    body = c.get(f"/api/v1/policies/{older.policy_id}/limits").json()
+    assert body["employee_visible_categories"] == ["Accommodations"] and body["policy_active"] is True
+    body = c.get(f"/api/v1/policies/{draft.policy_id}/limits").json()
+    assert body["employee_visible_categories"] == [] and body["policy_active"] is False

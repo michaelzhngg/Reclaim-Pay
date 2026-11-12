@@ -35,6 +35,7 @@ class PolicyLimitsOut(BaseModel):
     limits: list[LimitRowOut]
     zones: list[ZoneRowOut]
     has_suggestions: bool
+    policy_active: bool
     # Categories whose confirmed limits employees see: the policy is ACTIVE and claims use it for them.
     employee_visible_categories: list[str]
 
@@ -76,14 +77,15 @@ def _out(db: Session, policy_id: UUID) -> PolicyLimitsOut:
     zones = [ZoneRowOut(zone=p.zone, place=p.place, status=p.status) for p in places]
     categories = _categories(db, policy_id)
     policy = db.get(Policy, policy_id)
+    active = policy is not None and policy.status == PolicyStatus.ACTIVE
     visible: list[str] = []
-    if policy is not None and policy.status == PolicyStatus.ACTIVE:
+    if active:
         picked = store.policy_for_category(db)
         visible = [c for c in categories if c in picked and picked[c].policy_id == policy_id]
     return PolicyLimitsOut(
         policy_id=policy_id, categories=categories, limits=rows, zones=zones,
         has_suggestions=any(r.status == LimitStatus.PROPOSED for r in rows + zones),
-        employee_visible_categories=visible,
+        policy_active=active, employee_visible_categories=visible,
     )
 
 
