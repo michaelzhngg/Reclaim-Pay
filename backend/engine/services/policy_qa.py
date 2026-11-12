@@ -28,7 +28,7 @@ MIN_QUESTION_CHARS = 5
 MAX_QUESTION_CHARS = 500
 MIN_QUOTE_CHARS = 12
 MAX_SECTIONS = 6
-NOT_COVERED_ANSWER = "The policy doesn't clearly cover this. Ask HR before you spend."
+NOT_COVERED_ANSWER = "I couldn't find one part of the policy that answers this. Try asking one thing at a time, or ask HR before you spend."
 
 _UNIT_WORDS = {
     LimitUnit.PER_DAY: "a day", LimitUnit.PER_NIGHT: "a night", LimitUnit.PER_MEAL: "a meal", LimitUnit.PER_ITEM: "an item",
@@ -145,7 +145,7 @@ def run_qa_llm(question: str, sections: list, grade: int | None, limits: str) ->
                          "limits": limits, "sections": body, "question": wrap_question(question)})
 
 
-def _verified(raw: object, question: str, sections: list, limits: str) -> tuple[str, str, object] | None:
+def _verified(raw: object, question: str, sections: list, limits: str, grade: int | None = None) -> tuple[str, str, object] | None:
     """(answer, quote, section) when the model's answer survives every check, else None."""
     if not isinstance(raw, dict) or raw.get("covered") is not True:
         return None
@@ -154,7 +154,7 @@ def _verified(raw: object, question: str, sections: list, limits: str) -> tuple[
     section = quote_section(quote, sections)
     if not answer or section is None:
         return None
-    if not numbers_supported(answer, "\n".join([question, limits, quote])):
+    if not numbers_supported(answer, "\n".join([question, limits, quote, str(grade or "")])):
         return None
     return answer, quote.strip(), section
 
@@ -163,6 +163,8 @@ def answer_question(db: Session, user: User, question: str, now: datetime) -> Qa
     q = (question or "").strip()
     if not MIN_QUESTION_CHARS <= len(q) <= MAX_QUESTION_CHARS:
         raise QuestionError("QUESTION_LENGTH")
+    if q.count("?") > 1:  # one answer is backed by one quote, so several questions can't all be answered
+        raise QuestionError("ONE_QUESTION")
     asked = db.exec(select(func.count()).select_from(PolicyQuestion).where(
         PolicyQuestion.user_id == user.user_id, PolicyQuestion.created_at >= now - timedelta(days=1))).one()
     if asked >= DAILY_QUESTION_LIMIT:
@@ -184,7 +186,7 @@ def answer_question(db: Session, user: User, question: str, now: datetime) -> Qa
             db.add(record)  # answer stays None: counts toward the cap, kept out of HR's gaps
             db.commit()
             raise QuestionError("QA_UNAVAILABLE")
-        verified = _verified(raw, q, sections, limits)
+        verified = _verified(raw, q, sections, limits, user.rank)
         if verified is not None:
             answer, quote, section = verified
             result = QaAnswer(covered=True, answer=answer, quote=quote, policy_title=policies[section.policy_id].title)

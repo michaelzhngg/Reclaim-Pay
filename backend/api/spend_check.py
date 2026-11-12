@@ -41,7 +41,7 @@ class AskIn(BaseModel):
     question: str = Field(max_length=2000)  # the 5-500 rule lives in the service, so it returns QUESTION_LENGTH
 
 
-_QA_STATUS = {"QUESTION_LENGTH": 422, "DAILY_QUESTION_LIMIT": 429, "QA_UNAVAILABLE": 503}
+_QA_STATUS = {"QUESTION_LENGTH": 422, "ONE_QUESTION": 422, "DAILY_QUESTION_LIMIT": 429, "QA_UNAVAILABLE": 503}
 
 
 @router.post("/ask", response_model=policy_qa.QaAnswer)
