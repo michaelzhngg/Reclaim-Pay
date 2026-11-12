@@ -1,6 +1,6 @@
 # G4: Daily ledger reconciliation (PP-7)
 
-Status: planned, not implemented. Worktree `feat/g4-ledger-reconciliation`, based on `main` at `ce1469f`.
+Status: implemented on `feat/g4-ledger-reconciliation`, based on `main` at `ce1469f`. `DECISIONS.md`, `GAPS.md` and `RUNBOOK.md` carry the implementation and operational notes.
 
 Reclaim Pay compares its payout ledger with the company's PayPal account so finance can tell whether a payout marked paid actually left PayPal. PP-7 already shipped the on-demand comparison behind the HR Payouts header. G4 adds the daily run, a durable record of what differed, and a way for HR to hear about differences without opening the page.
 
@@ -237,7 +237,7 @@ Ticket files are in `.scratch/G4/issues/`. They are working notes and are not co
 
 ```bash
 (cd backend && uv sync --frozen && uv run pytest -q)
-(cd backend && TEST_DATABASE_URL=postgresql://admin:password@localhost:5432/reclaim_g4 uv run pytest -q)
+(cd backend && DATABASE_URL=postgresql://admin:password@localhost:5432/reclaim_g4 TEST_DATABASE_URL=postgresql://admin:password@localhost:5432/reclaim_g4 SECRET_KEY=test-secret-not-default PAYPAL_MOCK_MODE=true uv run pytest -q)
 (cd frontend && npx tsc --noEmit && npm test)
 (cd backend && DATABASE_URL=postgresql://admin:password@localhost:5432/reclaim_g4 uv run alembic upgrade head)
 (cd backend && uv run python -m jobs.daily_reconcile)
