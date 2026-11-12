@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, CheckCircle2, Clock, Loader2, PauseCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, AlertTriangle, CheckCircle2, Clock, Loader2, PauseCircle, RefreshCw } from "lucide-react";
 import {
   getAutonomyOverview,
   getStatusWithActions,
@@ -25,6 +25,7 @@ import {
   breakerActive,
   budgetPercent,
   clockTime,
+  demoNotice,
   diffConfig,
   latestReason,
   toChartData,
@@ -209,12 +210,21 @@ function KpiTiles({
   const leak = (r: BacktestResult | null) => (r ? money(currency, r.projected_leakage) : null);
   const caught = (r: BacktestResult | null) => (r ? `${r.caught_bad_count} of ${r.caught_bad_count + r.bad_auto_paid_count}` : null);
   const was = (f: (r: BacktestResult | null) => string | null) => (changed && baseline ? f(baseline) : null);
+  const demo = demoNotice(result);
   return (
-    <section aria-label="Impact over the last 90 days" aria-live="polite" className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      <Tile label="Paid automatically" value={pct(result)} was={was(pct)} />
-      <Tile label="HR hours saved" value={hours(result)} was={was(hours)} />
-      <Tile label="Expected leakage" value={leak(result)} was={was(leak)} />
-      <Tile label="Risky claims caught" value={caught(result)} was={was(caught)} />
+    <section aria-label="Impact over the last 90 days" aria-live="polite" className="flex flex-col gap-2">
+      {demo && (
+        <p className="flex items-center gap-2 text-sm font-medium text-ink">
+          <AlertTriangle className="w-4 h-4 text-warning shrink-0" aria-hidden="true" />
+          {demo}
+        </p>
+      )}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Tile label="Paid automatically" value={pct(result)} was={was(pct)} />
+        <Tile label="HR hours saved" value={hours(result)} was={was(hours)} />
+        <Tile label="Expected leakage" value={leak(result)} was={was(leak)} />
+        <Tile label="Risky claims caught" value={caught(result)} was={was(caught)} />
+      </div>
     </section>
   );
 }

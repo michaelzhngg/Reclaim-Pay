@@ -1,8 +1,10 @@
 from datetime import datetime, timezone
+from types import SimpleNamespace
+from uuid import uuid4
 import pytest
 from engine.risk.types import (AutonomyConfig, ClaimFacts, EmployeeHistory, PayeeStatus,
                                RiskSignal, SignalCode, Severity, TrustTier)
-from engine.services.backtest_service import BacktestCase, run_backtest, next_tier_info
+from engine.services.backtest_service import BacktestCase, _case, demo_assumption, next_tier_info, run_backtest
 
 NOW = datetime(2026, 11, 3, tzinfo=timezone.utc)
 HIST = EmployeeHistory(paid_claims=5, confirmed_issues_90d=0, confirmed_issues_180d=0, auto_paid_today=0, auto_paid_month=0)
@@ -40,3 +42,37 @@ def test_next_tier_info(paid, issues, expected):
     h = EmployeeHistory(paid_claims=paid, confirmed_issues_90d=issues, confirmed_issues_180d=issues,
                         auto_paid_today=0, auto_paid_month=0)
     assert next_tier_info(h) == expected
+
+def test_demo_claims_are_counted_and_flagged():
+    cases = [case(40, False).model_copy(update={"demo": True}), case(80, False)]
+    r = run_backtest(cases, AutonomyConfig(), NOW)
+    assert r.demo_claims == 1
+    assert r.assumptions[-1] == "1 of 2 claims is demo data, so don't change limits based on these results"
+
+
+def test_real_data_adds_no_warning():
+    r = run_backtest(CASES, AutonomyConfig(), NOW)
+    assert r.demo_claims == 0
+    assert not any("demo data" in a for a in r.assumptions)
+
+
+def test_demo_assumption_wording():
+    assert demo_assumption(0, 10) is None
+    assert demo_assumption(10, 10) == "all 10 claims are demo data, so don't change limits based on these results"
+    assert demo_assumption(2, 5) == "2 of 5 claims are demo data, so don't change limits based on these results"
+    assert demo_assumption(1, 5) == "1 of 5 claims is demo data, so don't change limits based on these results"
+    assert demo_assumption(1, 1) == "the only claim is demo data, so don't change limits based on this result"
+
+
+def _stored_claim(ai_reasoning):
+    return SimpleNamespace(
+        reim_id=uuid4(), user_id=uuid4(), created_at=NOW, autonomy={"hard_stops": [], "signals": []},
+        judgment="APPROVED", total_claimed_amount=40, currency="MYR", confidence=0.95, ai_reasoning=ai_reasoning,
+    )
+
+
+@pytest.mark.parametrize("ai_reasoning,demo", [({"demo_seed": "reclaim-pay-demo-v1"}, True),
+                                               ({"reasoning": "Agent judgment: APPROVED"}, False),
+                                               ({}, False), (None, False)])
+def test_case_reads_the_demo_seed_tag(ai_reasoning, demo):
+    assert _case(_stored_claim(ai_reasoning), [], [], False, NOW).demo is demo
