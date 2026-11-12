@@ -16,7 +16,7 @@ import {
   recoveryOutcomeNote,
   type HRRecovery,
 } from "./recoveries";
-import { hrGridTheme } from "./theme";
+import { useHrGridTheme } from "./useHrGridTheme";
 
 interface RowHandlers {
   onPreview: (recovery: HRRecovery) => void;
@@ -120,6 +120,7 @@ function RecoveryCard({ recovery, onPreview, onWaive }: { recovery: HRRecovery }
 }
 
 export default function RecoveriesGrid({ rows, onPreview, onWaive }: { rows: HRRecovery[] } & RowHandlers) {
+  const gridTheme = useHrGridTheme();
   // Employee names come from the payout ledger, so hide the column when none matched.
   const showEmployee = rows.some((r) => r.employee_name);
 
@@ -182,7 +183,7 @@ export default function RecoveriesGrid({ rows, onPreview, onWaive }: { rows: HRR
     <>
       <div className="hidden sm:block">
         <AgGridReact<HRRecovery>
-          theme={hrGridTheme}
+          theme={gridTheme}
           rowData={rows}
           columnDefs={columnDefs}
           defaultColDef={{ sortable: true, resizable: true, suppressMovable: true }}

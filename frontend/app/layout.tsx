@@ -6,6 +6,8 @@ import { AuthProvider } from "@/context/AuthContext"; // Import AuthProvider
 import ServiceWorkerRegistration from "./_components/ServiceWorkerRegistration";
 import PushNotificationProvider from "./_components/PushNotificationProvider";
 import { ToastProvider } from "@/components/toast/ToastProvider";
+import { AppearanceProvider } from "@/components/theme/AppearanceProvider";
+import { THEME_BOOT_SCRIPT } from "@/lib/theme/preferences";
 
 const inter = localFont({
   src: "./fonts/inter-latin-wght-normal.woff2",
@@ -30,7 +32,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-visual",
-  themeColor: "#f0f0f0",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f0f0f0" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f0f1a" },
+  ],
 };
 
 const DESCRIPTION =
@@ -78,21 +83,24 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      // The app is light-only. glisse (Liquid Glass) otherwise switches its
-      // glass to dark tints under an OS dark-mode preference, turning the
-      // search fields / segmented controls into grey bars.
-      data-theme="light"
+      // The boot script below sets data-theme and data-density before React hydrates.
+      suppressHydrationWarning
       className={`${inter.variable} ${interTight.variable} ${mono.variable} h-full antialiased`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col">
-        <ToastProvider>
-          <AuthProvider>
-            <PushNotificationProvider>
-              {children}
-              <ServiceWorkerRegistration />
-            </PushNotificationProvider>
-          </AuthProvider>
-        </ToastProvider>
+        <AppearanceProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <PushNotificationProvider>
+                {children}
+                <ServiceWorkerRegistration />
+              </PushNotificationProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </AppearanceProvider>
       </body>
     </html>
   );

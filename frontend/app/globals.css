@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* `dark:` follows the resolved theme on <html data-theme>, not the OS setting alone. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* ═══════════════════════════════════════════════════════════════════════════
    Reclaim Pay design system
    Purple core (#4647d3), galactic violet (#105BFF), PayPal blues for the
@@ -108,12 +111,18 @@
   --color-danger-soft: #ffe3e8;
   --color-warning-soft: #fff3d6;
 
+  /* Fixed in both themes: hero panels and the skip link stay dark, scrims stay dark. */
+  --color-night: #0b0b1e;
+  --color-scrim: #0b0b1e;
+  /* Text on bg-ink. Ink flips to a light tone in dark mode, so this flips too. */
+  --color-on-ink: #ffffff;
+  /* 1 px rim drawn as a box-shadow on buttons and inputs. */
+  --color-edge: rgb(20 20 43 / 0.1);
+
   --radius-control: 12px;
   --radius-card: 20px;
   --radius-dialog: 28px;
-  --shadow-overlay:
-    0 0 0 1px rgb(20 20 43 / 0.06), 0 2px 6px rgb(20 20 43 / 0.05),
-    0 32px 64px -16px rgb(20 20 43 / 0.24);
+  --shadow-overlay: var(--elevation-overlay);
 
   /* ── Type scale tune: heavy weights read too loud in a
         fintech UI, so the whole app is pulled toward Stripe/Apple
@@ -121,16 +130,12 @@
   --font-weight-extrabold: 680;
   --font-weight-black: 720;
 
-  /* ── Elevation: hairline + soft layered shadows ──────── */
-  --shadow-ambient:
-    0 0 0 1px rgb(20 20 43 / 0.05), 0 1px 2px rgb(20 20 43 / 0.04),
-    0 8px 24px -10px rgb(20 20 43 / 0.1);
-  --shadow-ambient-lg:
-    0 0 0 1px rgb(20 20 43 / 0.05), 0 2px 4px rgb(20 20 43 / 0.04),
-    0 28px 56px -16px rgb(20 20 43 / 0.18);
-  --shadow-float:
-    0 0 0 1px rgb(20 20 43 / 0.06), 0 12px 24px -6px rgb(20 20 43 / 0.12),
-    0 48px 96px -24px rgb(70 71 211 / 0.28);
+  /* ── Elevation: hairline + soft layered shadows. Values live in
+        --elevation-* so each theme sets its own: Tailwind inlines a literal
+        shadow into every utility but keeps a var(). ─────── */
+  --shadow-ambient: var(--elevation-ambient);
+  --shadow-ambient-lg: var(--elevation-ambient-lg);
+  --shadow-float: var(--elevation-float);
   --shadow-glow: 0 10px 30px -10px rgb(70 71 211 / 0.55);
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -153,6 +158,199 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-label: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ═══ Dark theme ═════════════════════════════════════════════════════════
+   The light values above are the defaults. The two blocks below must stay
+   identical (globals.theme.test.ts checks it): the media query covers
+   "System" before the inline script in app/layout.tsx runs, the attribute
+   block covers a manual choice. Saturated colours turn into light tones in
+   dark mode and their on-* text turns dark, so `bg-accent text-on-accent`
+   keeps working in both. Ratios are listed in DESIGN.md. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-primary: #9b9cff;
+    --color-primary-dim: #b3b4ff;
+    --color-on-primary: #10102a;
+    --color-primary-container: #2a2a5c;
+    --color-on-primary-container: #d6d6ff;
+    --color-surface-tint: #9b9cff;
+    --color-inverse-primary: #4647d3;
+    --color-secondary: #7aa2ff;
+    --color-secondary-dim: #9bb9ff;
+    --color-on-secondary: #0a1a40;
+    --color-secondary-container: #182a55;
+    --color-on-secondary-container: #c3d4ff;
+    --color-tertiary: #e38cf2;
+    --color-tertiary-dim: #eba6f6;
+    --color-on-tertiary: #2a0031;
+    --color-tertiary-container: #3d1546;
+    --color-on-tertiary-container: #f6dcfb;
+    --color-tangerine-container: #3a2410;
+    --color-on-tangerine-container: #ffc58a;
+    --color-marshmallow: #0f0f1a;
+    --color-paypal: #8ab8ff;
+    --color-paypal-blue: #5aa8ff;
+    --color-violet: #7aa2ff;
+    --color-ink: #ededf5;
+    --color-ink-2: #dcdce8;
+    --color-ink-3: #c8c8d8;
+    --color-error: #ff8098;
+    --color-error-dim: #ff9aae;
+    --color-on-error: #10102a;
+    --color-error-container: #3f1420;
+    --color-on-error-container: #ffc2cf;
+    --color-success: #4ed6a0;
+    --color-success-container: #0f3326;
+    --color-on-success-container: #8af0c4;
+    --color-warning: #f4b04a;
+    --color-warning-container: #3a2a0c;
+    --color-background: #0f0f1a;
+    --color-on-background: #ededf5;
+    --color-canvas: #0f0f1a;
+    --color-surface-bright: #222233;
+    --color-surface-dim: #0b0b14;
+    --color-surface-container-lowest: #181826;
+    --color-surface-container-low: #1d1d2c;
+    --color-surface-container: #222233;
+    --color-surface-container-high: #29293b;
+    --color-surface-container-highest: #303044;
+    --color-surface-variant: #29293b;
+    --color-on-surface: #ededf5;
+    --color-on-surface-variant: #a6a6bd;
+    --color-outline: #7a7a94;
+    --color-outline-variant: #3c3c54;
+    --color-inverse-surface: #ededf5;
+    --color-inverse-on-surface: #2a2a3c;
+    --color-paper: #0f0f1a;
+    --color-surface: #181826;
+    --color-surface-muted: #222233;
+    --color-line: #2e2e42;
+    --color-line-strong: #6b6b88;
+    --color-ink-muted: #a6a6bd;
+    --color-accent: #9b9cff;
+    --color-accent-hover: #b3b4ff;
+    --color-accent-soft: #2a2a5c;
+    --color-on-accent: #10102a;
+    --color-success-soft: #0f3326;
+    --color-danger: #ff8098;
+    --color-danger-soft: #3f1420;
+    --color-warning-soft: #3a2a0c;
+    --color-scrim: #000000;
+    --color-on-ink: #0f0f1a;
+    --color-edge: rgb(255 255 255 / 0.12);
+    --elevation-overlay:
+      0 0 0 1px rgb(255 255 255 / 0.08), 0 2px 6px rgb(0 0 0 / 0.35),
+      0 32px 64px -16px rgb(0 0 0 / 0.6);
+    --elevation-ambient:
+      0 0 0 1px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3),
+      0 8px 24px -10px rgb(0 0 0 / 0.45);
+    --elevation-ambient-lg:
+      0 0 0 1px rgb(255 255 255 / 0.07), 0 2px 4px rgb(0 0 0 / 0.3),
+      0 28px 56px -16px rgb(0 0 0 / 0.55);
+    --elevation-float:
+      0 0 0 1px rgb(255 255 255 / 0.08), 0 12px 24px -6px rgb(0 0 0 / 0.4),
+      0 48px 96px -24px rgb(0 0 0 / 0.5);
+    --lg-fill: #9b9cff;
+    --lg-on: #9b9cff;
+    --lg-foreground: rgb(237 237 245 / 0.92);
+    --lg-muted: rgb(166 166 189 / 0.9);
+    --lg-ring: rgb(122 162 255 / 0.6);
+    --lg-segment-label: #ededf5;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-primary: #9b9cff;
+  --color-primary-dim: #b3b4ff;
+  --color-on-primary: #10102a;
+  --color-primary-container: #2a2a5c;
+  --color-on-primary-container: #d6d6ff;
+  --color-surface-tint: #9b9cff;
+  --color-inverse-primary: #4647d3;
+  --color-secondary: #7aa2ff;
+  --color-secondary-dim: #9bb9ff;
+  --color-on-secondary: #0a1a40;
+  --color-secondary-container: #182a55;
+  --color-on-secondary-container: #c3d4ff;
+  --color-tertiary: #e38cf2;
+  --color-tertiary-dim: #eba6f6;
+  --color-on-tertiary: #2a0031;
+  --color-tertiary-container: #3d1546;
+  --color-on-tertiary-container: #f6dcfb;
+  --color-tangerine-container: #3a2410;
+  --color-on-tangerine-container: #ffc58a;
+  --color-marshmallow: #0f0f1a;
+  --color-paypal: #8ab8ff;
+  --color-paypal-blue: #5aa8ff;
+  --color-violet: #7aa2ff;
+  --color-ink: #ededf5;
+  --color-ink-2: #dcdce8;
+  --color-ink-3: #c8c8d8;
+  --color-error: #ff8098;
+  --color-error-dim: #ff9aae;
+  --color-on-error: #10102a;
+  --color-error-container: #3f1420;
+  --color-on-error-container: #ffc2cf;
+  --color-success: #4ed6a0;
+  --color-success-container: #0f3326;
+  --color-on-success-container: #8af0c4;
+  --color-warning: #f4b04a;
+  --color-warning-container: #3a2a0c;
+  --color-background: #0f0f1a;
+  --color-on-background: #ededf5;
+  --color-canvas: #0f0f1a;
+  --color-surface-bright: #222233;
+  --color-surface-dim: #0b0b14;
+  --color-surface-container-lowest: #181826;
+  --color-surface-container-low: #1d1d2c;
+  --color-surface-container: #222233;
+  --color-surface-container-high: #29293b;
+  --color-surface-container-highest: #303044;
+  --color-surface-variant: #29293b;
+  --color-on-surface: #ededf5;
+  --color-on-surface-variant: #a6a6bd;
+  --color-outline: #7a7a94;
+  --color-outline-variant: #3c3c54;
+  --color-inverse-surface: #ededf5;
+  --color-inverse-on-surface: #2a2a3c;
+  --color-paper: #0f0f1a;
+  --color-surface: #181826;
+  --color-surface-muted: #222233;
+  --color-line: #2e2e42;
+  --color-line-strong: #6b6b88;
+  --color-ink-muted: #a6a6bd;
+  --color-accent: #9b9cff;
+  --color-accent-hover: #b3b4ff;
+  --color-accent-soft: #2a2a5c;
+  --color-on-accent: #10102a;
+  --color-success-soft: #0f3326;
+  --color-danger: #ff8098;
+  --color-danger-soft: #3f1420;
+  --color-warning-soft: #3a2a0c;
+  --color-scrim: #000000;
+  --color-on-ink: #0f0f1a;
+  --color-edge: rgb(255 255 255 / 0.12);
+  --elevation-overlay:
+    0 0 0 1px rgb(255 255 255 / 0.08), 0 2px 6px rgb(0 0 0 / 0.35),
+    0 32px 64px -16px rgb(0 0 0 / 0.6);
+  --elevation-ambient:
+    0 0 0 1px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3),
+    0 8px 24px -10px rgb(0 0 0 / 0.45);
+  --elevation-ambient-lg:
+    0 0 0 1px rgb(255 255 255 / 0.07), 0 2px 4px rgb(0 0 0 / 0.3),
+    0 28px 56px -16px rgb(0 0 0 / 0.55);
+  --elevation-float:
+    0 0 0 1px rgb(255 255 255 / 0.08), 0 12px 24px -6px rgb(0 0 0 / 0.4),
+    0 48px 96px -24px rgb(0 0 0 / 0.5);
+  --lg-fill: #9b9cff;
+  --lg-on: #9b9cff;
+  --lg-foreground: rgb(237 237 245 / 0.92);
+  --lg-muted: rgb(166 166 189 / 0.9);
+  --lg-ring: rgb(122 162 255 / 0.6);
+  --lg-segment-label: #ededf5;
 }
 
 @keyframes float {
@@ -223,7 +421,7 @@ a, button, [role="button"], summary, label, input, select, textarea {
 }
 
 ::selection {
-  background: rgb(70 71 211 / 0.18);
+  background: color-mix(in srgb, var(--color-accent) 24%, transparent);
 }
 
 /* Native selects on Windows dark-high-contrast keep legible colours */
@@ -255,7 +453,7 @@ select {
   z-index: 100;
   padding: 0.625rem 1rem;
   border-radius: 0.75rem;
-  background-color: var(--color-ink);
+  background-color: var(--color-night);
   color: #fff;
   font-size: 0.875rem;
   font-weight: 600;
@@ -335,7 +533,7 @@ select {
 }
 
 .mesh-ink {
-  background-color: var(--color-ink);
+  background-color: var(--color-night);
   background-image:
     radial-gradient(60% 50% at 15% 0%, rgb(70 71 211 / 0.35), transparent 70%),
     radial-gradient(50% 40% at 90% 10%, rgb(16 91 255 / 0.22), transparent 70%),
@@ -377,7 +575,7 @@ select {
 }
 
 .hairline {
-  box-shadow: 0 0 0 1px rgb(20 20 43 / 0.06);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-ink) 7%, transparent);
 }
 
 .dot-grid {
@@ -400,13 +598,13 @@ select {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgb(20 20 43 / 0.14);
+  background: color-mix(in srgb, var(--color-ink) 16%, transparent);
   border-radius: 10px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(70 71 211 / 0.4);
+  background: color-mix(in srgb, var(--color-accent) 45%, transparent);
   background-clip: padding-box;
 }
 
@@ -445,10 +643,36 @@ select {
   display: flex;
   align-items: center;
 }
+/* Compact density on HR screens (AppearanceProvider sets data-density). Grids switch
+   theme in useHrGridTheme; plain tables shrink here. Only from md up, so phones keep
+   44 px rows. Empty-state cells span columns and keep their padding. */
+@media (min-width: 768px) {
+  [data-density="compact"] .hr-main :is(td, th):not([colspan]) {
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+  }
+}
+
 .reclaim-grid .ag-header-cell-text {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-size: 11px;
+}
+
+/* Light shadows. The dark ones are in the theme blocks near the top. */
+:root {
+  --elevation-overlay:
+    0 0 0 1px rgb(20 20 43 / 0.06), 0 2px 6px rgb(20 20 43 / 0.05),
+    0 32px 64px -16px rgb(20 20 43 / 0.24);
+  --elevation-ambient:
+    0 0 0 1px rgb(20 20 43 / 0.05), 0 1px 2px rgb(20 20 43 / 0.04),
+    0 8px 24px -10px rgb(20 20 43 / 0.1);
+  --elevation-ambient-lg:
+    0 0 0 1px rgb(20 20 43 / 0.05), 0 2px 4px rgb(20 20 43 / 0.04),
+    0 28px 56px -16px rgb(20 20 43 / 0.18);
+  --elevation-float:
+    0 0 0 1px rgb(20 20 43 / 0.06), 0 12px 24px -6px rgb(20 20 43 / 0.12),
+    0 48px 96px -24px rgb(70 71 211 / 0.28);
 }
 
 /* glisse (Apple Liquid Glass): drive its tints from our tokens. Its own

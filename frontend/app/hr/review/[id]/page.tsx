@@ -108,7 +108,7 @@ function ClaimFormModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-ink/90 overflow-auto"
+      className="fixed inset-0 z-[100] bg-scrim/90 overflow-auto"
       role="dialog"
       aria-modal="true"
       aria-label="Official claim form"
@@ -136,7 +136,7 @@ function ClaimFormModal({
       <div className="min-h-full w-full flex justify-center p-4 md:p-12 pb-24 touch-pan-x touch-pan-y">
         {/* A4 Physical Paper */}
         <div
-          className="a4-modal-zoom bg-white rounded-sm shrink-0 border border-line"
+          className="a4-modal-zoom bg-surface rounded-sm shrink-0 border border-line"
           style={{ width: "794px", minHeight: "1123px", fontFamily: "sans-serif" }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -242,7 +242,7 @@ function ClaimFormModal({
                       item.status === "REJECTED" ? "bg-danger-soft"
                     : item.status === "PARTIAL_APPROVE" ? "bg-warning-soft"
                     : item.status === "PENDING"  ? "bg-surface-muted"
-                    : "bg-white"
+                    : "bg-surface"
                     }>
                       <td className="py-2 px-3 border border-line font-mono text-xs text-ink-muted">
                         {item.document_id.slice(0, 8)}
@@ -958,7 +958,7 @@ export default function ReviewPage() {
       </div>
 
       {lightbox && (
-        <div role="dialog" aria-modal="true" aria-label="Receipt image" className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4 sm:p-6" onClick={() => setLightbox(null)}>
+        <div role="dialog" aria-modal="true" aria-label="Receipt image" className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4 sm:p-6" onClick={() => setLightbox(null)}>
           <div className="relative max-w-3xl max-h-[85vh] rounded-card overflow-hidden bg-surface">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={lightbox} alt="Receipt" className="w-full h-full object-contain" />

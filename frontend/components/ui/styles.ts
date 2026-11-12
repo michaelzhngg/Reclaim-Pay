@@ -9,11 +9,11 @@ const base =
   "active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none";
 
 export const btn = {
-  primary: `${base} h-11 px-5 text-sm text-white bg-primary hover:bg-primary-dim shadow-[0_1px_0_rgb(255_255_255/0.18)_inset,0_1px_2px_rgb(20_20_43/0.2)]`,
-  dark: `${base} h-11 px-5 text-sm text-white bg-ink hover:bg-ink-3 shadow-[0_1px_0_rgb(255_255_255/0.12)_inset,0_1px_2px_rgb(11_11_30/0.3)]`,
-  secondary: `${base} h-11 px-5 text-sm text-on-surface bg-white hover:bg-surface-container-low shadow-[0_0_0_1px_rgb(20_20_43/0.1),0_1px_2px_rgb(20_20_43/0.06)] hover:shadow-[0_0_0_1px_rgb(20_20_43/0.16),0_2px_6px_rgb(20_20_43/0.08)]`,
+  primary: `${base} h-11 px-5 text-sm text-on-primary bg-primary hover:bg-primary-dim shadow-[0_1px_0_rgb(255_255_255/0.18)_inset,0_1px_2px_rgb(20_20_43/0.2)]`,
+  dark: `${base} h-11 px-5 text-sm text-on-ink bg-ink hover:bg-ink-3 shadow-[0_1px_0_rgb(255_255_255/0.12)_inset,0_1px_2px_rgb(11_11_30/0.3)]`,
+  secondary: `${base} h-11 px-5 text-sm text-on-surface bg-surface hover:bg-surface-container-low shadow-[0_0_0_1px_var(--color-edge),0_1px_2px_rgb(20_20_43/0.06)] hover:shadow-[0_0_0_1px_var(--color-line-strong),0_2px_6px_rgb(20_20_43/0.08)]`,
   ghost: `${base} h-10 px-4 text-sm text-on-surface-variant hover:text-on-surface hover:bg-on-surface/5`,
-  onDark: `${base} h-11 px-5 text-sm text-ink bg-white hover:bg-white/90`,
+  onDark: `${base} h-11 px-5 text-sm text-night bg-white hover:bg-white/90`,
   onDarkGhost: `${base} h-11 px-5 text-sm text-white bg-white/10 hover:bg-white/15 shadow-[0_0_0_1px_rgb(255_255_255/0.18)_inset]`,
   sm: "h-9 px-3.5 text-[13px]",
   lg: "h-12 px-6 text-[15px]",
@@ -27,8 +27,8 @@ export const card =
   "bg-surface-container-lowest rounded-[20px] shadow-ambient";
 
 export const input =
-  "w-full h-11 px-4 rounded-xl bg-white text-sm text-on-surface placeholder:text-on-surface-variant/60 " +
-  "shadow-[0_0_0_1px_rgb(20_20_43/0.1),0_1px_2px_rgb(20_20_43/0.04)] " +
+  "w-full h-11 px-4 rounded-xl bg-surface text-sm text-on-surface placeholder:text-on-surface-variant/60 " +
+  "shadow-[0_0_0_1px_var(--color-edge),0_1px_2px_rgb(20_20_43/0.04)] " +
   "focus:outline-none focus:shadow-[0_0_0_1px_var(--color-secondary),0_0_0_4px_rgb(16_91_255/0.15)] " +
   "transition-shadow";
 

@@ -41,3 +41,15 @@ export const hrGridTheme = themeQuartz.withParams({
   borderRadius: 6,
   wrapperBorder: { color: token("line") },
 });
+
+/** Compact density, used only from the md breakpoint up where rows are clicked, not tapped. */
+export const HR_GRID_COMPACT_ROW_HEIGHT = 36;
+
+export const hrGridThemeCompact = hrGridTheme.withParams({
+  rowHeight: HR_GRID_COMPACT_ROW_HEIGHT,
+  headerHeight: 36,
+  spacing: 6,
+  cellHorizontalPadding: 8,
+  fontSize: 12,
+  headerFontSize: 12,
+});

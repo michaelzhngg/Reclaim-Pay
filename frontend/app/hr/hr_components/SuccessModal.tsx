@@ -58,7 +58,7 @@ export function SuccessModal({
   const iconColor = tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : "text-success";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-scrim/40">
       <div
         role="dialog"
         aria-modal="true"

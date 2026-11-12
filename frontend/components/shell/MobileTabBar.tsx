@@ -24,7 +24,7 @@ export default function MobileTabBar({ links }: { links: NavLink[] }) {
           aria-label="Sections"
           link={Link}
           value={active}
-          style={{ ["--lg-tab-width" as string]: width, ["--lg-glass" as string]: "rgb(255 255 255 / 0.7)" }}
+          style={{ ["--lg-tab-width" as string]: width, ["--lg-glass" as string]: "color-mix(in srgb, var(--color-surface) 70%, transparent)" }}
           items={links.map((l) => {
             const Icon = l.icon;
             return {
@@ -35,7 +35,7 @@ export default function MobileTabBar({ links }: { links: NavLink[] }) {
                 <span className="relative flex">
                   <Icon className="h-[22px] w-[22px]" strokeWidth={1.75} aria-hidden="true" />
                   {!!l.badge && l.badge > 0 && (
-                    <span className="absolute -right-2 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-tangerine px-1 text-[9px] font-bold text-white">
+                    <span className="absolute -right-2 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-tangerine px-1 text-[9px] font-bold text-night">
                       {l.badge > 9 ? "9+" : l.badge}
                     </span>
                   )}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { User, Bell, Wallet, LifeBuoy, AlertTriangle, Loader2 } from "lucide-react";
+import { User, Bell, Wallet, LifeBuoy, AlertTriangle, Loader2, SunMoon } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { getBankingDetails } from "@/lib/actions/settings";
@@ -11,10 +11,12 @@ import type { BankingDetails } from "@/lib/api/types";
 import { useToast } from "@/components/toast/ToastProvider";
 import PushSettingToggle from "@/app/_components/PushSettingToggle";
 import ProfileCard from "@/app/employee/settings/_components/ProfileCard";
+import { DensityOptions, ThemeOptions } from "@/components/theme/AppearanceControls";
 
 const TABS = [
   { id: "profile", label: "Profile Information", icon: User },
   { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "appearance", label: "Appearance", icon: SunMoon },
   { id: "banking", label: "Banking & Payouts", icon: Wallet },
 ] as const;
 
@@ -225,13 +227,22 @@ export default function SettingsLegacyContent() {
                 </div>
               </Section>
             )}
+
+            {activeTab === "appearance" && (
+              <Section title="Appearance" desc="Saved in this browser only.">
+                <div className="p-4 sm:p-6 space-y-6">
+                  <ThemeOptions layout="tiles" />
+                  <DensityOptions layout="tiles" />
+                </div>
+              </Section>
+            )}
           </div>
         </div>
       </div>
 
       {showConfirmModal && autoPay.state === "ready" && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6">
-          <div className="absolute inset-0 bg-ink/40" onClick={() => !isUpdating && setShowConfirmModal(false)} />
+          <div className="absolute inset-0 bg-scrim/40" onClick={() => !isUpdating && setShowConfirmModal(false)} />
           <div
             role="dialog"
             aria-modal="true"

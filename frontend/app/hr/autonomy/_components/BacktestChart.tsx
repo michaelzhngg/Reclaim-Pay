@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useAppearance } from "@/components/theme/AppearanceProvider";
+import type { Theme } from "@/lib/theme/preferences";
 import { AgCharts } from "ag-charts-react";
 import {
   CartesianChartModule,
@@ -16,9 +18,9 @@ const MODULES = [CartesianChartModule, NumberAxisModule, LineSeriesModule, Scatt
 
 /**
  * Chart colours come from the design tokens in app/globals.css. AG Charts draws on a canvas,
- * so the CSS variables are read once in the browser. The fallbacks are the same token values,
- * used only during server render. The current setting is the one accent on the chart; every
- * other limit is ink-muted (6.2:1 on white).
+ * so the CSS variables are read in the browser again whenever the theme changes. The fallbacks
+ * are the same token values. The current setting is the one accent on the chart; every other
+ * limit is ink-muted (6.2:1 on white, 7.4:1 on the dark surface).
  */
 interface ChartColors {
   current: string;
@@ -30,17 +32,14 @@ interface ChartColors {
   font: string;
 }
 
-const FALLBACK_COLORS: ChartColors = {
-  current: "#4647d3",
-  line: "#5a5c64",
-  ink: "#17181c",
-  muted: "#5a5c64",
-  grid: "#e3e1db",
-  surface: "#ffffff",
-  font: "Inter, ui-sans-serif, system-ui, sans-serif",
+const FONT_FALLBACK = "Inter, ui-sans-serif, system-ui, sans-serif";
+const FALLBACKS: Record<Theme, ChartColors> = {
+  light: { current: "#4647d3", line: "#5c5c72", ink: "#0b0b1e", muted: "#5c5c72", grid: "#e6e6ee", surface: "#ffffff", font: FONT_FALLBACK },
+  dark: { current: "#9b9cff", line: "#a6a6bd", ink: "#ededf5", muted: "#a6a6bd", grid: "#2e2e42", surface: "#181826", font: FONT_FALLBACK },
 };
 
-function readChartColors(): ChartColors {
+function readChartColors(theme: Theme): ChartColors {
+  const FALLBACK_COLORS = FALLBACKS[theme];
   if (typeof window === "undefined") return FALLBACK_COLORS;
   const css = getComputedStyle(document.documentElement);
   const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
@@ -176,8 +175,10 @@ interface BacktestChartProps {
  */
 export default function BacktestChart({ data, currency }: BacktestChartProps) {
   const [showTable, setShowTable] = useState(false);
-  // The chart only renders in the browser (dynamic import, no SSR), so reading the tokens once is safe.
-  const [colors] = useState(readChartColors);
+  // The chart only renders in the browser (dynamic import, no SSR). AppearanceProvider sets
+  // data-theme before it re-renders, so the tokens read here are already the new theme's.
+  const { theme } = useAppearance();
+  const colors = useMemo(() => readChartColors(theme), [theme]);
   const automation = useMemo(
     () => panelOptions(data, "automationPct", currency, false, AUTOMATION_HEIGHT, colors),
     [data, currency, colors],
