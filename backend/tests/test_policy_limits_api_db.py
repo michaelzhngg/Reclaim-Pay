@@ -161,3 +161,48 @@ def test_deleting_a_policy_removes_its_limits(hr_api):
     res = c.delete(f"/api/v1/policies/{p.policy_id}")
     assert res.status_code == 200
     assert store.list_rows(db, p.policy_id) == ([], [])
+
+
+def _with_text(db, policy, text_body):
+    from core.models import PolicySection
+
+    db.add(PolicySection(policy_id=policy.policy_id, section_order=1, content=text_body))
+    db.commit()
+
+
+def test_extract_limits_saves_suggestions_from_the_policy_text(pg_db, monkeypatch):
+    from engine.services import policy_limits_extraction as ex
+
+    hr = make_user(pg_db)
+    p = make_policy(pg_db, hr)
+    _with_text(pg_db, p, "Meals are reimbursed up to RM100 each.")
+    seen = {}
+
+    def fake_llm(categories, text_body):
+        seen["text"] = text_body
+        return {"limits": [{"category": "meals", "unit": "PER_MEAL", "amount": 100},
+                           {"category": "Parking", "unit": "PER_DAY", "amount": 5}], "zones": []}
+
+    monkeypatch.setattr(ex, "run_extraction_llm", fake_llm)
+    result = ex.extract_limits(pg_db, p.policy_id)
+    assert (result.proposed, result.dropped) == (1, 1) and "RM100" in seen["text"]
+    rows, _ = store.list_rows(pg_db, p.policy_id)
+    assert [(r.category, r.status) for r in rows] == [("Meals", "PROPOSED")]
+    assert store.load_limits(pg_db, p.policy_id) == ([], [])
+
+
+def test_upload_still_succeeds_when_limit_extraction_fails(hr_api, monkeypatch, tmp_path):
+    import api.policies as policies_api
+
+    c, db, hr, _ = hr_api
+    p = make_policy(db, hr)
+    monkeypatch.setattr(policies_api, "STORAGE_POLICIES_DIR", tmp_path)
+    monkeypatch.setattr(policies_api, "run_policy_workflow", lambda *a, **kw: str(p.policy_id))
+
+    def boom(db, policy_id):
+        raise RuntimeError("quota")
+
+    monkeypatch.setattr(policies_api, "extract_limits", boom)
+    res = c.post("/api/v1/policies/upload", data={"alias": p.alias},
+                 files={"files": ("policy.pdf", b"%PDF-1.4", "application/pdf")})
+    assert res.status_code == 200 and res.json()["limits_found"] == 0
