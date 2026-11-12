@@ -1,16 +1,21 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
 import { getAuditQueue } from "@/lib/actions/recoveries";
 import type { Recovery } from "@/lib/api/reclaim-pay-types";
 import { useTabData } from "@/lib/hooks/useTabData";
 import { formatClaimRef } from "@/lib/format";
 import { useToast } from "@/components/toast/ToastProvider";
-import AuditQueueGrid from "@/components/hr-grid/AuditQueueGrid";
 import RecoveryDialog from "@/components/hr-grid/RecoveryDialog";
 import { TabEmpty, TabError, TabLoading } from "@/components/hr-grid/TabStates";
 import { formatUpdated } from "@/components/hr-grid/ledger";
 import type { AuditRow } from "@/components/hr-grid/recoveries";
+
+const AuditQueueGrid = dynamic(() => import("@/components/hr-grid/AuditQueueGrid"), {
+  ssr: false,
+  loading: () => <TabLoading label="Loading the audit queue" />,
+});
 
 async function fetchQueue(): Promise<AuditRow[]> {
   const { rows, error } = await getAuditQueue();

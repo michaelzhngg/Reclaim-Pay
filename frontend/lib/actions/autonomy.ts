@@ -87,6 +87,25 @@ export async function getActions(limit = 50): Promise<Outcome<"result", AgentAct
   return { result: res.data, error: res.data ? null : (res.error ?? NO_RESPONSE) };
 }
 
+/**
+ * Status plus the latest log entries. One action instead of two, because the browser runs
+ * server actions one at a time; here the two backend calls run side by side.
+ */
+export async function getStatusWithActions(
+  limit = 50,
+): Promise<{ status: Outcome<"status", AutonomyStatus>; actions: Outcome<"result", AgentActionsResult> }> {
+  const [status, actions] = await Promise.all([getStatus(), getActions(limit)]);
+  return { status, actions };
+}
+
+/** Everything the Autonomy page shows when it opens, in one round trip. */
+export async function getAutonomyOverview(limit = 50): Promise<
+  { settings: Outcome<"settings", AutonomySettings> } & Awaited<ReturnType<typeof getStatusWithActions>>
+> {
+  const [settings, rest] = await Promise.all([getSettings(), getStatusWithActions(limit)]);
+  return { settings, ...rest };
+}
+
 /** The Agent log tab: the chain plus the names behind the user IDs. Names are a nicety, so losing them isn't an error. */
 export async function getAgentLog(
   limit = 200,

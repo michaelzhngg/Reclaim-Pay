@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
@@ -108,13 +109,19 @@ def _build_reimbursement_response(
     employee_name: Optional[str] = None,
     department_name: Optional[str] = None,
     viewer_is_hr: bool = False,
+    prefetched: Optional["_ListContext"] = None,
 ) -> dict:
     """Build a response dict for a Reimbursement row, including joined data.
 
     Non-HR viewers get no AI or HR judgment text: summary, reasoning, signals and the
     autonomy explanation are left out. The HR note stays, since the employee is notified of it.
+    `prefetched` carries the list view's bulk lookups, so a page of rows costs a fixed number of queries.
     """
-    if include_line_items:
+    if prefetched is not None:
+        line_items = []
+        sub_cats = []
+        receipt_count = prefetched.receipt_counts.get(r.reim_id, 0)
+    elif include_line_items:
         line_items = db.exec(
             select(LineItem).where(LineItem.reim_id == r.reim_id)
         ).all()
@@ -131,14 +138,15 @@ def _build_reimbursement_response(
             select(func.count()).where(LineItem.reim_id == r.reim_id)
         ).one()
 
-    user = db.get(User, r.user_id)
+    user = prefetched.users.get(r.user_id) if prefetched is not None else db.get(User, r.user_id)
 
     # Use pre-fetched names if provided, otherwise look up
     if employee_name is None or department_name is None:
         if user:
             employee_name = user.name
             if user.department_id:
-                dept = db.get(Department, user.department_id)
+                dept = (prefetched.departments.get(user.department_id) if prefetched is not None
+                        else db.get(Department, user.department_id))
                 if dept:
                     department_name = dept.name
         employee_name = employee_name or "Unknown"
@@ -147,9 +155,12 @@ def _build_reimbursement_response(
     # Fetch policy name if policy_id is set
     policy_name = None
     if r.policy_id:
-        policy = db.get(Policy, r.policy_id)
-        if policy:
-            policy_name = policy.title
+        if prefetched is not None:
+            policy_name = prefetched.policy_titles.get(r.policy_id)
+        else:
+            policy = db.get(Policy, r.policy_id)
+            if policy:
+                policy_name = policy.title
 
     result = {
         "reim_id": str(r.reim_id),
@@ -192,11 +203,14 @@ def _build_reimbursement_response(
     }
 
     if r.settlement_id:
-        merchants = db.exec(
-            select(SettlementReceipt.merchant_name).where(
-                SettlementReceipt.settlement_id == r.settlement_id
-            )
-        ).all()
+        if prefetched is not None:
+            merchants = prefetched.merchants.get(r.settlement_id, [])
+        else:
+            merchants = db.exec(
+                select(SettlementReceipt.merchant_name).where(
+                    SettlementReceipt.settlement_id == r.settlement_id
+                )
+            ).all()
         result["merchant_names"] = list(dict.fromkeys(m.strip() for m in merchants if m and m.strip()))
         if include_line_items:
             settlement = db.get(TravelSettlement, r.settlement_id)
@@ -211,9 +225,12 @@ def _build_reimbursement_response(
         result["line_items"] = [_line_item_dict(li, viewer_is_hr) for li in line_items]
 
     # Include payout info if one exists
-    payout = db.exec(
-        select(Payout).where(Payout.reim_id == r.reim_id).order_by(Payout.created_at.desc())
-    ).first()
+    if prefetched is not None:
+        payout = prefetched.latest_payouts.get(r.reim_id)
+    else:
+        payout = db.exec(
+            select(Payout).where(Payout.reim_id == r.reim_id).order_by(Payout.created_at.desc())
+        ).first()
     if payout:
         result["payout"] = {
             "payout_id": str(payout.payout_id),
@@ -228,6 +245,58 @@ def _build_reimbursement_response(
         }
 
     return result
+
+
+@dataclass
+class _ListContext:
+    users: dict
+    departments: dict
+    receipt_counts: dict
+    policy_titles: dict
+    merchants: dict
+    latest_payouts: dict
+
+
+def _list_context(db: Session, reimbursements: list) -> _ListContext:
+    """One query per related table for a page of claims, instead of several per claim."""
+    reim_ids = [r.reim_id for r in reimbursements]
+    user_ids = {r.user_id for r in reimbursements}
+    policy_ids = {r.policy_id for r in reimbursements if r.policy_id}
+    settlement_ids = {r.settlement_id for r in reimbursements if r.settlement_id}
+
+    users = {u.user_id: u for u in db.exec(select(User).where(User.user_id.in_(user_ids))).all()} if user_ids else {}
+    dept_ids = {u.department_id for u in users.values() if u.department_id}
+    departments = (
+        {d.department_id: d for d in db.exec(select(Department).where(Department.department_id.in_(dept_ids))).all()}
+        if dept_ids else {}
+    )
+    receipt_counts = dict(
+        db.exec(
+            select(LineItem.reim_id, func.count()).where(LineItem.reim_id.in_(reim_ids)).group_by(LineItem.reim_id)
+        ).all()
+    ) if reim_ids else {}
+    policy_titles = dict(
+        db.exec(select(Policy.policy_id, Policy.title).where(Policy.policy_id.in_(policy_ids))).all()
+    ) if policy_ids else {}
+
+    merchants: dict = {}
+    if settlement_ids:
+        for sid, name in db.exec(
+            select(SettlementReceipt.settlement_id, SettlementReceipt.merchant_name).where(
+                SettlementReceipt.settlement_id.in_(settlement_ids)
+            )
+        ).all():
+            merchants.setdefault(sid, []).append(name)
+
+    # Same ordering as the single-claim lookup, so the first row per claim is the one it would pick.
+    latest_payouts: dict = {}
+    if reim_ids:
+        for p in db.exec(
+            select(Payout).where(Payout.reim_id.in_(reim_ids)).order_by(Payout.created_at.desc())
+        ).all():
+            latest_payouts.setdefault(p.reim_id, p)
+
+    return _ListContext(users, departments, receipt_counts, policy_titles, merchants, latest_payouts)
 
 
 @router.get("/health")
@@ -260,33 +329,15 @@ def list_reimbursements(
 
     stmt = stmt.order_by(Reimbursement.created_at.desc()).offset(offset).limit(limit)
     reimbursements = db.exec(stmt).all()
-
-    # Bulk fetch employee and department names to avoid N+1
-    user_ids = {r.user_id for r in reimbursements}
-    users = db.exec(select(User).where(User.user_id.in_(user_ids))).all() if user_ids else []
-    user_map = {u.user_id: u for u in users}
-
-    dept_ids = {u.department_id for u in users if u.department_id}
-    depts = db.exec(select(Department).where(Department.department_id.in_(dept_ids))).all() if dept_ids else []
-    dept_map = {d.department_id: d for d in depts}
-
-    name_map: dict[UUID, tuple[Optional[str], Optional[str]]] = {}
-    for uid in user_ids:
-        u = user_map.get(uid)
-        if u:
-            d = dept_map.get(u.department_id) if u.department_id else None
-            name_map[uid] = (u.name, d.name if d else None)
-        else:
-            name_map[uid] = (None, None)
+    ctx = _list_context(db, reimbursements)
 
     return [
         _build_reimbursement_response(
             r,
             db,
             include_line_items=False,
-            employee_name=name_map.get(r.user_id, (None, None))[0],
-            department_name=name_map.get(r.user_id, (None, None))[1],
             viewer_is_hr=viewer_is_hr,
+            prefetched=ctx,
         )
         for r in reimbursements
     ]

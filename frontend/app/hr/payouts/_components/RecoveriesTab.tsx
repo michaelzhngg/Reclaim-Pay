@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
 import { listHRRecoveries } from "@/lib/actions/recoveries";
 import type { Recovery } from "@/lib/api/reclaim-pay-types";
@@ -7,10 +8,14 @@ import { formatClaimRef } from "@/lib/format";
 import { useTabData } from "@/lib/hooks/useTabData";
 import { useToast } from "@/components/toast/ToastProvider";
 import InvoicePreviewDialog from "@/components/hr-grid/InvoicePreviewDialog";
-import RecoveriesGrid from "@/components/hr-grid/RecoveriesGrid";
 import { TabEmpty, TabError, TabLoading } from "@/components/hr-grid/TabStates";
 import WaiveDialog from "@/components/hr-grid/WaiveDialog";
 import type { HRRecovery } from "@/components/hr-grid/recoveries";
+
+const RecoveriesGrid = dynamic(() => import("@/components/hr-grid/RecoveriesGrid"), {
+  ssr: false,
+  loading: () => <TabLoading label="Loading recoveries" />,
+});
 
 async function fetchRecoveries(): Promise<HRRecovery[]> {
   const { recoveries, error } = await listHRRecoveries();

@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import dynamic from "next/dynamic";
 import { AlertCircle, Inbox, RefreshCw } from "lucide-react";
 import { batchApprove } from "@/lib/actions/autonomy";
 import { FIXTURES_ON } from "@/lib/api/fixtures";
 import { formatClaimRef } from "@/lib/format";
 import type { BatchApproveResult } from "@/lib/api/reclaim-pay-types";
 import { useToast } from "@/components/toast/ToastProvider";
-import TriageGrid from "./TriageGrid";
 import BatchApproveSheet from "./BatchApproveSheet";
 import {
   TIER_LABEL,
@@ -53,6 +53,11 @@ function QueueSkeleton() {
   );
 }
 
+const loadTriageGrid = () => import("./TriageGrid");
+
+// AG Grid is most of this page's JavaScript, so it loads after the shell and tabs are on screen.
+const TriageGrid = dynamic(loadTriageGrid, { ssr: false, loading: () => <QueueSkeleton /> });
+
 export default function TriageQueue({ rows, isLoading, error, selfId, onRetry, onApproved }: TriageQueueProps) {
   const { toast } = useToast();
   const [tab, setTab] = useState<TierTab>("all");
@@ -62,6 +67,11 @@ export default function TriageQueue({ rows, isLoading, error, selfId, onRetry, o
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [result, setResult] = useState<BatchApproveResult | null>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // Start the grid download while the claims are still loading.
+  useEffect(() => {
+    void loadTriageGrid();
+  }, []);
 
   const counts = useMemo(() => tierTabs(rows), [rows]);
   const visible = useMemo(() => rowsForTab(rows, tab), [rows, tab]);

@@ -3,15 +3,15 @@
 // ─── HR Server Actions ────────────────────────────────────────────────────────
 // Fetches reimbursement data for the HR dashboard and detail view.
 // HR role receives ALL reimbursements (no user filter on the backend).
-// Maps backend ReimbursementRaw → Claim (list row) and ClaimBundle (detail).
+// Maps backend ReimbursementRaw → triage rows (dashboard) and ClaimBundle (detail).
 // ──────────────────────────────────────────────────────────────────────────────
 
 import { apiGet, apiPatch, apiPost, apiPostMultipart, API_PREFIX } from "@/lib/api/client";
 import { withFixture } from "@/lib/api/fixtures";
-import type { ReimbursementRaw, Claim, ClaimBundle, PayoutInfo, AiStatus } from "@/lib/api/types";
+import type { ReimbursementRaw, ClaimBundle, PayoutInfo, AiStatus } from "@/lib/api/types";
 import { triageRows, type TriageRow, type TriageSource } from "@/components/hr-grid/rows";
 import { triageReimbursements } from "@/src/mocks/triageFixtures";
-import { formatClaimRef, formatMoney } from "@/lib/format";
+import { formatClaimRef } from "@/lib/format";
 import { toClaimAutonomy } from "@/lib/hr/evidence";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -44,25 +44,6 @@ function formatDate(iso: string | null): string {
 function formatShortDate(iso: string | null): string {
   if (!iso) return "";
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
-
-/** Map a raw reimbursement to the HR dashboard list row shape. */
-function mapToClaim(r: ReimbursementRaw): Claim {
-  const aiStatus = judgmentToAiStatus(r.judgment);
-  const employeeName = r.employee_name ?? "Unknown";
-
-  return {
-    id: r.reim_id,
-    employee: {
-      name: employeeName,
-      initials: getInitials(employeeName),
-    },
-    date: formatDate(r.created_at),
-    amount: formatMoney(r.currency ?? "MYR", r.total_claimed_amount ?? 0),
-    category: r.main_category ?? "General",
-    status: aiStatus,
-    note: r.summary ? r.summary.split(".")[0] : undefined,
-  };
 }
 
 /** Map a raw reimbursement to the ClaimBundle detail shape. */
@@ -137,63 +118,30 @@ function mapToBundle(r: TriageSource): ClaimBundle {
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
 export interface HRClaims {
-  attention: Claim[];
-  passed: Claim[];
-  flagged: Claim[];
-  allReims: ReimbursementRaw[];
   /** Triage queue rows: claims waiting on HR plus the last 24 hours of auto-pays. */
   rows: TriageRow[];
+  /** All loaded claims, and how many reached a final state with no HR reviewer on record. */
+  stats: { total: number; autoSolved: number };
   error: string | null;
 }
 
+const FINAL_STATUSES = ["APPROVED", "DISBURSING", "PAID", "REJECTED"];
+
 /**
- * Fetch all reimbursements and bucket them for the HR dashboard.
- *
- * - attention : status=REVIEW (all ages), HR must act
- * - passed    : auto-approved (reviewed_by=null) within 24 h, informational
- * - flagged   : auto-rejected (reviewed_by=null) within 24 h, informational
- * - rows      : the triage grid, with the tier fields from the autonomy engine
- *
- * All buckets sorted most-recent first.
+ * The HR dashboard's data. Rows and counts are worked out here, so the page receives
+ * the triage rows instead of every raw claim.
  */
 export async function getHRClaims(): Promise<HRClaims> {
-  return withFixture(bucketClaims(triageReimbursements), async () => {
+  return withFixture(summarizeClaims(triageReimbursements), async () => {
     const result = await apiGet<TriageSource[]>(`${API_PREFIX}/reimbursements/`);
-    if (result.error) return { ...bucketClaims([]), error: result.error };
-    return bucketClaims(result.data ?? []);
+    if (result.error) return { ...summarizeClaims([]), error: result.error };
+    return summarizeClaims(result.data ?? []);
   });
 }
 
-function bucketClaims(reims: TriageSource[]): HRClaims {
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const byRecent = (a: ReimbursementRaw, b: ReimbursementRaw) =>
-    new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();
-
-  const attention: Claim[] = [];
-  const passed: Claim[] = [];
-  const flagged: Claim[] = [];
-
-  const sorted = [...reims].sort(byRecent);
-
-  for (const r of sorted) {
-    const isAutoProcessed = r.reviewed_by == null;
-    const createdAt = r.created_at ? new Date(r.created_at) : null;
-    const isRecent = createdAt != null && createdAt >= cutoff;
-
-    if (r.status === "REVIEW") {
-      attention.push(mapToClaim(r));
-    } else if (
-      isAutoProcessed &&
-      isRecent &&
-      ["APPROVED", "DISBURSING", "PAID"].includes(r.status)
-    ) {
-      passed.push(mapToClaim(r));
-    } else if (isAutoProcessed && isRecent && r.status === "REJECTED") {
-      flagged.push(mapToClaim(r));
-    }
-  }
-
-  return { attention, passed, flagged, allReims: reims, rows: triageRows(reims), error: null };
+function summarizeClaims(reims: TriageSource[]): HRClaims {
+  const autoSolved = reims.filter((r) => r.reviewed_by == null && FINAL_STATUSES.includes(r.status)).length;
+  return { rows: triageRows(reims), stats: { total: reims.length, autoSolved }, error: null };
 }
 
 export interface HistoryClaim {
