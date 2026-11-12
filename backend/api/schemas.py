@@ -2,7 +2,7 @@ from typing import List, Literal, Optional
 from datetime import datetime, date
 from decimal import Decimal
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from core.enums import (
     UserRole,
@@ -70,6 +70,31 @@ class CreateEmployeeRequest(BaseModel):
     user_code: Optional[str] = Field(default=None, max_length=40)
     department_id: Optional[UUID] = None
     role: UserRole = UserRole.Employee
+
+
+class UpdateEmployeeRequest(BaseModel):
+    """Send only the fields that change. Email, password, PayPal and bank details can't be changed here."""
+    model_config = ConfigDict(extra="forbid")
+
+    name: Optional[str] = Field(default=None, max_length=120)
+    user_code: Optional[str] = Field(default=None, max_length=40)
+    department_id: Optional[UUID] = None
+    role: Optional[UserRole] = None
+    is_active: Optional[bool] = None
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, v):
+        if v is None or not v.strip():
+            raise ValueError("Enter their full name.")
+        return v.strip()
+
+    @field_validator("role", "is_active")
+    @classmethod
+    def _not_null(cls, v):
+        if v is None:
+            raise ValueError("This field can't be empty.")
+        return v
 
 
 class ForgotPasswordRequest(BaseModel):

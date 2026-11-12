@@ -58,6 +58,7 @@ class AgentActionType(str, enum.Enum):
     PAYPAL_SIGNIN = "PAYPAL_SIGNIN"
     EMPLOYEE_CREATED = "EMPLOYEE_CREATED"
     INVITE_RESENT = "INVITE_RESENT"
+    EMPLOYEE_UPDATED = "EMPLOYEE_UPDATED"
 
 
 class JudgmentResult(str, enum.Enum):
