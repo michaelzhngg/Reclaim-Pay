@@ -73,3 +73,18 @@ describe("chainBadgeLabel", () => {
 describe("hashPrefix", () => {
   it("keeps the first 8 characters", () => expect(hashPrefix("9f2c4b1a77")).toBe("9f2c4b1a"));
 });
+
+describe("signal reviews in the log", () => {
+  const rated = (verdict: string, previous: unknown = null) =>
+    ({ action_type: "SIGNAL_REVIEWED", payload: { code: "SPLIT_CLAIM", document_id: null, verdict, previous } });
+  it("labels the entry", () => expect(actionLabel(rated("CONFIRMED"))).toBe("Check rated"));
+  it("names the check and the answer", () => {
+    expect(actionSummary(rated("CONFIRMED"))).toBe("Possible split claim: Real problem");
+    expect(actionSummary(rated("FALSE_ALARM"))).toBe("Possible split claim: False alarm");
+  });
+  it("marks an answer that replaced an earlier one", () => {
+    expect(actionSummary(rated("FALSE_ALARM", { verdict: "CONFIRMED", reviewed_by: "hr-1" })))
+      .toBe("Possible split claim: False alarm (changed)");
+  });
+  it("gives nothing for an unknown verdict", () => expect(actionSummary(rated("MAYBE"))).toBeNull());
+});

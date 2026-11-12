@@ -221,3 +221,12 @@ function round(n: number, dp: number): number {
   const f = 10 ** dp;
   return Math.round(n * f) / f;
 }
+
+/** Shown above the replay figures when they come from seeded claims, which decide() produced with the defaults. */
+export function demoNotice(result: Pick<BacktestResult, "demo_claims" | "total_claims"> | null): string | null {
+  const demo = result?.demo_claims ?? 0;
+  if (!result || demo === 0) return null;
+  if (demo >= result.total_claims) return "These numbers come from demo claims. Don't change limits based on them.";
+  const share = demo === 1 ? "is a demo claim" : "are demo claims";
+  return `${demo} of ${result.total_claims} replayed claims ${share}. Don't change limits based on these numbers.`;
+}

@@ -17,7 +17,7 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from core.enums import AgentActionType, RecoveryStatus, ReimbursementStatus, UserRole
+from core.enums import AgentActionType, RecoveryStatus, ReimbursementStatus, UserRole, is_vendor_booking
 from core.models import AgentAction, Recovery, Reimbursement, User
 from engine.services.action_log import record_action
 from engine.services.paypal_client import format_amount, mask_email
@@ -96,6 +96,8 @@ def offset_for_reim(db: Session, reim: Reimbursement) -> tuple[Decimal, list[UUI
     Locks the claim row, so an execute choosing this claim waits for the payout transaction or the other way round.
     """
     db.exec(select(Reimbursement.reim_id).where(Reimbursement.reim_id == reim.reim_id).with_for_update())
+    if is_vendor_booking(reim):
+        return _money(reim.total_approved_amount), []
     offsets = _offsets_on(db, reim.reim_id)
     net = apply_offsets(_money(reim.total_approved_amount), [_money(r.amount) for r in offsets])
     return net, [r.recovery_id for r in offsets]
@@ -107,6 +109,7 @@ def find_offset_claim(db: Session, rec: Recovery) -> tuple[Reimbursement, Decima
         select(Reimbursement)
         .where(
             Reimbursement.user_id == rec.user_id,
+            Reimbursement.kind == "CLAIM",
             Reimbursement.reim_id != rec.reim_id,
             Reimbursement.status.in_(OFFSET_TARGET_STATUSES),
         )
@@ -219,6 +222,8 @@ def create_recovery(db: Session, reim: Reimbursement, amount: Decimal, reason: s
     from engine.services.autonomy_store import get_config
 
     _reject_self(reim.user_id, hr)
+    if is_vendor_booking(reim):
+        raise RecoveryError(409, "NOT_A_CLAIM")
     if reim.status != ReimbursementStatus.PAID.value:
         raise RecoveryError(409, "NOT_PAID")
     db.exec(select(Reimbursement.reim_id).where(Reimbursement.reim_id == reim.reim_id).with_for_update())

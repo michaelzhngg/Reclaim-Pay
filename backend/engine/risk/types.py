@@ -95,6 +95,7 @@ class ClaimFacts(BaseModel):
 
 class EmployeeHistory(BaseModel):
     paid_claims: int
+    # The windows are NEW_ISSUE_DAYS and TRUSTED_ISSUE_DAYS in engine.risk.autonomy.
     confirmed_issues_90d: int
     confirmed_issues_180d: int
     auto_paid_today: float
@@ -112,6 +113,8 @@ class AgentLedger(BaseModel):
     auto_paid_today: float
     auto_paid_last_hour: float
     breaker_active: bool
+    # Vendor payments made today, all tiers. Committed company spend, not agent velocity.
+    vendor_paid_today: float = 0.0
 
 
 class AutonomyConfig(BaseModel):

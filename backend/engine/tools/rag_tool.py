@@ -3,9 +3,13 @@ Policy section retrieval for compliance evaluation.
 Uses pgvector cosine-similarity search on the 1536-dim embedding column.
 Falls back to keyword/ILIKE text search if embeddings are unavailable.
 """
+import logging
+import re
 from typing import List, Optional
 from uuid import UUID
 
+from sqlalchemy import bindparam
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, select, text, or_
 
 from core.models import PolicySection
@@ -89,3 +93,59 @@ def search_policy_sections(
         parts.append(f"[Section {i}]\n{excerpt}")
 
     return "\n\n".join(parts)
+
+
+_logger = logging.getLogger(__name__)
+
+_VECTOR_IDS_SQL = text("""
+    SELECT section_id
+    FROM policy_sections
+    WHERE policy_id IN :policy_ids AND embedding IS NOT NULL
+    ORDER BY embedding <=> CAST(:qvec AS vector)
+    LIMIT :lim
+""").bindparams(bindparam("policy_ids", expanding=True))
+
+# Words that appear in almost any question or section and would match everything.
+_STOP_WORDS = frozenset("""
+    a an and are can could did does for from get had has have how i if in is it its may me my of on or our
+    should so than that the their them then there they this to was we what when where which who why will
+    with would you your claim claims policy company allowed allow much many need want please
+""".split())
+
+
+def find_policy_sections(policy_ids: List[UUID], session: Session, query: str, limit: int = 6) -> List[PolicySection]:
+    """Sections of the given policies most related to a free-text question, as rows.
+
+    Vector search first (the question is embedded once); keyword search when embeddings fail or none exist.
+    """
+    if not policy_ids:
+        return []
+    ids = [str(p) for p in policy_ids]
+    if query.strip():
+        try:
+            vector = get_embeddings().embed_query(query)
+            hit_ids = [row[0] for row in session.execute(
+                _VECTOR_IDS_SQL, {"policy_ids": ids, "qvec": str(vector), "lim": limit}
+            ).fetchall()]
+            if hit_ids:
+                found = {s.section_id: s for s in session.exec(
+                    select(PolicySection).where(PolicySection.section_id.in_(hit_ids))).all()}
+                return [found[i] for i in hit_ids if i in found]
+        except Exception as e:
+            _logger.warning("[RAG] vector search failed, using keywords: %s", e)
+            if isinstance(e, SQLAlchemyError):
+                session.rollback()  # a failed statement aborts the Postgres transaction
+    words = [w for w in dict.fromkeys(re.findall(r"[a-z]{3,}", query.lower())) if w not in _STOP_WORDS][:10]
+    if not words:
+        return []
+    rows = session.exec(
+        select(PolicySection)
+        .where(PolicySection.policy_id.in_(policy_ids),
+               or_(*[PolicySection.content.ilike(f"%{w}%") for w in words]))
+        .limit(200)
+    ).all()
+
+    def rank(s: PolicySection) -> tuple[int, int]:
+        return -sum(w in (s.content or "").lower() for w in words), s.section_order or 0
+
+    return sorted(rows, key=rank)[:limit]

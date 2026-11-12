@@ -1,12 +1,12 @@
 import os
 import logging
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from dotenv import load_dotenv
 
 # Load .env into os.environ BEFORE LangChain imports so LangSmith tracing activates
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
-import asyncio
-from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -23,12 +23,16 @@ from api.payouts import router as payouts_router
 from api.paypal import router as paypal_router
 from api.employee import router as employee_router
 from api.policies import router as policies_router
+from api.policy_limits import router as policy_limits_router
 from api.reimbursements import router as reimbursements_router
 from api.drafts import router as drafts_router
 from api.departments import router as departments_router
 from api.push import router as push_router
 from api.autonomy import router as autonomy_router
 from api.recoveries import router as recoveries_router
+from api.signal_reviews import router as signal_reviews_router
+from api.spend_check import router as spend_check_router
+from api.vendors import router as vendors_router
 from api import deps
 from core.models import User
 
@@ -43,11 +47,19 @@ async def lifespan(app: FastAPI):
     init_vapid_keys()
     from engine.services.reminder_service import reminder_loop
     reminders = asyncio.create_task(reminder_loop())
+    maintenance_task = None
+    if settings.MAINTENANCE_JOB_ENABLED:
+        from engine.jobs.maintenance import maintenance_loop
+        maintenance_task = asyncio.create_task(maintenance_loop())
     yield
     reminders.cancel()
     with suppress(asyncio.CancelledError):
         await reminders
     # Clean up on shutdown
+    if maintenance_task:
+        maintenance_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await maintenance_task
     engine.dispose()
     
 # ─── Silencing Annoying Health Check Logs ──────────────────────────────────────
@@ -83,6 +95,7 @@ app.include_router(auth_router, prefix=f"{settings.API_V1_STR}/auth", tags=["aut
 app.include_router(documents_router, prefix=f"{settings.API_V1_STR}/documents", tags=["documents"])
 app.include_router(notifications_router, prefix=f"{settings.API_V1_STR}/notifications", tags=["notifications"])
 app.include_router(policies_router, prefix=f"{settings.API_V1_STR}/policies", tags=["policies"])
+app.include_router(policy_limits_router, prefix=f"{settings.API_V1_STR}/policies", tags=["policies"])
 app.include_router(reimbursements_router, prefix=f"{settings.API_V1_STR}/reimbursements", tags=["reimbursements"])
 app.include_router(payouts_router, prefix=f"{settings.API_V1_STR}/payouts", tags=["payouts"])
 app.include_router(paypal_router, prefix=f"{settings.API_V1_STR}/paypal", tags=["paypal"])
@@ -92,6 +105,10 @@ app.include_router(drafts_router, prefix=f"{settings.API_V1_STR}/drafts", tags=[
 app.include_router(push_router, prefix=f"{settings.API_V1_STR}/push", tags=["push"])
 app.include_router(autonomy_router, prefix=f"{settings.API_V1_STR}/autonomy", tags=["autonomy"])
 app.include_router(recoveries_router, prefix=f"{settings.API_V1_STR}/recoveries", tags=["recoveries"])
+# Paths are fully qualified: the routes sit under /reimbursements and /autonomy.
+app.include_router(signal_reviews_router, prefix=settings.API_V1_STR, tags=["signal-reviews"])
+app.include_router(spend_check_router, prefix=f"{settings.API_V1_STR}/spend-check", tags=["spend-check"])
+app.include_router(vendors_router, prefix=settings.API_V1_STR, tags=["vendors"])
 
 @app.get("/")
 async def root():

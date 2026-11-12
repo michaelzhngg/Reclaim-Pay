@@ -1,9 +1,9 @@
 // Turns agent log entries into sentences an HR person can read.
 
-import type { AgentAction, AutonomyTier, PayoutStatus, RecoveryStatus } from "@/lib/api/reclaim-pay-types";
+import type { AgentAction, AutonomyTier, PayoutStatus, RecoveryStatus, SignalCode } from "@/lib/api/reclaim-pay-types";
 import { STATUS_META } from "./ledger";
 import { RECOVERY_STATUS_META } from "./recoveries";
-import { TIER_LABEL } from "./rows";
+import { SIGNAL_LABEL, TIER_LABEL } from "./rows";
 
 const ACTION_LABEL: Record<string, string> = {
   DECISION: "Claim decided",
@@ -20,7 +20,12 @@ const ACTION_LABEL: Record<string, string> = {
   EMPLOYEE_CREATED: "Account created",
   INVITE_RESENT: "Invitation re-sent",
   EMPLOYEE_UPDATED: "Account updated",
+  SIGNAL_REVIEWED: "Check rated",
+  WEBHOOK_DEAD_LETTER: "PayPal event dead-lettered",
+  WEBHOOK_RETRY: "PayPal event retried",
 };
+
+const VERDICT_LABEL: Record<string, string> = { CONFIRMED: "Real problem", FALSE_ALARM: "False alarm" };
 
 export function actionLabel(action: Pick<AgentAction, "action_type" | "payload">): string {
   if (action.action_type === "KILL_SWITCH") return action.payload.enabled ? "Auto-pay resumed" : "Auto-pay paused";
@@ -108,6 +113,13 @@ export function actionSummary(action: Pick<AgentAction, "action_type" | "payload
       return p.role === "HR" ? "HR account" : p.role === "Employee" ? "Employee account" : null;
     case "EMPLOYEE_UPDATED":
       return employeeChanges(p);
+    case "SIGNAL_REVIEWED": {
+      const code = str(p.code);
+      const verdict = VERDICT_LABEL[str(p.verdict) ?? ""];
+      if (!code || !verdict) return null;
+      const check = SIGNAL_LABEL[code as SignalCode] ?? humanize(code);
+      return `${check}: ${verdict}${p.previous ? " (changed)" : ""}`;
+    }
     default:
       return null;
   }
