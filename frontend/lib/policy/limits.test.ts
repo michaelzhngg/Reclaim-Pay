@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LimitRule } from "@/lib/api/reclaim-pay-types";
 import {
-  confirmedMessage, gradeLabel, limitLabel, limitProblem, limitsErrorMessage, parseAmount, parseGrade, quantityLabel,
+  DISCARD_LIMITS_TEXT, LIMITS_UNCONFIRMED, confirmedMessage, gradeLabel, limitLabel, limitProblem, limitsErrorMessage, parseAmount, parseGrade, quantityLabel,
   rowName, unitLabel, visibilityNote, whereLabel, zoneSummary,
 } from "./limits";
 
@@ -142,12 +142,30 @@ describe("policy limit visibility", () => {
       "Limits confirmed. Employees will see them once the policy is active.",
     );
     expect(confirmedMessage(view({}), 0)).toBe("No limits confirmed. Employees see no limits for this policy.");
+    expect(confirmedMessage(view({ employee_visible_categories: ["Accommodations"] }), 3)).toBe(
+      "Limits confirmed. Employees see them from now on, except for Meals: a newer active policy covers it.",
+    );
+    expect(confirmedMessage(view({ employee_visible_categories: [] }), 3)).toBe(
+      "Limits confirmed. Employees won't see them: a newer active policy covers Meals and Accommodations.",
+    );
   });
 
   it("names a row uniquely for screen readers", () => {
     expect(rowName(rule({ grade_min: 4, grade_max: 7, scope: "DOMESTIC", zone: "1" }))).toBe(
-      "Accommodations, Grades 4 to 7, Domestic, zone 1",
+      "Accommodations, Grades 4 to 7, Domestic, zone 1, per night",
     );
-    expect(rowName(rule({ kind: "PRE_APPROVAL" }))).toBe("Accommodations, Every grade, Anywhere, approval threshold");
+    expect(rowName(rule({ kind: "PRE_APPROVAL", unit: "PER_ITEM" }))).toBe(
+      "Accommodations, Every grade, Anywhere, per item, approval threshold",
+    );
+    expect(rowName(rule({ unit: "PER_DAY" }))).not.toBe(rowName(rule({ unit: "PER_NIGHT" })));
+    expect(rowName(rule({ unit: "ACTUAL", amount: null }))).toBe("Accommodations, Every grade, Anywhere, actual cost");
+  });
+});
+
+describe("leaving with unconfirmed limit edits", () => {
+  it("asks first without promising what employees see", () => {
+    expect(LIMITS_UNCONFIRMED).toBe("Confirm or undo your spending limit changes first.");
+    expect(DISCARD_LIMITS_TEXT).toBe("You changed spending limits but didn't confirm them. If you leave now, those changes are lost.");
+    expect(DISCARD_LIMITS_TEXT).not.toMatch(/employees/i);
   });
 });
