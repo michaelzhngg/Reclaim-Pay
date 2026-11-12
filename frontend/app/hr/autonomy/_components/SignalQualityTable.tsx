@@ -11,7 +11,7 @@ const DAYS = 90;
 const NUM = "font-mono tabular-nums text-ink";
 type CountKey = "fired" | "confirmed" | "false_alarm" | "unreviewed" | "approved_in_full";
 const COUNTS: [CountKey, string][] = [
-  ["fired", "Fired"],
+  ["fired", "Times flagged"],
   ["confirmed", "Real problem"],
   ["false_alarm", "False alarm"],
   ["unreviewed", "Not rated"],
@@ -37,7 +37,7 @@ export default function SignalQualityTable() {
       <p className="mt-1 max-w-prose text-sm text-ink-muted">
         Counted from the &ldquo;Real problem&rdquo; and &ldquo;False alarm&rdquo; answers HR gave on claims from the last {`${DAYS} days`}.
         Accuracy is the share of answers that were a real problem, shown once a check has 10 answers.
-        &ldquo;Approved in full&rdquo; counts claims HR approved for the whole amount claimed while the check fired, a hint
+        &ldquo;Approved in full&rdquo; counts flagged claims that HR approved for the whole amount claimed, a hint
         that it may have been wrong.
       </p>
 
@@ -60,7 +60,7 @@ export default function SignalQualityTable() {
 
         {rows && rows.length === 0 && (
           <div className="rounded-card bg-surface-muted px-4 py-6 text-sm">
-            <p className="font-semibold text-ink">No checks fired in the last {`${DAYS} days`}</p>
+            <p className="font-semibold text-ink">No checks flagged a claim in the last {`${DAYS} days`}</p>
             <p className="mt-1 text-ink-muted">
               When Receipt Shield flags a claim, mark each finding on the review page and the results show up here.
             </p>
