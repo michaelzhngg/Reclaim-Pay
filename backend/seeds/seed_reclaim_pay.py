@@ -45,7 +45,7 @@ from core.models import (
     Vendor,
     VendorBooking,
 )
-from engine.risk.autonomy import decide, trust_tier
+from engine.risk.autonomy import NEW_ISSUE_DAYS, TRUSTED_ISSUE_DAYS, decide, trust_tier
 from engine.services.autonomy_store import CONFIRMED_RECOVERY_STATUSES
 from engine.risk.types import (
     AgentLedger,
@@ -348,8 +348,8 @@ def _history(user_code: str, at: datetime, done: list[SeedClaim]) -> EmployeeHis
     auto = [c for c in mine if c.tier == AutonomyTier.AUTO_PAY and c.paid and c.updated_at < at]
     return EmployeeHistory(
         paid_claims=sum(1 for c in mine if c.paid and c.updated_at < at),
-        confirmed_issues_90d=sum(1 for d in issues if d >= at - timedelta(days=90)),
-        confirmed_issues_180d=sum(1 for d in issues if d >= at - timedelta(days=180)),
+        confirmed_issues_90d=sum(1 for d in issues if d >= at - timedelta(days=NEW_ISSUE_DAYS)),
+        confirmed_issues_180d=sum(1 for d in issues if d >= at - timedelta(days=TRUSTED_ISSUE_DAYS)),
         auto_paid_today=sum(c.approved_amount for c in auto if c.updated_at >= day_start),
         auto_paid_month=sum(c.approved_amount for c in auto if c.updated_at >= month_start),
     )

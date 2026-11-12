@@ -16,6 +16,9 @@ import { approvalErrorMessage, approveBlockedReason } from "@/lib/hr/evidence";
 import { verdictLabel } from "@/components/hr-grid/rows";
 import { FIXTURE_HR_USER_ID } from "@/src/mocks/triageFixtures";
 import { AutonomyPanel } from "./_components/AutonomyPanel";
+import { getSignalReviews } from "@/lib/actions/signalReviews";
+import { canRateSignals } from "@/lib/hr/signalQuality";
+import type { SignalReview } from "@/lib/api/reclaim-pay-types";
 
 
 type Decision = "approve_full" | "approve_adjusted" | "reject" | null;
@@ -346,6 +349,7 @@ export default function ReviewPage() {
   const [payoutError, setPayoutError] = useState<string | null>(null);
   const [payoutInfo, setPayoutInfo] = useState<any>(null);
   const [reviewedStatus, setReviewedStatus] = useState<string | null>(null);
+  const [signalReviews, setSignalReviews] = useState<SignalReview[] | null>(null);
   const [vendorBusy, setVendorBusy] = useState(false);
   const [vendorError, setVendorError] = useState<string | null>(null);
   const [verifyEmail, setVerifyEmail] = useState("");
@@ -353,6 +357,11 @@ export default function ReviewPage() {
   const [vendorEmail, setVendorEmail] = useState("");
 
   const didInitRef = useRef(false);
+
+  useEffect(() => {
+    // Loaded alongside the claim; a failure only hides earlier answers, it never blocks the decision.
+    getSignalReviews(id).then(setSignalReviews).catch(() => setSignalReviews([]));
+  }, [id]);
 
   useEffect(() => {
     if (!bundle || didInitRef.current) return;
@@ -374,6 +383,7 @@ export default function ReviewPage() {
     <ClaimLoadFallback load={load.state === "ready" ? { state: "missing" } : load} id={id} onRetry={retry} onBack={() => router.push("/hr/dashboard")} />
   );
 
+  const viewerId = FIXTURES_ON ? FIXTURE_HR_USER_ID : user?.user_id;
   // Two-person claims: the first approver can't also be the second.
   const approveBlocked = approveBlockedReason(bundle.autonomy ?? null, FIXTURES_ON ? FIXTURE_HR_USER_ID : user?.user_id);
   // Editing an amount picks "approve adjusted", which a blocked approver can't send.
@@ -753,12 +763,21 @@ export default function ReviewPage() {
         </div>
 
         {/* ═══ RIGHT ═══ */}
-        <div className="flex flex-col gap-6 lg:sticky lg:top-6 lg:h-fit">
+        {/* Scrolls on its own so the decision buttons stay reachable; 7rem is the 4rem top bar plus both 1.5rem gaps.
+            shrink-0 stops the cards squashing instead of scrolling; padding plus negative margin keeps their shadows unclipped. */}
+        <div
+          role="region"
+          aria-label="Claim analysis and decision"
+          className="flex flex-col gap-6 lg:sticky lg:top-6 lg:h-fit lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:overscroll-contain lg:-m-2 lg:p-2 lg:*:shrink-0"
+        >
 
           <AutonomyPanel
             autonomy={bundle.autonomy}
             aiSummary={bundle.kind === "VENDOR_BOOKING" ? "" : bundle.summary}
             aiVerdict={bundle.kind === "VENDOR_BOOKING" ? "" : verdictLabel(bundle.overall_judgment as ReimbursementRaw["judgment"])}
+            reimId={signalReviews && canRateSignals(bundle.claimant_id, viewerId) ? bundle.id : undefined}
+            reviews={signalReviews ?? []}
+            viewerId={viewerId}
           />
 
           {/* Financial Totals */}

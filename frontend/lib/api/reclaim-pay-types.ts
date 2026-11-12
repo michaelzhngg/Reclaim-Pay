@@ -347,6 +347,8 @@ export interface BacktestResult {
   by_tier: Partial<Record<AutonomyTier, number>>;
   curve: BacktestPoint[];
   assumptions: string[];
+  /** Replayed claims that are seeded demo data. Missing from older backends. */
+  demo_claims?: number;
 }
 
 export type AgentActionType =
@@ -449,4 +451,144 @@ export interface StuckPayouts {
 /** Formats an amount the way the backend writes it in notifications, e.g. "MYR 48.00". */
 export function formatMoney(currency: string, amount: number): string {
   return `${currency} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// ─── Policy limits (E1) ──────────────────────────────────────────────────────
+
+export type LimitKind = "CAP" | "PRE_APPROVAL";
+export type LimitUnit = "PER_DAY" | "PER_NIGHT" | "PER_MEAL" | "PER_ITEM" | "ACTUAL";
+export type TravelScope = "ANY" | "DOMESTIC" | "OVERSEAS";
+export type LimitStatus = "PROPOSED" | "CONFIRMED";
+
+export interface LimitRule {
+  category: string;
+  kind: LimitKind;
+  unit: LimitUnit;
+  /** null when the unit is ACTUAL. */
+  amount: number | null;
+  currency: string;
+  grade_min: number | null;
+  grade_max: number | null;
+  scope: TravelScope;
+  zone: string | null;
+  source_section: string | null;
+  source_quote: string | null;
+}
+
+export interface ZonePlace {
+  zone: string;
+  /** "*" means every place not listed. */
+  place: string;
+}
+
+/** GET /policies/{id}/limits (HR only). Employees never receive PROPOSED rows. */
+export interface PolicyLimits {
+  policy_id: string;
+  categories: string[];
+  limits: (LimitRule & { limit_id: string; status: LimitStatus })[];
+  zones: (ZonePlace & { status: LimitStatus })[];
+  has_suggestions: boolean;
+  policy_active: boolean;
+  /** Categories whose confirmed limits employees see: the policy is ACTIVE and claims use it for them. */
+  employee_visible_categories: string[];
+}
+
+// Signal reviews (R1a): HR's verdict on each Receipt Shield signal. HR only.
+
+export type SignalVerdict = "CONFIRMED" | "FALSE_ALARM";
+
+/** GET/PUT /reimbursements/{id}/signal-reviews. The latest answer wins. */
+export interface SignalReview {
+  signal_code: SignalCode;
+  document_id: string | null;
+  verdict: SignalVerdict;
+  reviewed_by: string;
+  updated_at: string;
+}
+
+/** GET /autonomy/signal-quality */
+export interface SignalQuality {
+  code: SignalCode;
+  fired: number;
+  confirmed: number;
+  false_alarm: number;
+  unreviewed: number;
+  approved_in_full: number;
+  rejected: number;
+  /** null until at least 10 rated cases. */
+  precision: number | null;
+}
+
+// ─── Check before you spend (F1) ─────────────────────────────────────────────
+
+export type SpendVerdict =
+  | "WITHIN" | "OVER" | "ACTUAL_COST" | "NEEDS_PRE_APPROVAL" | "LIMIT_ONLY" | "NO_LIMIT"
+  | "NEED_DESTINATION" | "PLACE_NOT_LISTED" | "GRADE_NOT_LISTED" | "NOT_COVERED";
+
+/** GET /spend-check/categories. Built from the employee's own grade and CONFIRMED limits only. */
+export interface CategoryOption {
+  category: string;
+  policy_title: string;
+  unit: LimitUnit | null;
+  asks_destination: boolean;
+  asks_overseas: boolean;
+}
+
+/** POST /spend-check/check */
+export interface SpendCheckResult {
+  verdict: SpendVerdict;
+  category: string;
+  quantity: number;
+  zone: string | null;
+  cap: LimitRule | null;
+  pre_approval: LimitRule | null;
+  limit_total: number | null;
+  reimbursable_up_to: number | null;
+  employee_pays: number | null;
+  policy_title: string | null;
+  currency: string;
+  /** The listed place that set `zone`, or "*" for the policy's default zone. */
+  zone_place: string | null;
+}
+
+export interface TripLine {
+  category: string;
+  unit: LimitUnit;
+  rate: number | null;
+  quantity: number;
+  subtotal: number | null;
+  source_section: string | null;
+}
+
+/** POST /spend-check/trip. The most the policy allows, not an approval. */
+export interface TripEstimate {
+  days: number;
+  nights: number;
+  zone: string | null;
+  lines: TripLine[];
+  other_limits: LimitRule[];
+  total_up_to: number;
+  has_actual_cost: boolean;
+  missing: string[];
+  /** Category to the verdict that left it out: NEED_DESTINATION, PLACE_NOT_LISTED or GRADE_NOT_LISTED. */
+  missing_reasons: Record<string, SpendVerdict>;
+  currency: string;
+  zone_place: string | null;
+}
+
+/** POST /spend-check/ask */
+export interface QaAnswer {
+  covered: boolean;
+  answer: string;
+  quote: string | null;
+  policy_title: string | null;
+}
+
+/** GET /spend-check/questions (HR). Never carries who asked, and only the day it was asked. */
+export interface QuestionSummary {
+  days: number;
+  total: number;
+  unanswered: number;
+  top_sections: { policy_title: string; section: string; excerpt: string; count: number }[];
+  recent_unanswered: { asked_on: string; question: string }[];
 }

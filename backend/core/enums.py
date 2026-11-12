@@ -74,6 +74,8 @@ class AgentActionType(str, enum.Enum):
     PAYEE_LINKED = "PAYEE_LINKED"
     PAYEE_LINK_FAILED = "PAYEE_LINK_FAILED"
     PAYPAL_SIGNIN = "PAYPAL_SIGNIN"
+    POLICY_LIMITS_CHANGED = "POLICY_LIMITS_CHANGED"
+    SIGNAL_REVIEWED = "SIGNAL_REVIEWED"
     POLICY_UPLOADED = "POLICY_UPLOADED"
     POLICY_DEPRECATED = "POLICY_DEPRECATED"
     POLICY_DELETED = "POLICY_DELETED"
@@ -114,3 +116,13 @@ class PolicyStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     ACTIVE = "ACTIVE"
     DEPRECATED = "DEPRECATED"
+
+
+class LimitStatus(str, enum.Enum):
+    PROPOSED = "PROPOSED"    # suggested from the policy text, not shown to employees
+    CONFIRMED = "CONFIRMED"  # checked by HR
+
+
+class SignalVerdict(str, enum.Enum):
+    CONFIRMED = "CONFIRMED"      # HR: a real problem
+    FALSE_ALARM = "FALSE_ALARM"  # HR: the check was wrong here

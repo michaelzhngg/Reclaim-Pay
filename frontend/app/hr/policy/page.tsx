@@ -18,6 +18,10 @@ import {
 import { uploadPolicy } from '@/lib/actions/hr';
 import { getPolicies, deletePolicy, deprecatePolicy, updatePolicyCategories } from '@/lib/actions/policies';
 import { ChangeHistory } from '../hr_components/ChangeHistory';
+import PolicyLimitsPanel from './_components/PolicyLimitsPanel';
+import { DISCARD_LIMITS_TEXT, LIMITS_UNCONFIRMED } from '@/lib/policy/limits';
+import Link from 'next/link';
+import { Sheet, btnBase } from '@/components/ui/Sheet';
 import { POLICY_HISTORY_TYPES } from '../autonomy/_lib/settingsHistory';
 
 const SAVE_STEPS = [
@@ -28,7 +32,7 @@ const SAVE_STEPS = [
 
 const POLICY_MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 
-export function HrProcessingScreen({ currentStep, onBack }: { currentStep: number, onBack: () => void }) {
+function HrProcessingScreen({ currentStep, onBack }: { currentStep: number, onBack: () => void }) {
   return (
     <div className="w-full max-w-xl mx-auto flex flex-col justify-center my-8 sm:my-12">
       <div className="rounded-card shadow-ambient bg-surface p-5 sm:p-8" role="status" aria-live="polite">
@@ -124,6 +128,31 @@ export default function PolicyStudio() {
   const [categoryBudgets, setCategoryBudgets] = useState<Record<string, string>>({});
   const [isSavingBudgets, setIsSavingBudgets] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Spending limits are confirmed inside their own panel. Unconfirmed edits there must not vanish on
+  // Save, Cancel or Back, so the page tracks them and stops or asks first.
+  const [limitsDirty, setLimitsDirty] = useState(false);
+  const [discardLimitsOpen, setDiscardLimitsOpen] = useState(false);
+  const limitsRef = useRef<HTMLDivElement>(null);
+
+  const onLimitsDirtyChange = useCallback((dirty: boolean) => {
+    setLimitsDirty(dirty);
+    if (!dirty) setSaveError((e) => (e === LIMITS_UNCONFIRMED ? null : e));
+  }, []);
+
+  const leaveEditor = () => {
+    if (limitsDirty) {
+      setDiscardLimitsOpen(true);
+      return;
+    }
+    setEditingPolicy(null);
+  };
+
+  const discardLimitsAndLeave = () => {
+    setDiscardLimitsOpen(false);
+    setLimitsDirty(false);
+    setEditingPolicy(null);
+  };
   const [conditionsModalOpen, setConditionsModalOpen] = useState(false);
 
   // Retire (deprecate)
@@ -284,6 +313,13 @@ export default function PolicyStudio() {
 
   async function handleSaveBudgets() {
     if (!current) return;
+    if (limitsDirty) {
+      setSaveError(LIMITS_UNCONFIRMED);
+      const panel = limitsRef.current?.querySelector<HTMLElement>("section");
+      panel?.scrollIntoView({ behavior: "smooth", block: "start" });
+      panel?.focus({ preventScroll: true });
+      return;
+    }
     setSaveError(null);
     const payload = budgetsPayload(categoryBudgets);
     if (!payload.ok) {
@@ -375,7 +411,7 @@ export default function PolicyStudio() {
           className="flex-1 flex flex-col p-6 max-w-7xl mx-auto w-full min-h-0 overflow-y-auto scroll-smooth"
         >
           <div className="mb-6 flex flex-wrap items-center gap-4 shrink-0">
-            <button type="button" onClick={() => setEditingPolicy(null)} className="flex items-center gap-2 min-h-[44px] -ml-1 px-1 rounded-control text-ink-muted hover:text-ink transition-colors cursor-pointer" aria-label="Back to Policy Studio">
+            <button type="button" onClick={leaveEditor} className="flex items-center gap-2 min-h-[44px] -ml-1 px-1 rounded-control text-ink-muted hover:text-ink transition-colors cursor-pointer" aria-label="Back to Policy Studio">
               <ArrowLeft size={18} strokeWidth={2.25} aria-hidden="true" />
               <span className="font-semibold font-body text-sm">Back to Policy Studio</span>
             </button>
@@ -422,6 +458,17 @@ export default function PolicyStudio() {
                   <p className="mt-5 text-xs text-ink-muted font-body leading-relaxed">
                     The name, dates and conditions come from the uploaded document. To change them, upload the new version as a new policy, then retire this one.
                   </p>
+                </div>
+              )}
+
+              {!isNew && (
+                <div ref={limitsRef}>
+                  {saveError === LIMITS_UNCONFIRMED && (
+                    <p role="alert" className="mb-3 bg-danger/10 border border-danger/30 text-danger rounded-control px-4 py-3 text-sm font-body">
+                      {LIMITS_UNCONFIRMED}
+                    </p>
+                  )}
+                  <PolicyLimitsPanel policyId={editingPolicy} onDirtyChange={onLimitsDirtyChange} />
                 </div>
               )}
 
@@ -806,15 +853,40 @@ export default function PolicyStudio() {
           onConfirm={handleConfirmDelete}
         />}
 
+        <Sheet
+          open={discardLimitsOpen}
+          titleId="discard-limits-title"
+          title="Discard spending limit changes?"
+          busy={false}
+          onClose={() => setDiscardLimitsOpen(false)}
+        >
+          <div className="px-5 py-4 flex flex-col gap-4">
+            <p className="text-sm text-ink-muted">{DISCARD_LIMITS_TEXT}</p>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+              <button type="button" onClick={() => setDiscardLimitsOpen(false)} className={`${btnBase} border border-line-strong text-ink hover:bg-surface-muted`}>
+                Keep editing
+              </button>
+              <button type="button" onClick={discardLimitsAndLeave} className={`${btnBase} bg-danger text-on-accent hover:bg-danger/90`}>
+                Discard changes
+              </button>
+            </div>
+          </div>
+        </Sheet>
+
         {/* Bottom Action Bar */}
         <div className="shrink-0 bg-paper border-t border-line p-4 z-40">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-6 px-4 sm:px-8">
-            <button type="button" onClick={() => setEditingPolicy(null)} className="min-h-[44px] px-6 border border-line-strong text-ink rounded-control font-body font-medium hover:bg-surface-muted transition-colors cursor-pointer">
+            <button type="button" onClick={leaveEditor} className="min-h-[44px] px-6 border border-line-strong text-ink rounded-control font-body font-medium hover:bg-surface-muted transition-colors cursor-pointer">
               {isNew || Object.keys(categoryBudgets).length > 0 ? "Cancel" : "Close"}
             </button>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-6">
               {saveError && (
-                <p role="alert" className="text-sm text-danger font-body max-w-xs text-center sm:text-right">{saveError}</p>
+                <p
+                  role={saveError === LIMITS_UNCONFIRMED ? undefined : "alert"}
+                  className="text-sm text-danger font-body max-w-xs text-center sm:text-right"
+                >
+                  {saveError}
+                </p>
               )}
               {isNew ? (
                 <button type="button" onClick={handleUpload} className="bg-accent text-on-accent rounded-full min-h-[44px] px-6 sm:px-8 font-body font-semibold hover:bg-accent-hover transition-colors cursor-pointer">
@@ -852,6 +924,10 @@ export default function PolicyStudio() {
                   <p className="mt-1 text-sm text-ink-muted font-body">
                     Manage, review, and distribute company guidelines.
                   </p>
+                  <Link href="/hr/policy/questions"
+                    className="mt-1 inline-flex min-h-11 items-center rounded-control text-sm font-semibold text-secondary underline underline-offset-2 hover:text-secondary-dim">
+                    See what employees ask about the policy
+                  </Link>
                 </div>
                 <button
                   type="button"

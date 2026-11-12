@@ -32,6 +32,12 @@ TIER_LABEL = {
 # Spec D2: the breaker trips when more than half the daily budget went out in the last hour.
 BREAKER_HOURLY_BUDGET_SHARE = 0.5
 
+# Trust level thresholds, read by the whole backend. The HR limits form (LimitsForm.tsx) still hard-codes 3 and 10.
+STANDARD_MIN_PAID = 3
+TRUSTED_MIN_PAID = 10
+NEW_ISSUE_DAYS = 90  # a confirmed issue holds the employee at NEW for this long
+TRUSTED_ISSUE_DAYS = 180  # TRUSTED needs this long without a confirmed issue
+
 
 def confidence_points(confidence: float) -> int:
     # Written as positive comparisons so NaN falls through to the highest penalty.
@@ -47,9 +53,9 @@ def confidence_points(confidence: float) -> int:
 def trust_tier(history: EmployeeHistory) -> TrustTier:
     if history.confirmed_issues_90d > 0:
         return TrustTier.NEW
-    if history.paid_claims >= 10 and history.confirmed_issues_180d == 0:
+    if history.paid_claims >= TRUSTED_MIN_PAID and history.confirmed_issues_180d == 0:
         return TrustTier.TRUSTED
-    if history.paid_claims >= 3:
+    if history.paid_claims >= STANDARD_MIN_PAID:
         return TrustTier.STANDARD
     return TrustTier.NEW
 

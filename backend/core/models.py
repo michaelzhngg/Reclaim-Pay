@@ -18,8 +18,10 @@ from core.enums import (
     PayoutStatus,
     RecoveryStatus,
     AgentActionType,
+    LimitStatus,
     WebhookEventStatus,
 )
+from core.enums import SignalVerdict
 
 
 # ---------------------------------------------------------------------------
@@ -245,6 +247,60 @@ class PolicySection(SQLModel, table=True):
     embedding: Optional[List[float]] = Field(
         default=None,
         sa_column=Column(Vector(1536), nullable=True)
+    )
+
+
+# ---------------------------------------------------------------------------
+# 5b. policy_limits and policy_zone_places (E1: policy limits as data)
+# ---------------------------------------------------------------------------
+
+class PolicyLimit(SQLModel, table=True):
+    __tablename__ = "policy_limits"
+
+    limit_id: UUID = Field(default_factory=uuid4, primary_key=True)
+    policy_id: UUID = Field(foreign_key="policies.policy_id", index=True)
+    category: str = Field(sa_column=Column(String, nullable=False))
+    kind: str = Field(default="CAP", sa_column=Column(String, nullable=False))
+    unit: str = Field(sa_column=Column(String, nullable=False))
+    amount: Optional[float] = Field(default=None, sa_column=Column(Numeric(12, 2), nullable=True))
+    currency: str = Field(default="MYR", sa_column=Column(String, nullable=False))
+    grade_min: Optional[int] = Field(default=None, sa_column=Column(Integer))
+    grade_max: Optional[int] = Field(default=None, sa_column=Column(Integer))
+    scope: str = Field(default="ANY", sa_column=Column(String, nullable=False))
+    zone: Optional[str] = Field(default=None, sa_column=Column(String))
+    source_section: Optional[str] = Field(default=None, sa_column=Column(String))
+    source_quote: Optional[str] = Field(default=None, sa_column=Column(Text))
+    status: LimitStatus = Field(default=LimitStatus.PROPOSED, sa_column=Column(String, nullable=False))
+    confirmed_by: Optional[UUID] = Field(default=None, foreign_key="employees.user_id")
+    confirmed_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), sa_column=Column(DateTime(timezone=True))
+    )
+
+
+class PolicyZonePlace(SQLModel, table=True):
+    __tablename__ = "policy_zone_places"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    policy_id: UUID = Field(foreign_key="policies.policy_id", index=True)
+    zone: str = Field(sa_column=Column(String, nullable=False))
+    place: str = Field(sa_column=Column(String, nullable=False))
+    status: LimitStatus = Field(default=LimitStatus.PROPOSED, sa_column=Column(String, nullable=False))
+
+
+class PolicyQuestion(SQLModel, table=True):
+    """F1: a policy question an employee asked. user_id is only for the daily cap; HR never sees it."""
+    __tablename__ = "policy_questions"
+
+    question_id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="employees.user_id", index=True)
+    policy_id: Optional[UUID] = Field(default=None, foreign_key="policies.policy_id", ondelete="SET NULL")
+    section_id: Optional[UUID] = Field(default=None, foreign_key="policy_sections.section_id", ondelete="SET NULL")
+    question: str = Field(sa_column=Column(Text, nullable=False))
+    answer: Optional[str] = Field(default=None, sa_column=Column(Text))  # None: the model call failed
+    covered: bool = Field(default=False, sa_column=Column(Boolean, nullable=False))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), sa_column=Column(DateTime(timezone=True), index=True)
     )
 
 
@@ -686,6 +742,35 @@ class DocumentChangeLog(SQLModel, table=True):
     changed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True))
+    )
+
+
+# ---------------------------------------------------------------------------
+# signal_reviews (R1a)
+# ---------------------------------------------------------------------------
+
+class SignalReview(SQLModel, table=True):
+    """HR's verdict on one Receipt Shield signal of one claim. The latest answer wins; the action log keeps each one."""
+    __tablename__ = "signal_reviews"
+
+    review_id: UUID = Field(default_factory=uuid4, primary_key=True)
+    reim_id: UUID = Field(foreign_key="reimbursements.reim_id", ondelete="CASCADE", index=True)
+    signal_code: str = Field(sa_column=Column(String, nullable=False))
+    # "" when the signal belongs to the whole claim; NULLs would defeat the unique constraint.
+    document_key: str = Field(default="", sa_column=Column(String, nullable=False, server_default=""))
+    verdict: SignalVerdict = Field(sa_column=Column(String, nullable=False))
+    reviewed_by: UUID = Field(foreign_key="employees.user_id")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True))
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True))
+    )
+
+    __table_args__ = (
+        UniqueConstraint("reim_id", "signal_code", "document_key", name="uq_signal_review"),
     )
 
 

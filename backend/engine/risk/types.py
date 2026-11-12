@@ -95,6 +95,7 @@ class ClaimFacts(BaseModel):
 
 class EmployeeHistory(BaseModel):
     paid_claims: int
+    # The windows are NEW_ISSUE_DAYS and TRUSTED_ISSUE_DAYS in engine.risk.autonomy.
     confirmed_issues_90d: int
     confirmed_issues_180d: int
     auto_paid_today: float
