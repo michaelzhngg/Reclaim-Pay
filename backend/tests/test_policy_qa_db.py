@@ -160,7 +160,7 @@ def test_llm_failure_counts_toward_the_cap_but_is_not_a_policy_gap(setup, monkey
         qa.answer_question(db, me, "What is the meal limit?", NOW)
     assert db.exec(text("SELECT count(*) FROM policy_questions WHERE answer IS NULL")).one()[0] == 1
     s = qa.question_summary(db, NOW + timedelta(minutes=1))
-    assert s.total == 1 and s.unanswered == 0 and s.recent_unanswered == []
+    assert s.total == 0 and s.unanswered == 0 and s.recent_unanswered == []  # a failed call is not a question asked
 
 
 def test_summary_has_no_names_or_times_and_counts_sections(setup, monkeypatch):
@@ -177,6 +177,15 @@ def test_summary_has_no_names_or_times_and_counts_sections(setup, monkeypatch):
     assert s.top_sections[0].excerpt.startswith("Meals above RM100")  # the heading is not repeated
     dumped = s.model_dump_json()
     assert "Farid" not in dumped and str(me.user_id) not in dumped and me.email not in dumped and "09:00" not in dumped
+
+
+def test_summary_dates_are_utc_days(setup):
+    db, me, _, _ = setup
+    late = datetime(2026, 11, 13, 2, 0, tzinfo=timezone(timedelta(hours=8)))  # 18:00 UTC on the 12th
+    db.add(PolicyQuestion(user_id=me.user_id, question="Is a taxi covered?", answer="x", covered=False, created_at=late))
+    db.commit()
+    s = qa.question_summary(db, NOW + timedelta(minutes=1))
+    assert s.recent_unanswered[0].asked_on.isoformat() == "2026-11-12"
 
 
 def test_deleting_a_policy_keeps_its_questions(setup, monkeypatch):

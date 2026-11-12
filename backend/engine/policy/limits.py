@@ -112,7 +112,7 @@ class TripEstimate(BaseModel):
     nights: int
     zone: str | None
     lines: list[TripLine]
-    other_limits: list[LimitRule]  # per-meal / per-item caps that dates can't turn into a total
+    other_limits: list[LimitRule]  # per-meal / per-item caps and approval thresholds that dates can't turn into a total
     total_up_to: float
     has_actual_cost: bool
     missing: list[str]             # categories that need a destination, a zone for it, or a row for this grade
@@ -259,6 +259,8 @@ def estimate_trip(rules: list[LimitRule], places: list[ZonePlace], *, grade: int
             continue
         cap = c.cap
         if cap is None:
+            if c.pre_approval is not None:
+                other.append(c.pre_approval)  # approval threshold only: no total, but the employee should see it
             continue
         if cap.unit == LimitUnit.ACTUAL:
             lines.append(TripLine(category=cap.category, unit=cap.unit, rate=None, quantity=days,

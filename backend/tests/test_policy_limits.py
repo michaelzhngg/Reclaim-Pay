@@ -175,7 +175,7 @@ def test_same_day_trip_has_no_hotel_line():
     e = estimate_trip(DEMO_RULES, DEMO_ZONES, grade=1, overseas=False, destination=None,
                       depart=date(2026, 11, 12), return_date=date(2026, 11, 12))
     assert e.nights == 0 and e.lines == []
-    assert [r.category for r in e.other_limits] == ["Meals"]
+    assert [r.category for r in e.other_limits] == ["Meals", "Equipment"]
 
 
 def test_actual_cost_line_has_no_subtotal():
@@ -288,3 +288,25 @@ def test_amount_cap_matches_the_numeric_12_2_column():
     assert LimitRule(category="Meals", unit=LimitUnit.PER_MEAL, amount=9_999_999_999.99).amount == 9_999_999_999.99
     with pytest.raises(ValidationError):
         LimitRule(category="Meals", unit=LimitUnit.PER_MEAL, amount=10_000_000_000)
+
+
+CAP_AND_APPROVAL = [
+    LimitRule(category="Meals", unit=LimitUnit.PER_MEAL, amount=100),
+    LimitRule(category="Meals", kind=LimitKind.PRE_APPROVAL, unit=LimitUnit.PER_MEAL, amount=150),
+]
+
+
+def test_over_the_cap_still_carries_the_pre_approval_threshold():
+    c = check_spend(CAP_AND_APPROVAL, [], category="Meals", grade=3, overseas=False, destination=None, amount=200)
+    assert c.verdict == Verdict.OVER and c.employee_pays == 100
+    assert c.cap.amount == 100 and c.pre_approval is not None and c.pre_approval.amount == 150
+    low = check_spend(CAP_AND_APPROVAL, [], category="Meals", grade=3, overseas=False, destination=None, amount=120)
+    assert low.verdict == Verdict.OVER and low.pre_approval.amount == 150
+
+
+def test_a_category_with_only_a_pre_approval_rule_is_listed_in_other_limits():
+    rules = [LimitRule(category="Equipment", kind=LimitKind.PRE_APPROVAL, unit=LimitUnit.PER_ITEM, amount=300)]
+    e = estimate_trip(rules, [], grade=3, overseas=False, destination=None,
+                      depart=date(2026, 11, 12), return_date=date(2026, 11, 14))
+    assert e.lines == [] and [(r.category, r.kind) for r in e.other_limits] == [("Equipment", LimitKind.PRE_APPROVAL)]
+    assert e.total_up_to == 0

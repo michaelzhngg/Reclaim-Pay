@@ -1,8 +1,10 @@
 """Free-text policy questions (F1). An answer must quote the policy word for word, or it becomes "ask HR"."""
 import logging
+import math
 import re
 from collections import Counter
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from decimal import InvalidOperation
 
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import PromptTemplate
@@ -83,14 +85,26 @@ def quote_section(quote: str | None, sections: list) -> object | None:
     return next((s for s in sections if q in squash(s.content)), None)
 
 
-def _amounts(text: str) -> set[float]:
-    """Every number in the text as a value, so "RM 1,200.00", "RM1200" and "1200" compare equal."""
-    return {money(float(n.replace(",", ""))) for n in _NUMBER.findall(text or "")}
+def _amount(raw: str) -> float | None:
+    """One matched number as a value, or None when it is too large to compare."""
+    try:
+        value = float(raw.replace(",", ""))
+        return money(value) if math.isfinite(value) else None
+    except (ValueError, OverflowError, InvalidOperation):
+        return None
+
+
+def _amounts(text: str) -> tuple[set[float], bool]:
+    """Every number in the text as a value, so "RM 1,200.00", "RM1200" and "1200" compare equal.
+    The flag is False when some number could not be read."""
+    found = [_amount(n) for n in _NUMBER.findall(text or "")]
+    return {v for v in found if v is not None}, None not in found
 
 
 def numbers_supported(answer: str, sources: str) -> bool:
     """True when every number in the answer also appears in the sources. Catches invented or computed amounts."""
-    return _amounts(answer) <= _amounts(sources)
+    wanted, readable = _amounts(answer)
+    return readable and wanted <= _amounts(sources)[0]
 
 
 def _limit_words(rule: LimitRule) -> str:
@@ -140,7 +154,7 @@ def _verified(raw: object, question: str, sections: list, limits: str) -> tuple[
     section = quote_section(quote, sections)
     if not answer or section is None:
         return None
-    if not numbers_supported(answer, "\n".join([question, limits, *(s.content or "" for s in sections)])):
+    if not numbers_supported(answer, "\n".join([question, limits, quote])):
         return None
     return answer, quote.strip(), section
 
@@ -194,10 +208,15 @@ def _excerpt(s: PolicySection, label: str) -> str:
     return text[len(label):].strip() if text.startswith(label) else text  # don't repeat a heading used as the label
 
 
+def _utc_day(moment: datetime) -> date:
+    return (moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)).astimezone(timezone.utc).date()
+
+
 def question_summary(db: Session, now: datetime, days: int = 30) -> QuestionSummary:
     rows = db.exec(select(PolicyQuestion).where(PolicyQuestion.created_at >= now - timedelta(days=days))
                    .order_by(PolicyQuestion.created_at.desc())).all()
-    gaps = [r for r in rows if not r.covered and r.answer is not None]
+    rows = [r for r in rows if r.answer is not None]  # a failed model call was not a question HR can act on
+    gaps = [r for r in rows if not r.covered]
     counts = Counter(r.section_id for r in rows if r.covered and r.section_id)
     top: list[SectionCount] = []
     for section_id, n in counts.most_common(5):
@@ -211,5 +230,5 @@ def question_summary(db: Session, now: datetime, days: int = 30) -> QuestionSumm
                                 count=n))
     return QuestionSummary(
         days=days, total=len(rows), unanswered=len(gaps), top_sections=top,
-        recent_unanswered=[OpenQuestion(asked_on=r.created_at.date(), question=r.question) for r in gaps[:10]],
+        recent_unanswered=[OpenQuestion(asked_on=_utc_day(r.created_at), question=r.question) for r in gaps[:10]],
     )

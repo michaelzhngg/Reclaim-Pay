@@ -88,6 +88,8 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
   };
   const editCost = <T,>(set: (v: T) => void) => edit(set, () => setResult(null));
   const editTrip = <T,>(set: (v: T) => void) => edit(set, () => setTrip(null));
+  // Where to and overseas feed both forms, so changing either makes both results stale.
+  const editShared = <T,>(set: (v: T) => void) => edit(set, () => { setResult(null); setTrip(null); });
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -183,8 +185,8 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
         </div>
       </div>
 
-      {options === undefined && <p className="mt-4 text-sm text-ink-muted">Loading your limits</p>}
-      {options === null && (
+      {mode !== "ask" && options === undefined && <p className="mt-4 text-sm text-ink-muted">Loading your limits</p>}
+      {mode !== "ask" && options === null && (
         <p className="mt-4 text-sm text-danger">Couldn&apos;t load your policy limits. Reload the page to try again.</p>
       )}
 
@@ -221,8 +223,8 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
               )}
             </label>
           )}
-          {chosen?.asks_destination && destinationField(editCost(setDestination))}
-          {chosen?.asks_overseas && overseasField(editCost(setOverseas))}
+          {chosen?.asks_destination && destinationField(editShared(setDestination))}
+          {chosen?.asks_overseas && overseasField(editShared(setOverseas))}
           <div className="sm:col-span-2">
             <button type="submit" disabled={busy || !category || amountBad || qtyBad} className={SUBMIT}>
               Check my limit
@@ -247,15 +249,15 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
               </span>
             )}
           </label>
-          {tripAsksDestination && destinationField(editTrip(setDestination))}
-          {tripAsksOverseas && overseasField(editTrip(setOverseas))}
+          {tripAsksDestination && destinationField(editShared(setDestination))}
+          {tripAsksOverseas && overseasField(editShared(setOverseas))}
           <div className="sm:col-span-2">
             <button type="submit" disabled={busy || !depart || !ret || datesBad} className={SUBMIT}>Estimate my trip</button>
           </div>
         </form>
       )}
 
-      {options && mode === "ask" && (
+      {mode === "ask" && (
         <form onSubmit={onAsk} noValidate className="mt-4 flex flex-col gap-3">
           <label className={LABEL}>
             Your question

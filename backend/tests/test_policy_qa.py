@@ -48,6 +48,31 @@ def test_numbers_in_an_answer_must_come_from_the_sources():
     assert not qa.numbers_supported("You can claim up to RM150 for the meal.", sources)
 
 
+def test_a_huge_number_cannot_crash_the_check():
+    huge = "9" * 320
+    assert not qa.numbers_supported(f"You can claim RM{huge}.", "Up to RM100 a meal.")  # unparseable answer number
+    assert qa.numbers_supported("Up to RM100.", f"Up to RM100 a meal. Reference {huge}.")  # unparseable source is ignored
+    assert not qa.numbers_supported("Up to RM1" + "0" * 40, "Up to RM100 a meal.")
+
+
+def test_numbers_come_only_from_the_question_the_quote_or_my_limits():
+    quoted = SimpleNamespace(policy_id="p", content="### 3.2 Meals\n\nMeals above RM100 are reviewed by HR.")
+    other = SimpleNamespace(policy_id="p", content="### 9.9 Gifts\n\nGifts are capped at RM500 and need two receipts.")
+    raw = {"covered": True, "answer": "You can claim up to RM100.", "quote": "Meals above RM100 are reviewed by HR"}
+    assert qa._verified(raw, "How much for a meal?", [quoted, other], "Meals: Up to MYR 100.00 a meal")[2] is quoted
+    from_other = {**raw, "answer": "You can claim up to RM500."}  # RM500 is only in a section that is not quoted
+    assert qa._verified(from_other, "How much for a meal?", [quoted, other], "Meals: Up to MYR 100.00 a meal") is None
+    assert qa._verified({**raw, "answer": "Your limit is RM250."}, "How much?", [quoted], "Meals: Up to MYR 250.00 a meal")
+    assert qa._verified({**raw, "answer": "Yes, RM120 is fine?"}, "Is RM120 fine?", [quoted], "") is not None
+
+
+def test_a_day_is_the_utc_day_even_for_naive_or_offset_times():
+    from datetime import datetime, timedelta, timezone
+
+    assert qa._utc_day(datetime(2026, 11, 13, 2, 0, tzinfo=timezone(timedelta(hours=8)))).isoformat() == "2026-11-12"
+    assert qa._utc_day(datetime(2026, 11, 12, 23, 30)).isoformat() == "2026-11-12"  # naive means UTC
+
+
 def test_llm_prompt_carries_question_sections_and_limits(monkeypatch):
     seen = {}
 
