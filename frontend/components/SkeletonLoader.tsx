@@ -69,15 +69,21 @@ export function DashboardPageSkeleton() {
           <Skeleton className="h-4 w-64 rounded-control" />
         </div>
 
-        {/* Totals panel: one lead figure, two quieter rows (matches StatSummary) */}
-        <div className="grid grid-cols-1 md:grid-cols-[3fr_2fr] bg-surface shadow-ambient rounded-card mb-8">
-          <div className="p-5 md:p-6 flex flex-col gap-3">
-            <Skeleton className="h-4 w-32 rounded-control" />
-            <Skeleton className="h-10 w-48 rounded-control" />
+        {/* Badge and totals panel (matches PayoutPanel) */}
+        <div className="grid grid-cols-1 md:grid-cols-[2fr_3fr] bg-surface shadow-ambient rounded-card mb-8">
+          <div className="p-5 md:p-6 flex items-center gap-4 md:flex-col border-b md:border-b-0 md:border-r border-line">
+            <Skeleton className="h-28 w-28 md:h-36 md:w-36 rounded-full shrink-0" />
+            <Skeleton className="h-5 w-32 rounded-control" />
           </div>
-          <div className="p-5 md:p-6 flex flex-col gap-4 border-t md:border-t-0 md:border-l border-line">
-            <Skeleton className="h-5 w-full rounded-control" />
-            <Skeleton className="h-5 w-full rounded-control" />
+          <div className="flex flex-col">
+            <div className="p-5 md:p-6 flex flex-col gap-3">
+              <Skeleton className="h-4 w-32 rounded-control" />
+              <Skeleton className="h-10 w-48 rounded-control" />
+            </div>
+            <div className="grid grid-cols-2 gap-4 p-5 md:p-6 border-t border-line">
+              <Skeleton className="h-10 w-full rounded-control" />
+              <Skeleton className="h-10 w-full rounded-control" />
+            </div>
           </div>
         </div>
 
