@@ -8,6 +8,7 @@ import { uploadPolicy } from '@/lib/actions/hr';
 import { getPolicies, deletePolicy, updatePolicyCategories } from '@/lib/actions/policies';
 import PolicyLimitsPanel from './_components/PolicyLimitsPanel';
 import { DISCARD_LIMITS_TEXT, LIMITS_UNCONFIRMED } from '@/lib/policy/limits';
+import Link from 'next/link';
 import { Sheet, btnBase } from '@/components/ui/Sheet';
 
 
@@ -1139,6 +1140,10 @@ export default function PolicyStudio() {
                   <p className="mt-1 text-sm text-ink-muted font-body">
                     Manage, review, and distribute company guidelines.
                   </p>
+                  <Link href="/hr/policy/questions"
+                    className="mt-1 inline-flex min-h-11 items-center rounded-control text-sm font-semibold text-secondary underline underline-offset-2 hover:text-secondary-dim">
+                    See what employees ask about the policy
+                  </Link>
                 </div>
                 <button
                   type="button"
