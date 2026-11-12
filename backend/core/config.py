@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -50,6 +52,10 @@ class Settings(BaseSettings):
     PAYPAL_ALLOW_UNVERIFIED_SANDBOX: bool = False
     # The only identity mock mode's fake PayPal reports at sign-in (the seeded demo employee). Empty turns it off.
     PAYPAL_MOCK_SIGNIN_PAYER_ID: str = "DEMOMOCKS123"
+    # Funding alert: HR is warned when the PayPal balance covers fewer than this many days of payouts.
+    FUNDING_ALERT_DAYS: int = 3
+    # The balance mock mode reports, in PAYPAL_CURRENCY.
+    PAYPAL_MOCK_BALANCE: Decimal = Decimal("25000.00")
     BACKEND_PUBLIC_URL: str = "http://localhost:8000"
     FRONTEND_PUBLIC_URL: str = "http://localhost:3000"
 

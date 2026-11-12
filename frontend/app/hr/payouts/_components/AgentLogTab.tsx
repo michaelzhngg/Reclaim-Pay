@@ -20,10 +20,11 @@ async function fetchLog() {
   return { ...result, actorNames };
 }
 
-export default function AgentLogTab() {
+export default function AgentLogTab({ onLoaded }: { onLoaded?: () => void }) {
   const { data, isLoading, error, retry } = useTabData(
     fetchLog,
     "Couldn't load the agent log. Check your connection and try again.",
+    onLoaded,
   );
 
   const count = data?.actions.length ?? 0;
