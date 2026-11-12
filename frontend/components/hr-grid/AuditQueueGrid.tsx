@@ -8,7 +8,7 @@ import ClaimLink from "./ClaimLink";
 import { tabThroughCell } from "./cellKeyboard";
 import { formatUpdated } from "./ledger";
 import { auditAction, type AuditRow } from "./recoveries";
-import { hrGridTheme } from "./theme";
+import { useHrGridTheme } from "./useHrGridTheme";
 
 const recordBtn =
   "inline-flex items-center justify-center min-h-[44px] px-3 rounded-lg border border-line text-sm font-semibold text-ink bg-surface hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 cursor-pointer";
@@ -61,6 +61,7 @@ function AuditCard({ row, onRecord }: { row: AuditRow; onRecord: (row: AuditRow)
 }
 
 export default function AuditQueueGrid({ rows, onRecord }: { rows: AuditRow[]; onRecord: (row: AuditRow) => void }) {
+  const gridTheme = useHrGridTheme();
   const columnDefs = useMemo<ColDef<AuditRow>[]>(
     () => [
       {
@@ -108,7 +109,7 @@ export default function AuditQueueGrid({ rows, onRecord }: { rows: AuditRow[]; o
     <>
       <div className="hidden sm:block">
         <AgGridReact<AuditRow>
-          theme={hrGridTheme}
+          theme={gridTheme}
           rowData={rows}
           columnDefs={columnDefs}
           defaultColDef={{ sortable: true, resizable: true, suppressMovable: true }}

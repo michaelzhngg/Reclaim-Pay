@@ -7,7 +7,7 @@ import { Check, Copy } from "lucide-react";
 import { formatMoney, type PayoutLedgerRow, type PayoutStatus } from "@/lib/api/reclaim-pay-types";
 import { formatClaimRef } from "@/lib/format";
 import { STATUS_META, TONE_CLASSES, formatUpdated, hasAnyTier, tierLabel } from "./ledger";
-import { hrGridTheme } from "./theme";
+import { useHrGridTheme } from "./useHrGridTheme";
 
 export function StatusPill({ status }: { status: PayoutStatus }) {
   const meta = STATUS_META[status];
@@ -87,6 +87,7 @@ function LedgerCard({ row }: { row: PayoutLedgerRow }) {
 }
 
 export default function LedgerGrid({ rows }: { rows: PayoutLedgerRow[] }) {
+  const gridTheme = useHrGridTheme();
   // Tiers aren't stored on payouts yet. Until one is, a Route column would say "Not recorded" on every row.
   const showRoute = hasAnyTier(rows);
 
@@ -152,7 +153,7 @@ export default function LedgerGrid({ rows }: { rows: PayoutLedgerRow[] }) {
     <>
       <div className="hidden sm:block">
         <AgGridReact<PayoutLedgerRow>
-          theme={hrGridTheme}
+          theme={gridTheme}
           rowData={rows}
           columnDefs={columnDefs}
           defaultColDef={{ sortable: true, resizable: true, suppressMovable: true }}
