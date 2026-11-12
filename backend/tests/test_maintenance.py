@@ -1,12 +1,10 @@
 """Payout maintenance sweep, stuck list, and the manual run surface."""
 import asyncio
-import os
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 
 from api import deps
 from api import payouts as payouts_api
@@ -118,10 +116,11 @@ def test_run_maintenance_respects_an_existing_lock(pg_db, monkeypatch):
     assert report.locked is True
 
 
-def test_advisory_lock_is_held_per_connection():
-    other_engine = create_engine(os.environ["TEST_DATABASE_URL"])
-    first = other_engine.connect()
-    second = other_engine.connect()
+def test_advisory_lock_is_held_per_connection(pg_db):
+    # The pg_db fixture skips when TEST_DATABASE_URL is unset, as CI runs without it.
+    engine = pg_db.get_bind().engine
+    first = engine.connect()
+    second = engine.connect()
     assert maintenance._try_lock(first) is True
     try:
         assert maintenance._try_lock(second) is False
@@ -129,7 +128,6 @@ def test_advisory_lock_is_held_per_connection():
         maintenance._unlock(first)
         first.close()
         second.close()
-        other_engine.dispose()
 
 
 def test_two_runs_cannot_overlap_and_lock_is_released(pg_db, monkeypatch):
