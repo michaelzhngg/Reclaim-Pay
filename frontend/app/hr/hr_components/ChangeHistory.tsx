@@ -77,7 +77,9 @@ export function ChangeHistory({
   );
 
   return (
-    <section aria-labelledby="change-history-title" className="bg-surface shadow-ambient rounded-card overflow-hidden">
+    // `relative` keeps the absolutely positioned sr-only text inside this panel. Without it, the
+    // text is placed against the page and stretches it past the scrolling <main>.
+    <section aria-labelledby="change-history-title" className="relative bg-surface shadow-ambient rounded-card overflow-hidden">
       <div className="px-4 sm:px-6 py-4 border-b border-line flex items-start gap-3">
         <History className="w-5 h-5 text-ink-muted shrink-0 mt-0.5" aria-hidden="true" />
         <div className="min-w-0">
