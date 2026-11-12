@@ -659,7 +659,14 @@ export default function ReviewPage() {
         </div>
 
         {/* ═══ RIGHT ═══ */}
-        <div className="flex flex-col gap-6 lg:sticky lg:top-6 lg:h-fit">
+        {/* Scrolls on its own when taller than the screen, so the decision buttons stay reachable.
+            The padding and matching negative margin keep the cards' hairline shadows from being clipped. */}
+        <div
+          role="region"
+          aria-label="Claim analysis and decision"
+          tabIndex={0}
+          className="flex flex-col gap-6 rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:sticky lg:top-6 lg:h-fit lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto lg:overscroll-contain lg:-m-2 lg:p-2"
+        >
 
           <AutonomyPanel
             autonomy={bundle.autonomy}
