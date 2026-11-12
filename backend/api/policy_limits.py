@@ -54,6 +54,20 @@ def _categories(db: Session, policy_id: UUID) -> list[str]:
                         .where(PolicyReimbursableCategory.policy_id == policy_id)).all())
 
 
+def _has_conflict(rules: list[LimitRule]) -> bool:
+    """Two rows for the same category, kind, unit, place and exact grade range with different amounts.
+
+    Nested or overlapping ranges are allowed: the narrower one wins in engine.policy.limits.
+    """
+    amounts: dict[tuple, float | None] = {}
+    for r in rules:
+        key = (r.category, r.kind, r.unit, r.scope, (r.zone or "").strip().casefold(), r.grade_min, r.grade_max)
+        if key in amounts and amounts[key] != r.amount:
+            return True
+        amounts[key] = r.amount
+    return False
+
+
 def _out(db: Session, policy_id: UUID) -> PolicyLimitsOut:
     limits, places = store.list_rows(db, policy_id)
     rows = [LimitRowOut(**store.to_rule(r).model_dump(), limit_id=r.limit_id, status=r.status) for r in limits]
@@ -83,6 +97,8 @@ def confirm_limits(policy_id: UUID, body: PolicyLimitsIn, db: Session = Depends(
         if canonical is None:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="UNKNOWN_CATEGORY")
         rules.append(rule.model_copy(update={"category": canonical}))
+    if _has_conflict(rules):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="CONFLICTING_LIMITS")
     store.confirm_all(db, policy_id, rules, body.zones, current_user.user_id, datetime.now(timezone.utc))
     return _out(db, policy_id)
 

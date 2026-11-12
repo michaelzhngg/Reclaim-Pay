@@ -322,3 +322,21 @@ def test_rows_read_from_lowest_grade_up_with_open_ranges_in_place(pg_db):
     assert [(r.category, float(r.amount)) for r in rows] == [
         ("Accommodations", 250.0), ("Accommodations", 400.0), ("Accommodations", 600.0), ("Meals", 100.0),
     ]
+
+
+def test_put_rejects_two_limits_for_the_same_grades_and_place_with_different_amounts(hr_api):
+    c, db, hr, _ = hr_api
+    p = make_policy(db, hr)
+    a = HOTEL.model_dump(mode="json")
+    b = {**a, "category": "accommodations", "amount": 300}
+    res = c.put(f"/api/v1/policies/{p.policy_id}/limits", json={"limits": [a, b], "zones": []})
+    assert res.status_code == 422 and res.json()["detail"] == "CONFLICTING_LIMITS"
+
+
+def test_put_allows_nested_grade_ranges(hr_api):
+    c, db, hr, _ = hr_api
+    p = make_policy(db, hr)
+    a = HOTEL.model_dump(mode="json")
+    nested = {**a, "grade_min": 1, "grade_max": 1, "amount": 200}
+    res = c.put(f"/api/v1/policies/{p.policy_id}/limits", json={"limits": [a, nested], "zones": []})
+    assert res.status_code == 200 and len(res.json()["limits"]) == 2

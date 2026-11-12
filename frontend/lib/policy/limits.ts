@@ -100,6 +100,7 @@ export function limitProblem(rule: LimitRule): string | null {
 /** Maps an error from the limits endpoints to a sentence HR can act on. */
 export function limitsErrorMessage(error: string | null, status: number | undefined): string {
   if (error === "UNKNOWN_CATEGORY") return "One limit uses a category this policy doesn't have. Remove it and confirm again.";
+  if (error === "CONFLICTING_LIMITS") return "Two limits cover the same grades and place with different amounts. Remove one.";
   if (status === 404) return "This policy no longer exists. Go back to Policy Studio.";
   if (status === 422) return "The server rejected one of the limits. Check the amounts and grades, then confirm again.";
   if (status === 503) return "Couldn't read the policy right now. Try again later or add limits by hand.";

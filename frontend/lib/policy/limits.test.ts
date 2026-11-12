@@ -96,6 +96,9 @@ describe("policy limit input", () => {
     expect(limitsErrorMessage("UNKNOWN_CATEGORY", 422)).toBe(
       "One limit uses a category this policy doesn't have. Remove it and confirm again.",
     );
+    expect(limitsErrorMessage("CONFLICTING_LIMITS", 422)).toBe(
+      "Two limits cover the same grades and place with different amounts. Remove one.",
+    );
     expect(limitsErrorMessage('[{"loc":["body"]}]', 422)).toBe(
       "The server rejected one of the limits. Check the amounts and grades, then confirm again.",
     );
