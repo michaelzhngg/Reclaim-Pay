@@ -6,7 +6,9 @@ import type { ClaimBundle } from "@/lib/api/types";
 import { formatClaimRef, formatMoney } from "@/lib/format";
 import { SuccessModal, isAwaitingSecondApproval } from "../../hr_components/SuccessModal";
 import { useAuth } from "@/context/AuthContext";
-import { getHRClaimBundle, updateReimbursementStatus } from "@/lib/actions/hr";
+import { updateReimbursementStatus } from "@/lib/actions/hr";
+import { useClaimBundle } from "@/lib/hooks/useClaimBundle";
+import { ClaimLoadFallback } from "../../hr_components/ClaimLoadFallback";
 import { approvalErrorMessage } from "@/lib/hr/evidence";
 
 const STATUS_CHIP: Record<string, string> = {
@@ -319,7 +321,8 @@ export default function ViewPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const [bundle, setBundle] = useState<ClaimBundle | undefined | null>(undefined); // undefined = loading
+  const { load, retry } = useClaimBundle(id);
+  const bundle = load.state === "ready" ? load.bundle : null;
   const [hrDecision, setHrDecision] = useState<"confirm" | "flag" | null>(null);
   const [note, setNote] = useState("");
   const [auditOpen, setAuditOpen] = useState(false);
@@ -330,12 +333,6 @@ export default function ViewPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  useEffect(() => {
-    getHRClaimBundle(id)
-      .then((b) => setBundle(b ?? null))
-      .catch(() => setBundle(null));
-  }, [id]);
-
   // Escape closes the receipt image.
   useEffect(() => {
     if (!lightbox) return;
@@ -344,18 +341,8 @@ export default function ViewPage() {
     return () => document.removeEventListener("keydown", onKey);
   }, [lightbox]);
 
-  if (bundle === undefined) return (
-    <div className="flex items-center justify-center min-h-[60vh] gap-3 text-ink-muted">
-      <Loader2 className="w-5 h-5 animate-spin" />
-      <span className="text-sm">Loading claim...</span>
-    </div>
-  );
-
-  if (!bundle) return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-      <p className="text-ink-muted">This claim couldn&apos;t be loaded. It may not exist: <code className="font-mono">{id}</code></p>
-      <button type="button" onClick={() => router.push("/hr/dashboard")} className="min-h-[44px] px-5 rounded-full bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer">Back to Dashboard</button>
-    </div>
+  if (load.state !== "ready" || !bundle) return (
+    <ClaimLoadFallback load={load.state === "ready" ? { state: "missing" } : load} id={id} onRetry={retry} onBack={() => router.push("/hr/dashboard")} />
   );
 
   const pct = Math.round(bundle.confidence * 100);

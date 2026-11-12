@@ -15,7 +15,7 @@ from api.rate_limit import limiter
 from core import security
 from core.config import settings
 from core.enums import UserRole
-from core.models import AgentAction, Notification, User
+from core.models import AgentAction, Notification, User, Vendor
 from engine.services import payout_service
 from engine.services.action_log import verify_chain
 from engine.services.paypal_client import PayPalError, PayPalUser
@@ -169,7 +169,10 @@ def test_unknown_payer_gets_a_plain_failure(client, pg_db, monkeypatch):
     assert res.status_code == 401 and res.json() == FAILURE
     assert len(pg_db.exec(select(User)).all()) == len(before)
     [action] = _actions(pg_db)
-    assert action.actor == "unknown" and action.payload == {"outcome": "rejected", "reason": "unknown_payer"}
+    assert action.actor == "unknown" and action.payload == {
+        "outcome": "rejected", "reason": "unknown_payer",
+        "verified": True, "verified_account": None, "email_verified": None,
+    }
 
 
 def test_email_match_is_never_used(client, pg_db, monkeypatch):
@@ -442,6 +445,17 @@ def test_link_to_a_payer_owned_by_someone_else_logs_the_reason(client, pg_db, mo
     _person(pg_db, payer="TAKEN")
     newcomer = _person(pg_db, payer=None)
     _use_paypal(monkeypatch, payer="TAKEN")
+    res = _connect_callback(client, newcomer)
+    assert res.headers["location"].endswith("paypal=error")
+    assert [a.payload["reason"] for a in _link_failures(pg_db)] == ["payer_already_linked"]
+
+
+def test_employee_cannot_link_a_vendor_payer(client, pg_db, monkeypatch):
+    pg_db.add(Vendor(name="Vendor Co", name_key="vendor co", paypal_payer_id="VENDORPAYER",
+                     paypal_verified=True))
+    pg_db.commit()
+    newcomer = _person(pg_db, payer=None)
+    _use_paypal(monkeypatch, payer="VENDORPAYER")
     res = _connect_callback(client, newcomer)
     assert res.headers["location"].endswith("paypal=error")
     assert [a.payload["reason"] for a in _link_failures(pg_db)] == ["payer_already_linked"]
