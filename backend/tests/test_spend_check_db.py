@@ -206,3 +206,20 @@ def test_zone_is_only_named_when_a_zoned_rule_set_the_rate(reclaim_api):
     trip = client.post("/api/v1/spend-check/trip", json={"destination": "Ipoh", "overseas": True,
                                                           "depart": "2026-11-20", "return_date": "2026-11-21"}).json()
     assert trip["zone_place"] is None
+
+
+def test_zone_place_follows_policy_matching_for_punctuation_and_longer_names(pg_db, hr):
+    p = _policy(pg_db, hr, "Zoned policy", ("Daily Allowance",))
+    rules = [LimitRule(category="Daily Allowance", unit=LimitUnit.PER_DAY, amount=a, zone=z) for z, a in (("1", 75), ("3", 50))]
+    places = [ZonePlace(zone="1", place="Kuala Lumpur"), ZonePlace(zone="3", place="Kuala Lumpur Airport"),
+              ZonePlace(zone="2", place="*")]
+    store.confirm_all(pg_db, p.policy_id, rules, places, hr.user_id, NOW)
+    app, client = _client(pg_db, _user(pg_db))
+    try:
+        dashed = client.post("/api/v1/spend-check/check", json={"category": "Daily Allowance", "destination": "Kuala-Lumpur"}).json()
+        airport = client.post("/api/v1/spend-check/check",
+                              json={"category": "Daily Allowance", "destination": "Kuala Lumpur Airport (KLIA)"}).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert (dashed["zone"], dashed["zone_place"], dashed["limit_total"]) == ("1", "Kuala Lumpur", 75)
+    assert (airport["zone"], airport["zone_place"], airport["limit_total"]) == ("3", "Kuala Lumpur Airport", 50)

@@ -37,6 +37,7 @@ def setup(pg_db, monkeypatch):
     import engine.tools.rag_tool as rag
 
     pg_db.exec(text("UPDATE policies SET status = 'DEPRECATED' WHERE status = 'ACTIVE'"))
+    pg_db.exec(text("DELETE FROM policy_questions"))  # rolled back; the summary counts every row
     hr = User(email=f"hr-{uuid4().hex[:6]}@t.local", hashed_password="x", name="HR", role=UserRole.HR, rank=5)
     me = User(email=f"e-{uuid4().hex[:6]}@t.local", hashed_password="x", name="Farid", role=UserRole.Employee, rank=2)
     pg_db.add_all([hr, me])
