@@ -428,6 +428,11 @@ export default function PolicyStudio() {
             )}
           </div>
 
+          {/* New policy: the heading covers the upload and the details card, so both start on the same edge */}
+          {isNew && (
+            <h3 className="font-display text-xl font-semibold text-ink mb-4 shrink-0">Main Policy</h3>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 min-h-0 items-start">
             {/* Left Column: details (edit) or the upload (new) */}
             <div
@@ -485,7 +490,6 @@ export default function PolicyStudio() {
               {/* Main Policy (new only) */}
               {isNew && (
                 <div className="flex flex-col gap-4">
-                  <h3 className="font-display text-xl font-semibold text-ink shrink-0">Main Policy</h3>
                   <input
                     ref={mainPolicyInputRef}
                     type="file"
