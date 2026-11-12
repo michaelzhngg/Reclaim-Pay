@@ -164,7 +164,8 @@ export default function TriageDemo() {
                 HR Triage <span className="ml-1.5 font-normal text-on-surface-variant">Sample data</span>
               </p>
               <div className="ml-auto flex w-full flex-wrap items-center gap-3 sm:w-auto">
-                <div className="min-w-0 flex-1 sm:w-56 sm:flex-none">
+                {/* Below sm the search takes its own row so the 4-tab control can't cover it. */}
+                <div className="w-full min-w-0 sm:w-56 sm:flex-none">
                   <SearchField
                     aria-label="Search sample claims"
                     placeholder="Search claims…"
@@ -173,12 +174,13 @@ export default function TriageDemo() {
                     autoComplete="off"
                   />
                 </div>
+                {/* Tabs shrink to fit narrow phones (card gutters ≈ 74px), capped at 78px. */}
                 <SegmentedControl
                   aria-label="Filter by AI verdict"
                   items={FILTERS}
                   value={filter}
                   onValueChange={setFilter}
-                  style={{ ["--lg-tab-width" as string]: "78px" }}
+                  className="[--lg-tab-width:min(78px,calc((100vw_-_74px)_/_4))]!"
                 />
               </div>
             </div>
