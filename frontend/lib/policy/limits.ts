@@ -15,6 +15,14 @@ const UNIT: Record<LimitUnit, string> = {
   ACTUAL: "at actual cost",
 };
 
+const ROW_UNIT: Record<LimitUnit, string> = {
+  PER_DAY: "per day",
+  PER_NIGHT: "per night",
+  PER_MEAL: "per meal",
+  PER_ITEM: "per item",
+  ACTUAL: "actual cost",
+};
+
 const QUANTITY: Record<LimitUnit, string | null> = {
   PER_DAY: "Days",
   PER_NIGHT: "Nights",
@@ -116,15 +124,21 @@ export function limitsErrorMessage(error: string | null, status: number | undefi
   return "No response from the server. Try again.";
 }
 
+export const LIMITS_UNCONFIRMED = "Confirm or undo your spending limit changes first.";
+export const DISCARD_LIMITS_TEXT =
+  "You changed spending limits but didn't confirm them. If you leave now, those changes are lost.";
+
 type Visibility = Pick<PolicyLimits, "policy_active" | "categories" | "employee_visible_categories">;
 
 const listOf = (items: string[]) =>
   items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 
+const hiddenCategories = (v: Visibility) => v.categories.filter((c) => !v.employee_visible_categories.includes(c));
+
 /** Whether employees see this policy's confirmed limits, and which categories a newer policy takes over. */
 export function visibilityNote(v: Visibility): string {
   if (!v.policy_active) return "Employees won't see these limits: the policy isn't active.";
-  const hidden = v.categories.filter((c) => !v.employee_visible_categories.includes(c));
+  const hidden = hiddenCategories(v);
   if (hidden.length === 0) return "Employees see these limits before they spend.";
   if (v.employee_visible_categories.length === 0) {
     return `Employees won't see these limits: a newer active policy covers ${listOf(hidden)}.`;
@@ -136,12 +150,23 @@ export function visibilityNote(v: Visibility): string {
 export function confirmedMessage(v: Visibility, count: number): string {
   if (count === 0) return "No limits confirmed. Employees see no limits for this policy.";
   if (!v.policy_active) return "Limits confirmed. Employees will see them once the policy is active.";
-  return "Limits confirmed. Employees see them from now on.";
+  const hidden = hiddenCategories(v);
+  if (hidden.length === 0) return "Limits confirmed. Employees see them from now on.";
+  if (v.employee_visible_categories.length === 0) {
+    return `Limits confirmed. Employees won't see them: a newer active policy covers ${listOf(hidden)}.`;
+  }
+  const it = hidden.length === 1 ? "it" : "them";
+  return `Limits confirmed. Employees see them from now on, except for ${listOf(hidden)}: a newer active policy covers ${it}.`;
 }
 
-/** Category, grades and place, so each row's controls have a distinct accessible name. */
+/** Category, grades, place and unit, so each row's controls have a distinct accessible name. */
 export function rowName(rule: LimitRule): string {
-  const parts = [rule.category, gradeLabel(rule.grade_min, rule.grade_max), whereLabel(rule.scope, rule.zone)];
+  const parts = [
+    rule.category,
+    gradeLabel(rule.grade_min, rule.grade_max),
+    whereLabel(rule.scope, rule.zone),
+    ROW_UNIT[rule.unit],
+  ];
   if (rule.kind === "PRE_APPROVAL") parts.push("approval threshold");
   return parts.join(", ");
 }

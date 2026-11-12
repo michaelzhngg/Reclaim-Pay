@@ -14,6 +14,7 @@ import StatSummary       from "./_components/StatSummary";
 import RecentClaimsTable from "./_components/RecentClaimsTable";
 import PayPalStatusChip  from "./_components/PayPalStatusChip";
 import AccountStatus     from "./_components/AccountStatus";
+import SpendCheckCard    from "./_components/SpendCheckCard";
 import PushInlinePrompt  from "@/app/_components/PushInlinePrompt";
 
 /**
@@ -139,6 +140,9 @@ export default function EmployeeDashboardPage() {
       {isEmpty && (
         <AccountStatus trust={trust} recoveries={recoveries} linkedRecoveryId={linkedRecoveryId} className="mt-6 max-w-xl md:max-w-none" />
       )}
+
+      {/* ── 4. Check before you spend: after the claims, which stay this page's main job ── */}
+      <SpendCheckCard className="mt-6 md:mt-10" />
 
     </div>
   );

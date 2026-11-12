@@ -7,9 +7,10 @@ import type { Policy as BackendPolicy } from '@/lib/api/types';
 import { uploadPolicy } from '@/lib/actions/hr';
 import { getPolicies, deletePolicy, updatePolicyCategories } from '@/lib/actions/policies';
 import PolicyLimitsPanel from './_components/PolicyLimitsPanel';
+import { DISCARD_LIMITS_TEXT, LIMITS_UNCONFIRMED } from '@/lib/policy/limits';
+import Link from 'next/link';
 import { Sheet, btnBase } from '@/components/ui/Sheet';
 
-const LIMITS_UNCONFIRMED = "Confirm or undo your spending limit changes first.";
 
 const SAVE_STEPS = [
   { id: "upload", label: "Uploading documents...", subtitle: "Securely storing policy files." },
@@ -650,6 +651,11 @@ export default function PolicyStudio() {
 
               {!isNew && (
                 <div ref={limitsRef}>
+                  {saveError === LIMITS_UNCONFIRMED && (
+                    <p role="alert" className="mb-3 bg-danger/10 border border-danger/30 text-danger rounded-control px-4 py-3 text-sm font-body">
+                      {LIMITS_UNCONFIRMED}
+                    </p>
+                  )}
                   <PolicyLimitsPanel policyId={editingPolicy} onDirtyChange={onLimitsDirtyChange} />
                 </div>
               )}
@@ -1073,10 +1079,7 @@ export default function PolicyStudio() {
           onClose={() => setDiscardLimitsOpen(false)}
         >
           <div className="px-5 py-4 flex flex-col gap-4">
-            <p className="text-sm text-ink-muted">
-              You changed spending limits but didn&apos;t confirm them. If you leave now, those changes are lost and
-              employees keep seeing the limits that were confirmed before.
-            </p>
+            <p className="text-sm text-ink-muted">{DISCARD_LIMITS_TEXT}</p>
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
               <button type="button" onClick={() => setDiscardLimitsOpen(false)} className={`${btnBase} border border-line-strong text-ink hover:bg-surface-muted`}>
                 Keep editing
@@ -1096,7 +1099,12 @@ export default function PolicyStudio() {
             </button>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-6">
               {saveError && (
-                <p role="alert" className="text-sm text-danger font-body max-w-xs text-center sm:text-right">{saveError}</p>
+                <p
+                  role={saveError === LIMITS_UNCONFIRMED ? undefined : "alert"}
+                  className="text-sm text-danger font-body max-w-xs text-center sm:text-right"
+                >
+                  {saveError}
+                </p>
               )}
               <div className="flex items-center justify-center sm:justify-start gap-3">
                 <span className="font-body text-sm text-ink-muted hidden sm:block">Policy Status:</span>
@@ -1132,6 +1140,10 @@ export default function PolicyStudio() {
                   <p className="mt-1 text-sm text-ink-muted font-body">
                     Manage, review, and distribute company guidelines.
                   </p>
+                  <Link href="/hr/policy/questions"
+                    className="mt-1 inline-flex min-h-11 items-center rounded-control text-sm font-semibold text-secondary underline underline-offset-2 hover:text-secondary-dim">
+                    See what employees ask about the policy
+                  </Link>
                 </div>
                 <button
                   type="button"

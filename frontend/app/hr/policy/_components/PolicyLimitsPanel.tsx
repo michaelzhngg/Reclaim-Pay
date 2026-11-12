@@ -350,7 +350,7 @@ export default function PolicyLimitsPanel({
                             autoComplete="off"
                             value={row.amountText}
                             onChange={(e) => setAmount(row.key, e.target.value)}
-                            aria-label={`${name}: amount`}
+                            aria-label={`${name}: Amount (${row.currency})`}
                             aria-invalid={problem !== null}
                             aria-describedby={problem ? errorId : undefined}
                             className={`${FIELD} w-32 font-mono tabular-nums`}

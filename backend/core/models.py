@@ -261,6 +261,22 @@ class PolicyZonePlace(SQLModel, table=True):
     status: LimitStatus = Field(default=LimitStatus.PROPOSED, sa_column=Column(String, nullable=False))
 
 
+class PolicyQuestion(SQLModel, table=True):
+    """F1: a policy question an employee asked. user_id is only for the daily cap; HR never sees it."""
+    __tablename__ = "policy_questions"
+
+    question_id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="employees.user_id", index=True)
+    policy_id: Optional[UUID] = Field(default=None, foreign_key="policies.policy_id", ondelete="SET NULL")
+    section_id: Optional[UUID] = Field(default=None, foreign_key="policy_sections.section_id", ondelete="SET NULL")
+    question: str = Field(sa_column=Column(Text, nullable=False))
+    answer: Optional[str] = Field(default=None, sa_column=Column(Text))  # None: the model call failed
+    covered: bool = Field(default=False, sa_column=Column(Boolean, nullable=False))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), sa_column=Column(DateTime(timezone=True), index=True)
+    )
+
+
 # ---------------------------------------------------------------------------
 # 6. travel_settlements
 # ---------------------------------------------------------------------------
