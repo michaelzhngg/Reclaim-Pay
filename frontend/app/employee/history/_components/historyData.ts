@@ -1,7 +1,7 @@
 "use client";
 // ─── historyData.ts ─────────────────────────────────────────────────────────
-// Single source of truth for all claim history types, mock data, and helpers.
-// Lives entirely within frontend/app/employee/history/, no external deps.
+// Types and display helpers for the employee claim history. The claims
+// themselves come from the backend (see lib/actions/claims.ts).
 // ────────────────────────────────────────────────────────────────────────────
 
 import {
@@ -99,16 +99,3 @@ export const STATUS_BADGE: Record<ClaimStatus, string> = {
   Paid:                 "bg-success-soft text-success",
   Rejected:             "bg-danger-soft text-danger",
 };
-
-// ─── Shared employee ──────────────────────────────────────────────────────────
-
-const ME = {
-  name:       "Alex Tan Wei Ming",
-  id:         "EMP-00421",
-  department: "Product & Engineering",
-  position:   "Senior Software Engineer",
-};
-
-// ─── Mock Claims (removed, now fetched from backend) ────────────────────────
-
-export const HISTORY_CLAIMS: HistoryClaim[] = [];

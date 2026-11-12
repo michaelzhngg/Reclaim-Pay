@@ -42,6 +42,13 @@ export async function deletePolicy(policyId: string): Promise<{ ok: boolean; err
   return { ok: true };
 }
 
+/** Retire a policy: the backend sets it to DEPRECATED and stamps its expiry date. */
+export async function deprecatePolicy(policyId: string): Promise<{ ok: boolean; error?: string }> {
+  const result = await apiPatch<unknown>(`${API_PREFIX}/policies/${policyId}/deprecate`, {});
+  if (result.error) return { ok: false, error: result.error };
+  return { ok: true };
+}
+
 /** Update auto-approval budgets for policy categories. */
 export async function updatePolicyCategories(
   policyId: string,

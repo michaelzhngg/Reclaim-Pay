@@ -813,12 +813,10 @@ function CaptureReceiptContent() {
       }
     }
 
-    // Run compliance analysis
-    const isAutoReimburseEnabled = localStorage.getItem("reclaim_auto_reimburse") === "true";
+    // Run compliance analysis. Whether a claim may auto-pay is decided on the server.
     const analyzeResult = await analyzeCompliance({
       settlement_id: settlementId,
       document_ids: documentIds,
-      is_auto_reimburse_enabled: isAutoReimburseEnabled,
     });
 
     if ("error" in analyzeResult) {
