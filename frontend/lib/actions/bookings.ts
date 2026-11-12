@@ -12,6 +12,17 @@ export async function getVendors(): Promise<VendorOption[]> {
   return result.data ?? [];
 }
 
+export async function verifyVendorAccount(
+  vendorId: string,
+  paypalEmail?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const result = await apiPost<{ vendor_id: string }>(
+    `${API_PREFIX}/vendors/${vendorId}/verify`,
+    paypalEmail ? { paypal_email: paypalEmail } : {},
+  );
+  return result.error ? { ok: false, error: result.error } : { ok: true };
+}
+
 export async function createVendorBooking(
   body: VendorBookingRequest,
 ): Promise<{ data: ReimbursementRaw | null; error: string | null }> {

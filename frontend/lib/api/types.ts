@@ -300,6 +300,7 @@ export interface ClaimBundle {
   is_overseas: boolean;
   /** Vendor booking fields. Empty for a claim. */
   kind?: "CLAIM" | "VENDOR_BOOKING";
+  vendor_id?: string;
   vendor_name?: string;
   vendor_verified?: boolean;
   vendor_paypal_masked?: string;

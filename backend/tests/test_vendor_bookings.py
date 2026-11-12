@@ -1,6 +1,7 @@
 """Vendor booking intake, routing and employee redaction. Needs TEST_DATABASE_URL."""
 
 import asyncio
+import hashlib
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -214,6 +215,113 @@ def test_unverified_vendor_is_never_paid(pg_db):
     assert payee_for_reim(pg_db, reim) is None
     assert asyncio.run(initiate_payout_async(reim.reim_id, pg_db)) is None
     assert pg_db.exec(select(Payout).where(Payout.reim_id == reim.reim_id)).all() == []
+
+
+def test_verification_unlocks_the_next_booking(pg_db, monkeypatch):
+    from main import app
+    import api.vendors as vendors_api
+
+    requester = _user(pg_db, "requester")
+    hr = _user(pg_db, "hr", role=UserRole.HR, verified=False, paid_claims=0)
+    _policy(pg_db, requester)
+    first, _booking_row, vendor, _created = _booking(pg_db, requester, "New Vendor Sdn Bhd", amount=40.0)
+    assert first.status == ReimbursementStatus.REVIEW
+
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: hr
+    try:
+        res = TestClient(app).post(f"/api/v1/vendors/{vendor.vendor_id}/verify", json={})
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert body["paypal_ready"] is True
+        assert body["paypal_verified"] is True
+        assert body["paypal_email_masked"]
+    finally:
+        app.dependency_overrides.clear()
+
+    pg_db.refresh(vendor)
+    assert vendor.paypal_verified and vendor.paypal_payer_id
+    assert vendor.paypal_linked_at is not None
+    assert vendor.payout_destination_changed_at is None
+
+    # Verification does not re-decide a booking already in review.
+    pg_db.refresh(first)
+    assert first.status == ReimbursementStatus.REVIEW
+
+    second, _booking_row, _vendor, _created = _booking(pg_db, requester, "New Vendor Sdn Bhd", amount=40.0)
+    assert second.tier == "AUTO_PAY"
+
+    from core.enums import AgentActionType
+    from core.models import AgentAction
+    actions = pg_db.exec(select(AgentAction).where(AgentAction.action_type == AgentActionType.PAYEE_LINKED.value)).all()
+    assert any((a.payload or {}).get("vendor_id") == str(vendor.vendor_id) for a in actions)
+
+
+def test_verification_refuses_a_payer_used_elsewhere(pg_db):
+    from main import app
+
+    hr = _user(pg_db, "hr", role=UserRole.HR, verified=False, paid_claims=0)
+    first_vendor = _vendor(pg_db, "First Vendor")
+    second_vendor = _vendor(pg_db, "Second Vendor")
+    first_vendor.paypal_email = "shared@vendor.example"
+    second_vendor.paypal_email = "shared@vendor.example"
+    first_vendor.paypal_payer_id = "MOCKV" + hashlib.sha256(b"shared@vendor.example").hexdigest()[:12].upper()
+    pg_db.add(first_vendor)
+    pg_db.add(second_vendor)
+    pg_db.commit()
+
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: hr
+    try:
+        res = TestClient(app).post(
+            f"/api/v1/vendors/{second_vendor.vendor_id}/verify",
+            json={"paypal_email": "shared@vendor.example"},
+        )
+        assert res.status_code == 409 and res.json()["detail"] == "PAYEE_ALREADY_LINKED"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_verification_requires_hr_and_fails_closed_outside_mock(pg_db, monkeypatch):
+    from main import app
+    from core.config import settings
+
+    employee = _user(pg_db, "employee")
+    vendor = _vendor(pg_db, "Unverified Vendor", verified=False)
+
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: employee
+    try:
+        assert TestClient(app).post(f"/api/v1/vendors/{vendor.vendor_id}/verify", json={}).status_code == 403
+    finally:
+        app.dependency_overrides.clear()
+
+    hr = _user(pg_db, "hr", role=UserRole.HR, verified=False, paid_claims=0)
+    monkeypatch.setattr(settings, "PAYPAL_MOCK_MODE", False)
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: hr
+    try:
+        res = TestClient(app).post(f"/api/v1/vendors/{vendor.vendor_id}/verify", json={})
+        assert res.status_code == 409 and res.json()["detail"] == "VENDOR_MERCHANT_ONBOARDING_UNAVAILABLE"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_employee_vendor_list_hides_payout_details(pg_db):
+    from main import app
+
+    employee = _user(pg_db, "employee")
+    _vendor(pg_db, "Verified Cab Co.")
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: employee
+    try:
+        rows = TestClient(app).get("/api/v1/vendors").json()
+        assert rows and rows[0]["name"] == "Verified Cab Co."
+        assert rows[0]["paypal_ready"] is True
+        assert rows[0]["paypal_email_masked"] is None
+        assert rows[0]["paypal_verified"] is False
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_create_booking_api_returns_employee_view(pg_db):

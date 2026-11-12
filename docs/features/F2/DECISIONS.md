@@ -53,3 +53,15 @@ Non-obvious choices, with the alternative rejected. Newest ticket last.
 **Chosen:** after `create_booking` persists an `APPROVED` booking, the route calls the existing async payout service once and returns the claim with its payout state. A PayPal failure leaves the booking `APPROVED` for HR retry.
 
 **Rejected:** a background thread or a separate "pay" button for auto-pay bookings. The existing HR approval path already auto-pays approved records, so a booking should behave the same way; the request is short in mock mode.
+
+## 9. Vendor verification is an HR action, and mock-only
+
+**Chosen:** HR verifies a vendor's payout account with an optional attested billing email. In mock mode a deterministic identity is derived from that email. In sandbox or live mode the endpoint fails closed with `VENDOR_MERCHANT_ONBOARDING_UNAVAILABLE`, because PayPal merchant onboarding is not built.
+
+**Rejected:** pretending a sandbox vendor was verified with a fabricated payer ID. That would put a false verification into the action log and let a payment target an account nobody proved. Also rejected vendor self-service, which needs a vendor login and a separate onboarding surface.
+
+## 10. Employee and vendor payee links share one rule
+
+**Chosen:** extract `link_update` and `cooldown_until` from the PayPal connect route into a shared service. The employee route re-exports them, and vendor verification and account changes use the same rules.
+
+**Rejected:** copying the link rules into the vendor module. The 72-hour pause is a security control, and two copies would drift.
