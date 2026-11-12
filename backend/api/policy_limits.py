@@ -10,7 +10,7 @@ from starlette.requests import Request
 
 from api import deps
 from api.rate_limit import limiter
-from core.enums import LimitStatus
+from core.enums import LimitStatus, PolicyStatus
 from core.models import Policy, PolicyReimbursableCategory, User
 from engine.policy.limits import LimitRule, ZonePlace, same_category
 from engine.services import policy_limits_store as store
@@ -35,6 +35,8 @@ class PolicyLimitsOut(BaseModel):
     limits: list[LimitRowOut]
     zones: list[ZoneRowOut]
     has_suggestions: bool
+    # Categories whose confirmed limits employees see: the policy is ACTIVE and claims use it for them.
+    employee_visible_categories: list[str]
 
 
 class PolicyLimitsIn(BaseModel):
@@ -72,9 +74,16 @@ def _out(db: Session, policy_id: UUID) -> PolicyLimitsOut:
     limits, places = store.list_rows(db, policy_id)
     rows = [LimitRowOut(**store.to_rule(r).model_dump(), limit_id=r.limit_id, status=r.status) for r in limits]
     zones = [ZoneRowOut(zone=p.zone, place=p.place, status=p.status) for p in places]
+    categories = _categories(db, policy_id)
+    policy = db.get(Policy, policy_id)
+    visible: list[str] = []
+    if policy is not None and policy.status == PolicyStatus.ACTIVE:
+        picked = store.policy_for_category(db)
+        visible = [c for c in categories if c in picked and picked[c].policy_id == policy_id]
     return PolicyLimitsOut(
-        policy_id=policy_id, categories=_categories(db, policy_id), limits=rows, zones=zones,
+        policy_id=policy_id, categories=categories, limits=rows, zones=zones,
         has_suggestions=any(r.status == LimitStatus.PROPOSED for r in rows + zones),
+        employee_visible_categories=visible,
     )
 
 
@@ -95,7 +104,8 @@ def confirm_limits(policy_id: UUID, body: PolicyLimitsIn, db: Session = Depends(
         # Claims and active_limits match the policy's own spelling, so store that one.
         canonical = next((c for c in categories if same_category(rule.category, c)), None)
         if canonical is None:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="UNKNOWN_CATEGORY")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"UNKNOWN_CATEGORY: {rule.category.strip()}")
         rules.append(rule.model_copy(update={"category": canonical}))
     if _has_conflict(rules):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="CONFLICTING_LIMITS")

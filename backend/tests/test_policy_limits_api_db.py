@@ -251,7 +251,7 @@ def test_put_rejects_a_category_the_policy_does_not_have(hr_api):
     p = make_policy(db, hr)
     bad = LimitRule(category="Parking", unit=LimitUnit.PER_DAY, amount=10).model_dump(mode="json")
     res = c.put(f"/api/v1/policies/{p.policy_id}/limits", json={"limits": [bad], "zones": []})
-    assert res.status_code == 422 and res.json()["detail"] == "UNKNOWN_CATEGORY"
+    assert res.status_code == 422 and res.json()["detail"] == "UNKNOWN_CATEGORY: Parking"
 
 
 def test_put_rejects_a_capped_limit_without_an_amount(hr_api):
@@ -340,3 +340,55 @@ def test_put_allows_nested_grade_ranges(hr_api):
     nested = {**a, "grade_min": 1, "grade_max": 1, "amount": 200}
     res = c.put(f"/api/v1/policies/{p.policy_id}/limits", json={"limits": [a, nested], "zones": []})
     assert res.status_code == 200 and len(res.json()["limits"]) == 2
+
+
+def test_a_suggestion_that_only_changes_a_confirmed_amount_is_skipped(pg_db):
+    hr = make_user(pg_db)
+    p = make_policy(pg_db, hr)
+    edited = MEAL.model_copy(update={"amount": 120.0})
+    store.confirm_all(pg_db, p.policy_id, [edited], [], hr.user_id, NOW)
+    assert store.replace_proposed(pg_db, p.policy_id, [MEAL], []) == 0
+    pg_db.commit()
+    rows, _ = store.list_rows(pg_db, p.policy_id)
+    assert [(r.status, float(r.amount)) for r in rows] == [("CONFIRMED", 120.0)]
+
+
+def test_confirming_twice_replaces_the_set(pg_db):
+    hr = make_user(pg_db)
+    p = make_policy(pg_db, hr)
+    store.confirm_all(pg_db, p.policy_id, [MEAL, HOTEL], [ZonePlace(zone="1", place="Ipoh")], hr.user_id, NOW)
+    store.confirm_all(pg_db, p.policy_id, [HOTEL], [], hr.user_id, NOW)
+    rules, places = store.load_limits(pg_db, p.policy_id)
+    assert rules == [HOTEL] and places == []
+
+
+def test_the_action_log_chain_stays_valid_after_a_confirm(pg_db):
+    from engine.services.action_log import verify_chain
+
+    pg_db.exec(text("DELETE FROM agent_actions"))
+    hr = make_user(pg_db)
+    p = make_policy(pg_db, hr)
+    store.confirm_all(pg_db, p.policy_id, [MEAL], [], hr.user_id, NOW)
+    store.confirm_all(pg_db, p.policy_id, [HOTEL], [], hr.user_id, NOW)
+    assert verify_chain(pg_db) is True
+
+
+def test_seed_is_logged_as_the_seed_not_as_a_person(pg_db):
+    from seeds.seed_policy_limits import seed
+
+    hr = make_user(pg_db)
+    p = make_policy(pg_db, hr)
+    seed(pg_db, alias=p.alias)
+    rows, _ = store.list_rows(pg_db, p.policy_id)
+    assert all(r.confirmed_by is None for r in rows)
+    last = pg_db.exec(select(AgentAction).order_by(AgentAction.action_id.desc())).first()
+    assert last.actor == "seed"
+
+
+def test_get_says_which_categories_employees_see(only_these_policies, hr_api):
+    c, db, hr, _ = hr_api
+    older = make_policy(db, hr, categories=("Meals", "Accommodations"), effective=NOW - timedelta(days=30))
+    make_policy(db, hr, categories=("Meals",), effective=NOW)
+    draft = make_policy(db, hr, status=PolicyStatus.DRAFT)
+    assert c.get(f"/api/v1/policies/{older.policy_id}/limits").json()["employee_visible_categories"] == ["Accommodations"]
+    assert c.get(f"/api/v1/policies/{draft.policy_id}/limits").json()["employee_visible_categories"] == []

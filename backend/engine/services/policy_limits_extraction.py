@@ -1,6 +1,7 @@
 """Suggest policy limits from the stored policy text. One LLM call per policy. HR confirms the result."""
 import json
 import logging
+import re
 from uuid import UUID
 
 from langchain_core.output_parsers import JsonOutputParser
@@ -17,6 +18,7 @@ from engine.services import policy_limits_store as store
 logger = logging.getLogger(__name__)
 
 MAX_POLICY_CHARS = 60_000
+_DELIMITER = re.compile(r"<\s*/?\s*policy_text[^>]*>", re.IGNORECASE)
 
 
 class ExtractionResult(BaseModel):
@@ -77,7 +79,8 @@ def parse_extraction(raw, categories: list[str]) -> tuple[list[LimitRule], list[
 
 def run_extraction_llm(categories: list[str], text: str) -> dict:
     chain = PromptTemplate.from_template(POLICY_LIMITS_PROMPT) | get_chat_llm() | JsonOutputParser()
-    return chain.invoke({"categories": json.dumps(categories), "text": text[:MAX_POLICY_CHARS]})
+    body = _DELIMITER.sub("[tag removed]", text[:MAX_POLICY_CHARS])  # the text can't close its own block
+    return chain.invoke({"categories": json.dumps(categories), "text": body})
 
 
 def _policy_text(db: Session, policy_id: UUID) -> str:
