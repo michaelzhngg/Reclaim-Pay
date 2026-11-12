@@ -183,6 +183,9 @@ function payoutStateOf(r: ReimbursementRaw): PayoutState | null {
     return { kind: "failed", reason: r.payout?.failure_code ?? null };
   }
   if (r.status === "DISBURSING" || p === "ACCEPTED" || p === "REQUESTED") return { kind: "sending" };
+  if ((r.kind ?? "CLAIM") === "VENDOR_BOOKING") {
+    return r.vendor_verified ? { kind: "not_sent" } : { kind: "waiting_link" };
+  }
   if (r.payee_linked === false) return { kind: "waiting_link" };
   return { kind: "not_sent" };
 }

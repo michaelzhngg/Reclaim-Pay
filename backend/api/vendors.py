@@ -16,6 +16,7 @@ from api.reimbursements import _build_reimbursement_response
 from core.enums import UserRole
 from core.models import User, Vendor
 from engine.services.paypal_client import mask_email
+from engine.services.payout_service import initiate_payout_async
 from engine.services.vendor_booking_service import create_booking
 
 router = APIRouter()
@@ -76,7 +77,7 @@ def list_vendors(
 
 
 @router.post("/vendor-bookings", status_code=status.HTTP_201_CREATED)
-def create_vendor_booking(
+async def create_vendor_booking(
     body: VendorBookingCreate,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
@@ -108,6 +109,15 @@ def create_vendor_booking(
         "[VENDOR_BOOKING] created reim=%s vendor=%s new_vendor=%s tier=%s",
         reim.reim_id, vendor.vendor_id, vendor_created, reim.tier,
     )
+    status_value = getattr(reim.status, "value", reim.status)
+    if status_value == "APPROVED":
+        # decide() approved it, so the existing payout service pays the vendor. On failure
+        # the booking stays APPROVED for HR retry from the payouts screen.
+        payout = await initiate_payout_async(reim.reim_id, db)
+        if payout is None:
+            logger.warning("[VENDOR_BOOKING] payout did not start for reim=%s", reim.reim_id)
+        db.refresh(reim)
+
     result = _build_reimbursement_response(
         reim, db, include_line_items=True, viewer_is_hr=current_user.role == UserRole.HR
     )

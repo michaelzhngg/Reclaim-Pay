@@ -755,8 +755,14 @@ class Payout(SQLModel, table=True):
         foreign_key="reimbursements.reim_id",
         index=True
     )
+    # The requesting employee. For a vendor booking the payee is vendor_id, not this user.
     user_id: UUID = Field(
         foreign_key="employees.user_id",
+        index=True
+    )
+    vendor_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="vendors.vendor_id",
         index=True
     )
     amount: float = Field(

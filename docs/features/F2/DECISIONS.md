@@ -41,3 +41,15 @@ Non-obvious choices, with the alternative rejected. Newest ticket last.
 **Chosen:** the batch eligibility rule skips `VENDOR_BOOKING` rows so each booking gets an individual look at the vendor, dates and purpose.
 
 **Rejected:** allowing quick-lane bookings into batch approval. A new vendor can land in the quick lane because an unverified payee is a hard stop, so batching would let a vendor payment through without anyone reading the vendor details.
+
+## 7. `Payout.user_id` stays the requester; `vendor_id` is the payee
+
+**Chosen:** keep `Payout.user_id` pointing at the requesting employee for attribution, notifications and existing ledgers, and add a nullable `Payout.vendor_id`. The payout service resolves the actual PayPal payer by booking kind.
+
+**Rejected:** changing `Payout.user_id` to mean "payee", which would break every existing join and make employee payouts ambiguous. Also rejected a second payout table, which would duplicate the idempotent sender-batch logic.
+
+## 8. The booking endpoint pays an auto-pay booking before returning
+
+**Chosen:** after `create_booking` persists an `APPROVED` booking, the route calls the existing async payout service once and returns the claim with its payout state. A PayPal failure leaves the booking `APPROVED` for HR retry.
+
+**Rejected:** a background thread or a separate "pay" button for auto-pay bookings. The existing HR approval path already auto-pays approved records, so a booking should behave the same way; the request is short in mock mode.

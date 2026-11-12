@@ -155,6 +155,9 @@ export interface PayoutLedgerRow {
   reim_id: string;
   claim_ref: string;
   employee_name: string;
+  /** The vendor for a booking, the employee for a claim. */
+  payee_name: string;
+  kind: "CLAIM" | "VENDOR_BOOKING";
   amount: number;
   currency: string;
   status: PayoutStatus;

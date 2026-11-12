@@ -1,5 +1,6 @@
 """Vendor booking intake, routing and employee redaction. Needs TEST_DATABASE_URL."""
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -11,7 +12,7 @@ from api import deps
 from api.reimbursements import _build_reimbursement_response
 from core.enums import JudgmentResult, PolicyStatus, ReimbursementStatus, UserRole
 from core.models import LineItem, Payout, Policy, PolicyReimbursableCategory, Reimbursement, User, Vendor
-from engine.services.payout_service import initiate_payout_sync
+from engine.services.payout_service import initiate_payout_async, initiate_payout_sync, payee_for_reim
 from engine.services.vendor_booking_service import (
     check_booking_policy,
     create_booking,
@@ -102,21 +103,31 @@ def test_new_vendor_never_auto_pays(pg_db):
     assert float(reim.total_claimed_amount) == 40.0
 
 
-def test_verified_vendor_can_auto_pay_without_paying_yet(pg_db):
+def test_verified_vendor_can_auto_pay_and_pays_the_vendor(pg_db):
     user = _user(pg_db)
     _policy(pg_db, user)
-    _vendor(pg_db, "Verified Cab Co.")
+    vendor = _vendor(pg_db, "Verified Cab Co.")
 
-    reim, _booking_row, vendor, created = _booking(pg_db, user, "Verified Cab Co.")
-
+    reim, _booking_row, _vendor_row, created = _booking(pg_db, user, "Verified Cab Co.")
     assert created is False
     assert reim.tier == "AUTO_PAY"
     assert reim.status == ReimbursementStatus.APPROVED
-    assert float(reim.total_approved_amount) == 40.0
 
-    # This slice has no vendor payout path yet: it must refuse rather than pay the employee.
-    assert initiate_payout_sync(reim.reim_id, pg_db) is None
-    assert pg_db.exec(select(Payout).where(Payout.reim_id == reim.reim_id)).all() == []
+    payee = payee_for_reim(pg_db, reim)
+    assert payee is not None and payee.vendor_id == vendor.vendor_id and payee.payer_id == vendor.paypal_payer_id
+
+    payout = asyncio.run(initiate_payout_async(reim.reim_id, pg_db))
+    assert payout is not None
+    assert payout.vendor_id == vendor.vendor_id
+    assert payout.user_id == user.user_id
+    assert payout.status == "ACCEPTED"
+    pg_db.refresh(reim)
+    assert reim.status == ReimbursementStatus.DISBURSING
+
+    # A retry while the payout is live must not create a second one.
+    initiate_payout_sync(reim.reim_id, pg_db)
+    payouts = pg_db.exec(select(Payout).where(Payout.reim_id == reim.reim_id)).all()
+    assert len(payouts) == 1
 
 
 def test_employee_response_redacts_risk_and_vendor_account(pg_db):
@@ -153,6 +164,56 @@ def test_booking_has_one_line_item_for_the_existing_approval_math(pg_db):
     assert float(lines[0].claimed_amount) == 40.0
     assert float(lines[0].approved_amount) == 40.0
     assert lines[0].document_id is None
+
+
+def test_hr_approval_pays_the_vendor(pg_db, monkeypatch):
+    from main import app
+    import api.reimbursements as reimbursements_api
+    import engine.services.payout_service as payout_service
+
+    monkeypatch.setattr(reimbursements_api, "fire_and_forget_push", lambda *a, **k: None)
+    monkeypatch.setattr(payout_service, "fire_and_forget_push", lambda *a, **k: None)
+
+    requester = _user(pg_db, "requester")
+    hr = _user(pg_db, "hr", role=UserRole.HR, verified=False, paid_claims=0)
+    _policy(pg_db, requester)
+    reim, _booking_row, vendor, _created = _booking(pg_db, requester, "New Vendor Sdn Bhd", amount=40.0)
+    assert reim.status == ReimbursementStatus.REVIEW
+
+    vendor.paypal_verified = True
+    vendor.paypal_payer_id = "VENDORPAYER-NEW"
+    vendor.paypal_email = "vendor@example.test"
+    pg_db.add(vendor)
+    pg_db.commit()
+
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: hr
+    try:
+        res = TestClient(app).patch(f"/api/v1/reimbursements/{reim.reim_id}/status", json={"status": "APPROVED"})
+        assert res.status_code == 200, res.text
+    finally:
+        app.dependency_overrides.clear()
+
+    pg_db.refresh(reim)
+    payouts = pg_db.exec(select(Payout).where(Payout.reim_id == reim.reim_id)).all()
+    assert len(payouts) == 1
+    assert payouts[0].vendor_id == vendor.vendor_id
+    assert payouts[0].user_id == requester.user_id
+    assert reim.status in (ReimbursementStatus.DISBURSING, ReimbursementStatus.PAID)
+
+
+def test_unverified_vendor_is_never_paid(pg_db):
+    requester = _user(pg_db)
+    _policy(pg_db, requester)
+    reim, _booking_row, vendor, _created = _booking(pg_db, requester, "New Vendor Sdn Bhd", amount=40.0)
+
+    # Even if an HR action forged APPROVED, the payee check is repeated at payout time.
+    reim.status = ReimbursementStatus.APPROVED
+    pg_db.add(reim)
+    pg_db.commit()
+    assert payee_for_reim(pg_db, reim) is None
+    assert asyncio.run(initiate_payout_async(reim.reim_id, pg_db)) is None
+    assert pg_db.exec(select(Payout).where(Payout.reim_id == reim.reim_id)).all() == []
 
 
 def test_create_booking_api_returns_employee_view(pg_db):
