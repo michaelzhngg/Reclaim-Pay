@@ -2,7 +2,7 @@
 
 **What this is:** every feature we liked during brainstorming but left out of the hackathon build, plus the improvements we want to make to what we are building now. Nothing here is in scope before the 11 Nov submission. [`PLAN.md`](PLAN.md) and [`DETAIL-PLAN.md`](DETAIL-PLAN.md) stay the source of truth for the hackathon.
 
-**Status:** Draft for team discussion, written 3 Nov 2026.
+**Status:** Draft for team discussion, written 3 Nov 2026. Progress checked on 12 Nov 2026, see [Status as of 12 Nov 2026](#status-as-of-12-nov-2026).
 
 **How the evidence works:** every claim about the market links to a source in [section 7](#7-sources). Most expense-industry numbers come from surveys paid for by software vendors. We use them because they are the best available, and we say so where it matters. Before we build any feature, its owner re-checks the numbers marked "verify".
 
@@ -11,6 +11,7 @@
 ## Contents
 
 1. [Summary: the features in plain words](#1-summary-the-features-in-plain-words)
+   - [Status as of 12 Nov 2026](#status-as-of-12-nov-2026)
 2. [Background and problem statement](#2-background-and-problem-statement)
 3. [Feature details](#3-feature-details)
 4. [Improvements to what we are building now](#4-improvements-to-what-we-are-building-now)
@@ -90,6 +91,76 @@ Six of the 13 features don't need PayPal at all. The other seven use four PayPal
 2. P2 next, in the order F2 → F3 → F6 → F5. F3 needs F2, so they ship together.
 3. P3 fill the gaps between bets.
 4. P4 waits until a pilot customer asks for it.
+
+---
+
+## Status as of 12 Nov 2026
+
+**As of 12 Nov 2026, evening.** Checked against the code on `main` at `3b57080` (PR #22) and the hackathon docs. **Done** means merged to `main`. It does not mean the item has run with live PayPal or a pilot company unless the row says so. **Built, on a branch, not merged** means the code exists on the named branch and is not on `main`.
+
+**Summary.** The team reports that the hackathon build was submitted on 11 Nov; the repo holds no confirmation of it. Since then these merged to `main`: faster HR dashboard loading and D2 (PR #18), the employee badge panel (PR #19), G2, G5, O2 and R2 (PR #21), R3 (PR #22), and two small fixes (upload and draft-save errors now show on the capture screen; the HR tier tabs wrap instead of scrolling). Three more pieces of work are on branches and not merged: U2 notifications, A1 account invitations and a fix for the daily-cap race. Of the 36 items below, 4 are done, 9 are partly done, 21 are not started, 1 is built on a branch and not merged (A1), and 1 is dropped (F10). None of the new features F1 to F13 has started, though several have a base in today's code (noted in the table). Everything still runs on the PayPal sandbox.
+
+**Out of date after this audit.** The table was checked against `main` at `3b57080`. Teammates merged more work afterwards: the spend check on the employee dashboard (F1), vendor bookings (F2), policy limits and signal reviews, a webhook dead-letter view and ledger tabs (G3 and G4), and an analysis of the default limits (D1, see `DECISION-D1-LIMITS.md`). Rows for F1, F2, G3, G4, R1 and D1 have not been re-checked against that work and may understate it. Re-audit them before relying on them.
+
+**About the IDs.** The IDs match the team board (35 cards). F1 to F13 are this plan's features, with F6 split into F6a (Telegram) and F6b (WhatsApp) on the board. G (go-live), R (Receipt Shield), D (decision engine), U (polish), O (platform) and M1 (multi-company) come from section 4. V1 (vendor survey) and G5 (sandbox failure tests) are board cards that this plan does not describe. A1 (account invitations) is new work, not yet a board card, and not described elsewhere in this plan.
+
+| ID | Item | Status | What exists / what is missing | Evidence |
+|---|---|---|---|---|
+| **Done** | | | | |
+| D2 | Explain trust changes to employees | Done | `GET /autonomy/me` returns up to 3 recent level changes, the level rules, `hold_days` and `trusted_clean_days`. Since PR #19 the employee sees them in the badge dialog, under "Recent changes" and "How instant payouts work". Missing: a notification when the level changes (that is U2). | `backend/api/autonomy.py:98-114`; `frontend/app/employee/dashboard/_components/BadgesDialog.tsx`; `frontend/app/employee/dashboard/_lib/copy.ts:63-101`; commits `6ef4c31`, `b108229` |
+| G5 | Sandbox failure tests | Done | Tests replay PayPal's documented error bodies for `INSUFFICIENT_FUNDS` and `SENDER_EMAIL_UNCONFIRMED` and check that the claim moves to `DISBURSEMENT_FAILED` and stays open for an HR retry. They run in CI with a mocked HTTP layer. One more test sends the `ERRPYO005` trigger to the real sandbox; it runs only with `PAYPAL_SANDBOX_LIVE_TESTS=1`, and the repo has no record of a run. | `backend/tests/test_paypal_failures.py:1-6,73-132,246-262`; commit `922b0c7` |
+| R2 | Image forensics (error-level and noise checks) | Done | At upload, a noise-consistency check and a strict JPEG error-level check look for an area with much less camera noise than the rest of the photo, such as a retyped total. Observe-only by default (`IMAGE_FORENSICS_MODE=observe`, and `render.yaml` does not change it): HR sees the finding as "not scored", it adds no points and never reaches the employee. `score` makes it a MEDIUM signal. Not calibrated on real claims yet (that is R1). | `backend/engine/risk/shield/forensics.py`; `backend/engine/risk/shield/run.py:128-133`; `backend/core/config.py:68-70`; commit `afd971d` |
+| R3 | Red-team receipt suite in CI | Done | 66 fake receipts in 7 attack families and 28 honest ones run through the shield and `decide()` on every PR. The build fails if one of the 42 must-catch fakes gets through, a family's catch rate drops below `baseline.json`, or more than 2 honest receipts are flagged. The 24 known gaps and 2 false positives are strict xfails. Limits: OCR and the LLM are stubbed, so prompt and model changes are not tested; Render deploys each commit to `main` without waiting for CI (`autoDeployTrigger: commit`); `s3_ai_hotel.png` still has no C2PA marker. | `backend/tests/redteam/README.md`; `backend/tests/redteam/baseline.json`; `.github/workflows/deploy.yml:34`; `render.yaml:20` |
+| (none) | HR dashboard loading (not in this plan) | Done | The claim list takes 8 queries for any page size (204 before, for 50 rows). New indexes for claim order and latest payout (migration `2a7c9e1d4b80`). Dashboard claims load in the server render. AG Grid loads only when a grid is on screen. The banner reuses a status under 15 s old, and the Autonomy page loads in one action. Merged in PR #18. See Known limitations. | `backend/tests/test_list_reimbursements_queries.py`; `backend/alembic/versions/2a7c9e1d4b80_claim_list_indexes.py`; `frontend/app/hr/dashboard/page.tsx:7`; commits `4519972`, `9e473d2`, `2527370`, `8929ff2`, `ea938b5` |
+| (none) | Employee badge panel (not in this plan) | Done | Bronze (MYR 50), Silver (MYR 100) and Gold (MYR 200) badges in a carousel replace the fast-track card. Totals sit in the same panel, and an open arc shows progress to the next badge. Merged in PR #19. Leftover on `main`: the backend reason text still says "Trusted"; the fix is on `feat/u2-notifications` (see Known limitations). | `frontend/app/employee/dashboard/_lib/badges.ts:11-13`; `frontend/app/employee/dashboard/_components/BadgeBlock.tsx`; commits `4b970f9`, `94abe5f` |
+| **Partly done / needs improvement** | | | | |
+| G2 | Low-balance funding alert | Partly done | Exists: a funding card on HR Payouts with the PayPal balance, the average daily payout over 14 days, approved claims not yet paid and the days of cover. Below `FUNDING_ALERT_DAYS` (default 3), or when the balance can't cover what is owed, HR gets an in-app alert, at most once a day. Alert only: no payout or decision changes. Missing: the check runs only when an HR user opens the Payouts page, so no alert goes out if nobody does; there is no scheduled job. Reading the balance needs "Transaction search" enabled on the PayPal app, which the live site lacked on 4 Nov (see G4), and the card has not been checked on the live site. | `backend/engine/services/funding_service.py`; `backend/api/payouts.py:144-156`; `frontend/app/hr/payouts/_components/FundingCard.tsx`; commit `922b0c7` |
+| G3 | Harden PayPal webhooks | Partly done | Exists: signed webhook endpoint (signature check skipped only in mock mode); payout status only moves forward, which limits what a replayed event can do; the claim page refreshes a payout from PayPal when its status is over 10 s old. Missing: stored event IDs for replay protection, a dead-letter queue, a daily job for payouts stuck over 24 h. | `backend/api/paypal.py:353-388`; `backend/engine/services/payout_status.py:25`; `backend/api/payouts.py:218` |
+| G4 | Daily ledger reconciliation (PP-7) | Partly done | Exists: on-demand reconcile through the PayPal Server SDK (Transaction Search), with a 3-hour lag allowance, behind `GET /payouts/reconcile` and a badge on the ledger tab. It has never returned a result from the live sandbox: on 4 Nov the live site showed "PayPal can't be reached", probably because Transaction Search is not enabled on the sandbox app. Missing: the daily job, and sending differences to HR. | `backend/engine/services/reconcile_service.py`; `backend/api/payouts.py:135`; `docs/hackathon/DEVPOST-FORM.md` ("Before submitting") |
+| R4 | Cross-company duplicate detection | Partly done | Exists: SHA-256 and perceptual-hash matching against every document from the last 180 days in our one database; it caught S5 on the live site on 4 Nov. Missing: a vector index (today it is a linear scan) and privacy-safe hashes shared across companies. | `backend/engine/risk/queries.py:14`; `backend/engine/risk/shield/fingerprint.py:68`; `docs/hackathon/DEVPOST-FORM.md` ("Before submitting") |
+| D3 | Settings change history | Partly done | Exists: every limits save writes old values, new values, the actor and HR's reason to the hash-chained action log, and the HR agent log shows it as "Limits changed". Missing: a history view that compares versions, and per-company history (there is one company today). | `backend/engine/services/autonomy_store.py:163-185`; `frontend/components/hr-grid/agentLog.ts:12,65` |
+| U1 | Remove leftover sample-data screens | Partly done | Exists: the sample rows are gone (`MOCK_BUNDLES` and `MOCK_POLICIES` are empty), and `/hr/review` and `/hr/view` without an ID redirect to the dashboard. Missing: the review page still falls back to `MOCK_BUNDLES`, and Policy Studio imports its types and styles from `mockData.ts`. Move those and delete the file. | `frontend/app/hr/hr_components/mockData.ts:47-56`; `frontend/app/hr/review/[id]/page.tsx:8,351`; `frontend/app/hr/policy/page.tsx:5` |
+| U2 | Notifications | Partly done | On `main`: in-app and web push notices for payment received, payout failed (to the employee and HR) and the overpayment notice, which states the dispute deadline; push opt-in in Settings for both roles. Built, on a branch, not merged (`feat/u2-notifications`, commit `7cf8276`): email through Resend for employees, a reminder about 24 h before the dispute window closes, and a notice when the instant-payout limit changes. The branch adds `RESEND_API_KEY` and `EMAIL_FROM`; they are not on `main`. | `backend/engine/services/payout_status.py:59-76`; `backend/engine/services/recovery_service.py:232`; `frontend/app/_components/PushSettingToggle.tsx`; branch `feat/u2-notifications` |
+| U3 | Accessibility pass | Partly done | Exists from the 4 Nov UI revamp: 44 px tap targets, Escape and focus return on dialogs, `aria-live` on the timeline, a risk-bar contrast fix. Missing: a recorded keyboard pass through the HR grid, a contrast check across the app, and a screen-reader test of the timeline. | `frontend/components/timeline/AgentTimeline.tsx:31`; commits `b166ecd`, `e314725` |
+| O2 | Security hardening | Partly done | Exists: rate limits per signed-in user (per IP when signed out) on login, registration, PayPal connect, policy upload and every claim endpoint: analysis 5 a minute and 200 a day, receipt upload 10 a minute and 300 a day, draft saves 30 a minute, receipt edits 60 a minute. A throttled request gets a 429 with `Retry-After` and a plain message. HR endpoints are not throttled. Render generates `SECRET_KEY` and holds secrets in an environment group. Missing: the limiter still counts per process (no shared store), no vault, no audit log export. | `backend/api/rate_limit.py:20-33,57-60`; `backend/tests/test_rate_limits.py`; `render.yaml:31,74`; commit `a0a8229` |
+| **Built, on a branch, not merged** | | | | |
+| A1 | Account invitations and forgot password | Built, on a branch, not merged | HR creates an account and the employee gets an email link to set their own password. Add Employee shows the one-time invite link with a Copy button, and the list shows Invited and Invite expired badges with a Resend action. Forgot password sends a 30-minute reset link. Tokens are single use and stored as SHA-256 hashes. Setting a password ends older sessions. Replaces the HR-only `/auth/register` route. The branch is built on `feat/u2-notifications`, so it needs U2 merged first. | branch `feat/account-invites`, commits `060ca12`, `e59e9a4` |
+| **Not started** | | | | |
+| G1 | Get live Payouts approved | Not started | No record in the repo. Production still points at the sandbox. | `render.yaml:54` |
+| V1 | Vendor survey for company-paid bookings | Not started | Outreach to pilot companies, not code. It gates F2. | none |
+| R1 | Calibrate Receipt Shield | Not started | Needs real claims; signal points are still the hackathon defaults. R2's observe-only findings will feed it. | none |
+| D1 | Tune decision-engine limits | Not started | Needs pilot data. Limits are editable on the Autonomy page. | none |
+| U4 | Dark mode and denser HR views | Not started | No dark theme in `globals.css` or `DESIGN.md`. | none |
+| M1 | Multi-company platform | Not started | No company model or `company_id`. | none |
+| O1 | Observability dashboard | Not started | Only LangSmith tracing of agent runs is configured. | `render.yaml` (`LANGCHAIN_TRACING`) |
+| O3 | PDPA privacy controls (retention, access export, breach runbook) | Not started | | none |
+| F1 | Ask before you spend | Not started | Base: policy sections with embeddings. | `backend/alembic/versions/a1b2c3d4e5f6_add_policy_section_embedding.py` |
+| F2 | Company-paid vendor bookings | Not started | | none |
+| F3 | Receipt matches the real payment | Not started | Base: the G4 Transaction Search code. | `backend/engine/services/reconcile_service.py` |
+| F4 | Travel cash advance | Not started | Base: the recovery service (offsets and invoices). | `backend/engine/services/recovery_service.py` |
+| F5 | Pay contractors and overseas staff | Not started | | none |
+| F6a, F6b | Claim by chat: Telegram (F6a), WhatsApp (F6b) | Not started | | none |
+| F7 | HR assistant | Not started | Base: triage grid and batch approve. | `frontend/components/hr-grid/` |
+| F8 | Policy simulator | Not started | Base: the limits back-test. | `backend/engine/services/backtest_service.py` |
+| F9 | Smart buying for equipment | Not started | Base: the Channel3 price check, off until a key is set. | `backend/engine/risk/shield/market_price.py` |
+| F11 | Team budgets with early warnings | Not started | Base: the company daily budget hard stop. | `backend/engine/risk/autonomy.py:112` |
+| F12 | Month-end report for finance | Not started | | none |
+| F13 | Malaysian e-invoice readiness | Not started | | none |
+| **Dropped / decided not to build** | | | | |
+| F10 | Camera-first app and wallet | Dropped 12 Nov | See §6. | commit `f70ff6e` |
+| (none) | Pagination and a server-side status filter for the HR triage queue | Decided not to build | The queue loads only the 50 newest claims of any status. Recorded under Known limitations. | `backend/api/reimbursements.py:308-309`; `frontend/app/hr/dashboard/page.tsx:7` |
+
+### Known limitations
+
+- **HR triage queue shows 50 claims.** It loads the 50 newest claims of every status, so an older claim waiting for review can be missing from the queue. We decided not to fix this for now (`backend/api/reimbursements.py:309`).
+- **Two claims at the same moment can pass a daily cap.** Listed as a known gap in `HANDOFF.md` §3. We found no lock around the ledger read behind the daily-cap checks (`backend/engine/risk/autonomy.py:110-112`). A fix is in progress on branch `fix/daily-cap-race`, which had no commits beyond `main` at the time of writing.
+- **Rate limits count per process.** The limiter keeps its counters in memory, so each worker or instance counts separately and the real limit is the set limit times the number of processes (`backend/api/rate_limit.py:57-60`).
+- **The funding alert needs someone to open HR Payouts.** The balance check and the alert run only on `GET /payouts/funding` (`backend/api/payouts.py:144-156`).
+- **The frontend reaches the API through the public domain.** `INTERNAL_API_URL` is `https://api.reclaimai.dev` instead of a private Render address (`render.yaml:92`).
+- **The action log is re-verified on every read.** `GET /autonomy/actions` loads and re-hashes the whole chain each time, so it slows down as the log grows (`backend/api/autonomy.py:187`, `backend/engine/services/action_log.py:114`).
+- **Reconcile calls PayPal live on each request.** `GET /payouts/reconcile` has no cache. Since PR #18 the ledger tab starts it after the ledger loads, so it no longer blocks the page (`backend/api/payouts.py:135`).
+- **Badge wording in the backend.** On `main` the trust reason still says "Trusted needs 180 days without a correction"; with the badge panel it should say Gold (`backend/engine/services/backtest_service.py:322`). The fix (commit `8e1acc6`) is on `feat/u2-notifications`, not merged.
+- **Bryntum calendar runs on the trial build** and shows its watermark (`frontend/package.json:13`).
 
 ---
 
@@ -527,11 +598,13 @@ Dates assume the hackathon ends 11 Nov 2026 and the team keeps going part-time.
 
 | Phase | When | Goal | Contents |
 |---|---|---|---|
-| **0. Hackathon** | Now → 11 Nov 2026 | Win: safe automation, shown end to end | PLAN.md as written |
+| ~~**0. Hackathon**~~ | ~~Now → 11 Nov 2026~~ | ~~Win: safe automation, shown end to end~~ | ~~PLAN.md as written~~ Ended 11 Nov. Submitted, as reported by the team. |
 | **1. Make it real** | Nov–Dec 2026 | One pilot company using live PayPal | §4.1 go-live, §4.2 calibration, §4.4 cleanup, **F1** ask before you spend (P1), **F7** HR assistant (P1) |
 | **2. Remove out-of-pocket** | Q1 2027 | Employees stop fronting money for travel | **F4** travel advance (P1), **F2** company-paid bookings (P2), **F3** payment matching (P2), **F12** month-end report (P3) |
 | **3. Meet people where they are** | Q2 2027 | Faster submission, better control | **F6** chat claims, Telegram first then WhatsApp (P2), **F11** team budgets (P3), **F8** policy simulator (P3) |
 | **4. Grow the market** | H2 2027 | Contractors and overseas staff | **F5** contractors and FX (P2), §4.5 multi-company; **F9** and **F13** (P4) only if a pilot customer asks |
+
+**Status on 12 Nov, evening.** Phase 0 is over. Nothing in phases 1 to 4 is complete. In phase 1, §4.1 go-live is partly done (G5 done; G2, G3 and G4 partly done; G1 not started), §4.4 cleanup is partly done, and calibration (R1), F1 and F7 have not started. Work merged outside any phase: D2 (§4.3), R2 and R3 (§4.2), and the O2 rate limits (§4.5, partly done). F10 was dropped and was never in a phase. Details: [Status as of 12 Nov 2026](#status-as-of-12-nov-2026).
 
 **Why this order**
 - **Phase 1 first.** A product that hasn't paid a real employee can't sell anything else, and F1 is cheap and lowers rejections straight away.

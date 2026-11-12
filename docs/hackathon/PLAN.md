@@ -4,7 +4,8 @@
 **Team:** Bogosort — Michael, Christian, Darrell, Filbert, Chingiz
 **Submission deadline:** 12 Nov 2026. **Our target:** submit by 11 Nov.
 **Build window:** 3 days (Day 1–3), plus Day 0 tonight for setup.
-**Status:** Build complete on `hackathon/reclaim-pay`, tested with mocks and stand-ins. Live S1–S8 run still to do. Updated 4 Nov.
+**Status:** Submitted 11 Nov, as reported by the team (no confirmation is stored in the repo). The 4 Nov live run on the public site covered S1, S4 and S5; no full S1–S8 run is recorded. Follow-up work since then is in [After submission](#after-submission). Updated 12 Nov, evening.
+**Earlier status (4 Nov):** Build complete on `hackathon/reclaim-pay`, tested with mocks and stand-ins. Live S1–S8 run still to do.
 
 This is the one page to keep open. Each section links to the detailed documents:
 
@@ -31,12 +32,12 @@ This is the one page to keep open. Each section links to the detailed documents:
 
 We're done when all of these are true **on the public staging URL**:
 
-- [ ] **G1.** A clean, low-risk claim goes from "Submit" to "money in a PayPal sandbox account" in under a minute, with no human involved.
-- [ ] **G2.** Every automatic decision shows a one-paragraph explanation that HR and the employee can read.
-- [ ] **G3.** A fake receipt (AI-generated, prompt-injected, duplicate or split) is never auto-paid, and HR sees the evidence.
-- [ ] **G4.** HR can see, tune and stop the automation (the Autonomy Dial, limits, kill switch) and sees the trade-off before saving.
-- [ ] **G5.** All 8 demo scenarios (section 6) pass two runs in a row.
-- [ ] **G6.** A 3-minute video, the Devpost write-up and the README are submitted.
+- [x] **G1.** A clean, low-risk claim goes from "Submit" to "money in a PayPal sandbox account" in under a minute, with no human involved. _(4 Nov live run: S1 paid RM48 to the sandbox account in about 40 s. Sources: `DEVPOST-FORM.md` "Before submitting", `UI-REVAMP-HANDOFF.md` §3, `screenshots/02-paid-claim-money-in-paypal.png`)_
+- [ ] **G2.** Every automatic decision shows a one-paragraph explanation that HR and the employee can read. _(Built for HR: `decide()` writes an explanation (`backend/engine/risk/autonomy.py:175`) and the evidence panel shows it. Employees get neutral wording instead, by the later product rule in `HANDOFF.md` §4, so this goal as written is not met)_
+- [ ] **G3.** A fake receipt (AI-generated, prompt-injected, duplicate or split) is never auto-paid, and HR sees the evidence. _(Partly verified: S4 and S5 landed in two-person review on the live site on 4 Nov. S3 and S6 have no recorded live run, and `s3_ai_hotel.png` still has no C2PA marker)_
+- [x] **G4.** HR can see, tune and stop the automation (the Autonomy Dial, limits, kill switch) and sees the trade-off before saving. _(`frontend/app/hr/autonomy/page.tsx`; live capture in `screenshots/08-autonomy-backtest.png`)_
+- [ ] **G5.** All 8 demo scenarios (section 6) pass two runs in a row. _(No QA run record in the repo)_
+- [ ] **G6.** A 3-minute video, the Devpost write-up and the README are submitted. _(Unverified. 12 Nov evening: the README Project status is updated, but the video link is still a placeholder because the repo has no video link)_
 
 **Things we will not do:** live PayPal or real money (sandbox only), reading employees' personal PayPal history (PayPal's API doesn't allow it), vendor payments, contractor payouts, travel advances (these go on a roadmap slide), or swapping our database to Elastic.
 
@@ -81,7 +82,7 @@ Priorities:
 
 | ✓ | Item | Priority | Day |
 |---|---|---|---|
-| [ ] | Sandbox app, a business account (sender) and two personal accounts (receivers); one payout made by hand with curl; decide MYR or USD _(sandbox keys verified; webhook registered for 10 events; Log in with PayPal reaches our callback on the sandbox. Still open: first real payout, MYR/USD decision)_ | Must | 0 |
+| [x] | Sandbox app, a business account (sender) and two personal accounts (receivers); one payout made by hand with curl; decide MYR or USD _(sandbox keys verified; webhook registered for 10 events; Log in with PayPal reaches our callback on the sandbox. 12 Nov: first real sandbox payout was S1 on 4 Nov, and the currency is MYR (`DEVPOST-FORM.md` "Before submitting", `render.yaml` `PAYPAL_CURRENCY`). The payout was made by the app, not by hand with curl)_ | Must | 0 |
 | [x] | PayPal client: login token, payout, payout status, webhook signature check, "Log in with PayPal" exchange, with tests _(code exchange and userinfo work on the live sandbox; payouts not yet run there)_ | Must | 1 |
 | [x] | Payouts that can't be sent twice (`sender_batch_id = RC-{claim}-{attempt}`) | Must | 1 |
 | [x] | Replace the Xendit mock with PayPal in `payout_service` | Must | 1–2 |
@@ -90,7 +91,7 @@ Priorities:
 | [x] | Payout ledger endpoint for HR | Should | 2 |
 | [x] | "Sign in with PayPal" on the login page, next to the password: employees only, matched by an already-linked and verified `paypal_payer_id` (never by email), and a PayPal sign-in starts the 72-hour pause before payout details can change. HR stays on password _(built and tested in mock mode; not yet run against live sandbox keys)_ | Should | 3 |
 | [x] | Mock mode, so the frontend can work without sandbox keys | Must | 1 |
-| [x] | Reconcile payouts against the company's PayPal ledger (PayPal Server SDK) _(built with the Server SDK; not yet run against the live sandbox)_ | Could | 3 |
+| [x] | Reconcile payouts against the company's PayPal ledger (PayPal Server SDK) _(built with the Server SDK; not yet run against the live sandbox. 12 Nov: on 4 Nov the live site showed "PayPal can't be reached" for it, probably because Transaction Search is not enabled on the sandbox app)_ | Could | 3 |
 
 ### 4.2 Data, autonomy API, approvals, recovery — Chingiz (session B)
 
@@ -152,14 +153,14 @@ Priorities:
 
 | ✓ | Item | Priority | Day |
 |---|---|---|---|
-| [x] | Render staging (falls back to the existing VM if blocked by Day 1 13:00); public URL given to Chingiz for PayPal _(replaced by Filbert's home server behind a Cloudflare tunnel: https://reclaimai.dev, deployed from `main`. Drop Render from "Built with")_ | Must | 0–1 |
-| [ ] | Demo policy (Transportation, Meals, Accommodations with rank caps, Equipment) uploaded through Policy Studio; without it S1 and S6 fail _(PDF built in `demo/policy/`; not uploaded yet, needs working LLM keys)_ | Must | 1 |
+| [x] | Render staging (falls back to the existing VM if blocked by Day 1 13:00); public URL given to Chingiz for PayPal _(replaced by Filbert's home server behind a Cloudflare tunnel: https://reclaimai.dev, deployed from `main`. Drop Render from "Built with". 12 Nov: hosting moved to Render on 4–5 Nov (`render.yaml`, commits `80c76be` and `916c852`), so the "drop Render" note is out of date)_ | Must | 0–1 |
+| [x] | Demo policy (Transportation, Meals, Accommodations with rank caps, Equipment) uploaded through Policy Studio; without it S1 and S6 fail _(PDF built in `demo/policy/`. 12 Nov: uploaded to the live site, checked 4 Nov per `DEVPOST-FORM.md` "Before submitting". Not checked on the Render database that replaced it)_ | Must | 1 |
 | [x] | Seed 120 past claims (for the back-test) plus demo users linked to PayPal sandbox accounts | Must | 1 |
-| [x] | Red-team receipts for scenarios S1–S8, plus the "flood" script _(S3 still needs a real AI-generated image with C2PA, see `demo/README.md`)_ | Must | 1 |
-| [ ] | Postman collection with tests, run with Newman; publish a public workspace _(collection and Newman run done, 91 requests pass locally; the public workspace still needs a human login)_ | Should | 2 |
-| [ ] | APIMatic: confirm the Context Plugin is installed on everyone's machine, record a clip; optional SDK or docs portal | Should | 2 |
-| [ ] | QA checklist, run Day 2 at 20:00 and Day 3 at 09:00; bugs filed to the file owner _(not run yet: blocked on AI keys, demo policy and the S3 image)_ | Must | 2–3 |
-| [ ] | Video (3:00), Devpost write-up, README _(README and `DEVPOST.md` drafted, to be finalised after the live S1–S8 run; video waits for the team's call)_ | Must | 3 |
+| [x] | Red-team receipts for scenarios S1–S8, plus the "flood" script _(S3 still needs a real AI-generated image with C2PA, see `demo/README.md`. Still true on 12 Nov: the file has no C2PA marker)_ | Must | 1 |
+| [ ] | Postman collection with tests, run with Newman; publish a public workspace _(collection and Newman run done, 91 requests pass locally; the public workspace still needs a human login. 12 Nov: no public link in the README or `DEVPOST-FORM.md`)_ | Should | 2 |
+| [ ] | APIMatic: confirm the Context Plugin is installed on everyone's machine, record a clip; optional SDK or docs portal _(12 Nov: not done. The Devpost draft says "We didn't use the APIMatic Context Plugin" (`DEVPOST-FORM.md`))_ | Should | 2 |
+| [ ] | QA checklist, run Day 2 at 20:00 and Day 3 at 09:00; bugs filed to the file owner _(not run yet: blocked on AI keys, demo policy and the S3 image. 12 Nov: no QA run record in the repo; the 4 Nov live run of S1, S4 and S5 is the only recorded run)_ | Must | 2–3 |
+| [ ] | Video (3:00), Devpost write-up, README _(README and `DEVPOST.md` drafted, to be finalised after the live S1–S8 run; video waits for the team's call. 12 Nov: submitted 11 Nov as reported by the team. 12 Nov evening: README Project status and hosting text updated; the video link is still a placeholder)_ | Must | 3 |
 
 ---
 
@@ -310,9 +311,9 @@ We link features to each judge's company and role only. Don't mention judges' pe
 - [ ] README: demo link, video, architecture diagram, how to run with sandbox keys, Postman link
 - [ ] Public Postman workspace link
 - [x] Repository is public, or judges have access
-- [ ] All payments shown are sandbox, and this is stated
+- [x] All payments shown are sandbox, and this is stated _(README line 9; `DEVPOST-FORM.md`)_
 - [ ] Every sponsor tool listed actually appears in the demo
-- [ ] Submitted by 11 Nov; confirmation screenshot saved
+- [ ] Submitted by 11 Nov; confirmation screenshot saved _(submitted 11 Nov as reported by the team; no confirmation screenshot in the repo)_
 
 ---
 
@@ -322,5 +323,36 @@ We link features to each judge's company and role only. Don't mention judges' pe
 2. Can one project win several sponsor prizes? — Darrell
 3. Do we approve dropping AI-only rejections (a behavior change from the original version)? — Team
 4. Are the default limits right (RM50 / 100 / 200, two people above RM1,000)? — Team. Analysis and options: [DECISION-D1-LIMITS.md](DECISION-D1-LIMITS.md)
-5. MYR or USD in the sandbox? — Chingiz, after the Day 0 test
+5. MYR or USD in the sandbox? — Chingiz, after the Day 0 test _(Answered: MYR)_
 6. Do we want an AG Grid Enterprise trial key, or stay on the free Community version? — Christian
+
+---
+
+## After submission
+
+Work since the 11 Nov submission, as of 12 Nov 2026, evening. The full roadmap status is in [`FUTURE-DEVELOPMENT-PLAN.md`, Status as of 12 Nov 2026](FUTURE-DEVELOPMENT-PLAN.md#status-as-of-12-nov-2026).
+
+**Merged to `main`:**
+
+- [x] **HR dashboard loading** (PR #18): the claim list takes 8 queries instead of 204, new indexes (migration `2a7c9e1d4b80`), dashboard claims load in the server render, AG Grid loads only when needed, and the banner and Autonomy page make fewer requests. The triage queue still shows only the 50 newest claims; we decided not to add pagination for now.
+- [x] **Trust changes explained to employees** (D2, PR #18): recent level changes and how the levels work. Since PR #19 they appear in the badge dialog.
+- [x] **Badge panel on the employee dashboard** (PR #19): Bronze MYR 50, Silver MYR 100 and Gold MYR 200 badges replace the fast-track card. The backend reason text on `main` still says "Trusted"; the fix is on the U2 branch.
+- [x] **Low-balance funding alert** (G2, PR #21): a funding card on HR Payouts and an in-app alert to HR at most once a day. It runs only when HR opens the Payouts page, so G2 stays partly done.
+- [x] **Payout failure tests** (G5, PR #21): `INSUFFICIENT_FUNDS` and `SENDER_EMAIL_UNCONFIRMED` replayed from PayPal's documented error bodies. The live sandbox `ERRPYO005` test is opt-in (`PAYPAL_SANDBOX_LIVE_TESTS=1`) and has no recorded run.
+- [x] **Claim-submission rate limits** (O2, PR #21): per-employee limits on analysis, upload, draft saves and receipt edits, with a 429 and a plain message. The limiter still counts per process.
+- [x] **Image forensics** (R2, PR #21): noise and error-level checks for pasted-in totals, observe-only by default.
+- [x] **Red-team receipt suite on every PR** (R3, PR #22): 66 fakes and 28 honest receipts, with a catch-rate baseline per attack family.
+- [x] **Small fixes:** upload and draft-save errors now show on the receipt capture screen (`fdd193c`), and the HR tier tabs wrap instead of scrolling (`ce1469f`).
+
+**Built, on a branch, not merged:**
+
+- [ ] **Notifications** (U2, branch `feat/u2-notifications`): email through Resend, a reminder before the dispute deadline, and a notice when the instant-payout limit changes. Adds `RESEND_API_KEY` and `EMAIL_FROM`.
+- [ ] **Account invitations and forgot password** (A1, branch `feat/account-invites`): HR creates an account, and the employee gets an email link to set a password. Forgot password sends a 30-minute reset link. The branch sits on top of the U2 branch.
+
+**In progress:**
+
+- [ ] **Daily-cap race fix** (branch `fix/daily-cap-race`): two claims at the same moment can pass a daily cap. The branch had no commits beyond `main` at the time of writing.
+
+**Dropped:**
+
+- **F10 camera-first app and wallet:** dropped on 12 Nov.
