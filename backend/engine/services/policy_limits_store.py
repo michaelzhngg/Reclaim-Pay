@@ -26,7 +26,9 @@ def _status(value) -> str:
 
 def list_rows(db: Session, policy_id: UUID) -> tuple[list[PolicyLimit], list[PolicyZonePlace]]:
     limits = db.exec(select(PolicyLimit).where(PolicyLimit.policy_id == policy_id)
-                     .order_by(PolicyLimit.category, PolicyLimit.grade_min, PolicyLimit.created_at)).all()
+                     .order_by(PolicyLimit.category, PolicyLimit.scope, PolicyLimit.zone.asc().nulls_first(),
+                               PolicyLimit.grade_min.asc().nulls_first(), PolicyLimit.grade_max.asc().nulls_last(),
+                               PolicyLimit.created_at)).all()
     places = db.exec(select(PolicyZonePlace).where(PolicyZonePlace.policy_id == policy_id)
                      .order_by(PolicyZonePlace.zone, PolicyZonePlace.place)).all()
     return list(limits), list(places)

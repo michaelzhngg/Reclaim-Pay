@@ -310,3 +310,15 @@ def test_seed_names_a_missing_policy(pg_db):
 
     with pytest.raises(SystemExit, match="No policy with alias"):
         seed(pg_db, alias=f"missing-{uuid4().hex[:6]}")
+
+
+def test_rows_read_from_lowest_grade_up_with_open_ranges_in_place(pg_db):
+    hr = make_user(pg_db)
+    p = make_policy(pg_db, hr)
+    top = HOTEL.model_copy(update={"grade_min": 5, "grade_max": None, "amount": 600.0})
+    mid = HOTEL.model_copy(update={"grade_min": 3, "grade_max": 4, "amount": 400.0})
+    store.confirm_all(pg_db, p.policy_id, [top, mid, HOTEL, MEAL], [], hr.user_id, NOW)
+    rows, _ = store.list_rows(pg_db, p.policy_id)
+    assert [(r.category, float(r.amount)) for r in rows] == [
+        ("Accommodations", 250.0), ("Accommodations", 400.0), ("Accommodations", 600.0), ("Meals", 100.0),
+    ]
