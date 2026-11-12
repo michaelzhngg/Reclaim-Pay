@@ -121,6 +121,21 @@ describe("batch approval", () => {
     expect(exclusionReason(row, "hr-1")).toBe("VENDOR_BOOKING");
   });
 
+  it("carries the vendor verification, dates and purpose for HR", () => {
+    const row = toTriageRow(raw({
+      kind: "VENDOR_BOOKING",
+      vendor_name: "Hotel Seri Kenanga",
+      vendor_verified: true,
+      service_start: "2026-11-17",
+      service_end: "2026-11-19",
+      purpose: "Regional sales meeting",
+    }));
+    expect(row.vendorVerified).toBe(true);
+    expect(row.serviceStart).toBe("2026-11-17");
+    expect(row.serviceEnd).toBe("2026-11-19");
+    expect(row.purpose).toBe("Regional sales meeting");
+  });
+
   it("treats a record without a kind as an ordinary claim", () => {
     const row = toTriageRow(raw({ kind: undefined }));
     expect(row.kind).toBe("CLAIM");

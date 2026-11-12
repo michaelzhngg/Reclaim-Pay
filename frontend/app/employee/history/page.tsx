@@ -81,6 +81,9 @@ function mapToHistoryClaim(r: ReimbursementRaw): HistoryClaim {
       departurDate: r.departure_date ?? undefined,
       arrivalDate: r.arrival_date ?? undefined,
       overseas: false,
+      vendorName: r.vendor_name ?? undefined,
+      serviceStart: r.service_start ?? undefined,
+      serviceEnd: r.service_end ?? undefined,
     },
   };
 }

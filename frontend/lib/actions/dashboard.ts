@@ -7,6 +7,7 @@
 import { apiGet, API_PREFIX } from "@/lib/api/client";
 import type { DashboardStats, ClaimSummary, ReimbursementRaw } from "@/lib/api/types";
 import { mapReimbursementToClaim } from "@/lib/api/types";
+import { employeeDashboardStats } from "@/lib/claims/stats";
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
@@ -14,29 +15,9 @@ import { mapReimbursementToClaim } from "@/lib/api/types";
 export async function getDashboardStats(): Promise<DashboardStats> {
   const result = await apiGet<ReimbursementRaw[]>(`${API_PREFIX}/reimbursements/`);
   if (!result.data || result.data.length === 0) {
-    return {
-      awaitingReview: { amount: "MYR 0.00", count: 0 },
-      reimbursedThisMonth: { amount: "MYR 0.00", count: 0 },
-      alreadyPaid: { amount: "MYR 0.00", count: 0 },
-    };
+    return employeeDashboardStats([]);
   }
-
-  const fmt = (n: number) =>
-    `MYR ${n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-  const bucket = (statuses: string[], excludeBookings = false) => {
-    const items = result.data!.filter(
-      (r) => statuses.includes(r.status) && !(excludeBookings && r.kind === "VENDOR_BOOKING"),
-    );
-    return { amount: fmt(items.reduce((s, r) => s + (r.total_claimed_amount ?? 0), 0)), count: items.length };
-  };
-
-  return {
-    awaitingReview: bucket(["REVIEW", "PENDING", "APPEALED"]),
-    // Vendor payments are company spend, not money reimbursed to the employee.
-    reimbursedThisMonth: bucket(["APPROVED"], true),
-    alreadyPaid: bucket(["PAID"], true),
-  };
+  return employeeDashboardStats(result.data);
 }
 
 /** Fetch the N most recent claims for the dashboard table. */

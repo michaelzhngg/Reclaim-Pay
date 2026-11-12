@@ -2,37 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, BriefcaseBusiness, CheckCircle2, Clock, Loader2 } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, CheckCircle2, Clock, Loader2, AlertCircle } from "lucide-react";
 import { createVendorBooking, getVendors } from "@/lib/actions/bookings";
 import { getPolicies } from "@/lib/actions/policies";
 import type { ReimbursementRaw, VendorOption } from "@/lib/api/types";
 import { formatClaimRef, formatMoney } from "@/lib/format";
+import { bookingResultCopy, isBookingPending } from "./_lib/resultCopy";
 
 const NEW_VENDOR = "__new__";
 const DEFAULT_CATEGORIES = ["Accommodations", "Equipment", "Meals", "Transportation", "Other"];
-
-const STATUS_COPY: Record<string, { title: string; body: string; tone: string }> = {
-  APPROVED: {
-    title: "Approved",
-    body: "The vendor will be paid from the company PayPal account. You do not need to pay anything.",
-    tone: "bg-success-soft text-success",
-  },
-  PAID: {
-    title: "Paid",
-    body: "The vendor has been paid from the company PayPal account.",
-    tone: "bg-success-soft text-success",
-  },
-  REVIEW: {
-    title: "With HR",
-    body: "HR will check the vendor and the booking. You do not need to pay anything.",
-    tone: "bg-warning-soft text-warning",
-  },
-  REJECTED: {
-    title: "Not approved",
-    body: "HR did not approve this booking. No vendor payment was made.",
-    tone: "bg-danger-soft text-danger",
-  },
-};
 
 export default function BookVendorPage() {
   const [vendors, setVendors] = useState<VendorOption[]>([]);
@@ -103,12 +81,16 @@ export default function BookVendorPage() {
   }
 
   if (result) {
-    const copy = STATUS_COPY[result.status] ?? STATUS_COPY.REVIEW;
+    const copy = bookingResultCopy(result.status);
     return (
       <div className="px-4 py-6 md:p-10 max-w-2xl">
         <div className="bg-surface shadow-ambient rounded-card p-6 md:p-8">
           <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${copy.tone}`}>
-            {result.status === "REVIEW" ? <Clock className="h-3.5 w-3.5" aria-hidden /> : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />}
+            {isBookingPending(result.status)
+              ? <Clock className="h-3.5 w-3.5" aria-hidden />
+              : result.status === "DISBURSEMENT_FAILED"
+                ? <AlertCircle className="h-3.5 w-3.5" aria-hidden />
+                : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />}
             {copy.title}
           </span>
           <h1 className="font-display text-2xl font-semibold text-ink mt-4">Vendor booking created</h1>

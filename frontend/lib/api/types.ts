@@ -157,6 +157,7 @@ export interface ReimbursementRaw {
   vendor_verified?: boolean | null;
   vendor_paypal_masked?: string | null;
   vendor_cooldown_until?: string | null;
+  vendor_cooldown_hours?: number | null;
   service_start?: string | null;
   service_end?: string | null;
 }
@@ -305,6 +306,7 @@ export interface ClaimBundle {
   vendor_verified?: boolean;
   vendor_paypal_masked?: string;
   vendor_cooldown_until?: string;
+  vendor_cooldown_hours?: number;
   service_start?: string;
   service_end?: string;
   line_items: BundleLineItem[];

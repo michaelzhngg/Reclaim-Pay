@@ -74,6 +74,9 @@ export interface HistoryClaim {
     departurDate?: string;
     arrivalDate?: string;
     overseas: boolean;
+    vendorName?: string;
+    serviceStart?: string;
+    serviceEnd?: string;
   };
 }
 

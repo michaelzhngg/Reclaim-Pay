@@ -346,6 +346,7 @@ export default function ReviewPage() {
   const [reviewedStatus, setReviewedStatus] = useState<string | null>(null);
   const [vendorBusy, setVendorBusy] = useState(false);
   const [vendorError, setVendorError] = useState<string | null>(null);
+  const [verifyEmail, setVerifyEmail] = useState("");
   const [showAccountChange, setShowAccountChange] = useState(false);
   const [vendorEmail, setVendorEmail] = useState("");
 
@@ -460,7 +461,7 @@ export default function ReviewPage() {
     setVendorBusy(true);
     setVendorError(null);
     const { verifyVendorAccount } = await import("@/lib/actions/bookings");
-    const res = await verifyVendorAccount(bundle.vendor_id);
+    const res = await verifyVendorAccount(bundle.vendor_id, verifyEmail.trim() || undefined);
     setVendorBusy(false);
     if (!res.ok) {
       setVendorError(approvalErrorMessage(res.error ?? "Could not verify the vendor account."));
@@ -541,6 +542,13 @@ export default function ReviewPage() {
               </p>
               {!bundle.vendor_verified && (
                 <div className="px-4 sm:px-6 pb-5 flex flex-col gap-2">
+                  <input
+                    type="email"
+                    value={verifyEmail}
+                    onChange={(event) => setVerifyEmail(event.target.value)}
+                    placeholder="Vendor billing email (optional)"
+                    className="min-h-11 w-full rounded-control border border-line-strong bg-surface px-3 font-body text-sm text-ink"
+                  />
                   <button
                     type="button"
                     onClick={handleVerifyVendor}
@@ -568,7 +576,7 @@ export default function ReviewPage() {
                     Change payout account
                   </button>
                   <p className="font-body text-xs text-ink-muted">
-                    Changing the account pauses vendor auto-pay for 72 hours.
+                    Changing the account pauses vendor auto-pay for {bundle.vendor_cooldown_hours ?? 72} hours.
                   </p>
                   {showAccountChange && (
                     <div className="flex flex-col sm:flex-row gap-2 mt-1">

@@ -89,8 +89,15 @@ function TriageCard({
               <span className="font-mono">{row.ref}</span> · {row.category}
             </p>
             {row.kind === "VENDOR_BOOKING" && (
-              <span className="mt-1 inline-flex rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">
-                Vendor booking{row.vendorName ? ` · ${row.vendorName}` : ""}
+              <span className="mt-1 inline-flex flex-col gap-0.5 text-xs">
+                <span className="w-fit rounded-full bg-accent-soft px-2 py-0.5 font-semibold text-accent">
+                  Vendor booking{row.vendorName ? ` · ${row.vendorName}` : ""}
+                </span>
+                <span className="text-ink-muted">
+                  {row.vendorVerified ? "Verified" : "Not verified"}
+                  {row.serviceStart ? ` · ${row.serviceStart} to ${row.serviceEnd ?? row.serviceStart}` : ""}
+                </span>
+                {row.purpose && <span className="text-ink-muted truncate">{row.purpose}</span>}
               </span>
             )}
           </div>
@@ -149,8 +156,15 @@ export default function TriageGrid({ rows, selectable, selfId, selected, onSelec
               <span className="truncate font-medium text-ink">{p.data.employee}</span>
               <span className="truncate text-xs text-ink-muted">{p.data.category}</span>
               {p.data.kind === "VENDOR_BOOKING" && (
-                <span className="truncate text-xs font-semibold text-accent">
-                  Vendor booking{p.data.vendorName ? ` · ${p.data.vendorName}` : ""}
+                <span className="flex flex-col leading-tight min-w-0 text-xs">
+                  <span className="truncate font-semibold text-accent">
+                    Vendor booking{p.data.vendorName ? ` · ${p.data.vendorName}` : ""}
+                  </span>
+                  <span className="truncate text-ink-muted">
+                    {p.data.vendorVerified ? "Verified" : "Not verified"}
+                    {p.data.serviceStart ? ` · ${p.data.serviceStart} to ${p.data.serviceEnd ?? p.data.serviceStart}` : ""}
+                  </span>
+                  {p.data.purpose && <span className="truncate text-ink-muted">{p.data.purpose}</span>}
                 </span>
               )}
             </span>

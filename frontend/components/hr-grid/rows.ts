@@ -45,6 +45,10 @@ export interface TriageRow {
   auditSelected: boolean;
   kind: "CLAIM" | "VENDOR_BOOKING";
   vendorName: string | null;
+  vendorVerified: boolean;
+  serviceStart: string | null;
+  serviceEnd: string | null;
+  purpose: string | null;
 }
 
 /** HR labels from the copy deck (§13.1). */
@@ -108,6 +112,10 @@ export function toTriageRow(r: TriageSource): TriageRow {
     auditSelected: r.audit_selected ?? decision.audit_selected ?? false,
     kind: r.kind ?? "CLAIM",
     vendorName: r.vendor_name ?? null,
+    vendorVerified: r.vendor_verified ?? false,
+    serviceStart: r.service_start ?? null,
+    serviceEnd: r.service_end ?? null,
+    purpose: r.purpose ?? null,
   };
 }
 
