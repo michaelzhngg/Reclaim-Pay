@@ -55,17 +55,18 @@ describe("employeeHistorySummary", () => {
     expect(summary).toEqual({ total: "MYR 287.45", pending: "MYR 10.00" });
   });
 
-  it("matches the dashboard Already paid total once every claim is paid", () => {
+  it("matches the dashboard Already paid total when a paid claim was approved for less", () => {
     const claims = [
-      row({ id: "c1", status: "Paid", approvedAmount: 239.45 }),
-      row({ id: "c2", status: "Paid", approvedAmount: 48 }),
+      row({ id: "c1", status: "Paid", amountNumeric: 300, approvedAmount: 239.45 }),
+      row({ id: "c2", status: "Paid", amountNumeric: 48, approvedAmount: 48 }),
     ];
     const dashboard = employeeDashboardStats([
-      raw({ reim_id: "c1", kind: "CLAIM", status: "PAID", total_claimed_amount: 239.45, total_approved_amount: 239.45 }),
+      raw({ reim_id: "c1", kind: "CLAIM", status: "PAID", total_claimed_amount: 300, total_approved_amount: 239.45 }),
       raw({ reim_id: "c2", kind: "CLAIM", status: "PAID", total_claimed_amount: 48, total_approved_amount: 48 }),
       raw({ reim_id: "b1", kind: "VENDOR_BOOKING", status: "PAID", total_claimed_amount: 95, total_approved_amount: 95 }),
       raw({ reim_id: "b2", kind: "VENDOR_BOOKING", status: "PAID", total_claimed_amount: 50, total_approved_amount: 50 }),
     ]);
+    expect(employeeHistorySummary(claims).total).toBe("MYR 287.45");
     expect(employeeHistorySummary(claims).total).toBe(dashboard.alreadyPaid.amount);
   });
 

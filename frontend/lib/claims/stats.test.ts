@@ -11,6 +11,7 @@ const claim = (over: Partial<ReimbursementRaw>): ReimbursementRaw =>
     main_category: "Meals",
     currency: "MYR",
     total_claimed_amount: 100,
+    total_approved_amount: 100,
     judgment: "APPROVED",
     ai_reasoning: {},
     status: "PAID",
@@ -23,12 +24,18 @@ const claim = (over: Partial<ReimbursementRaw>): ReimbursementRaw =>
 describe("employeeDashboardStats", () => {
   it("excludes bookings from all employee money and review totals", () => {
     const booking = claim({ reim_id: "b1", kind: "VENDOR_BOOKING", status: "REVIEW", total_claimed_amount: 240 });
-    const paidClaim = claim({ reim_id: "c1", status: "PAID", total_claimed_amount: 48 });
+    const paidClaim = claim({ reim_id: "c1", status: "PAID", total_claimed_amount: 48, total_approved_amount: 48 });
     const reviewClaim = claim({ reim_id: "c2", status: "REVIEW", total_claimed_amount: 20 });
     const stats = employeeDashboardStats([booking, paidClaim, reviewClaim]);
     expect(stats.awaitingReview).toEqual({ amount: "MYR 20.00", count: 1 });
     expect(stats.alreadyPaid).toEqual({ amount: "MYR 48.00", count: 1 });
     expect(stats.reimbursedThisMonth.count).toBe(0);
+  });
+
+  it("counts a paid claim at the approved amount when HR cut the request", () => {
+    const discounted = claim({ reim_id: "c1", status: "PAID", total_claimed_amount: 100, total_approved_amount: 60 });
+    const booking = claim({ reim_id: "b1", kind: "VENDOR_BOOKING", status: "PAID", total_claimed_amount: 145, total_approved_amount: 145 });
+    expect(employeeDashboardStats([discounted, booking]).alreadyPaid).toEqual({ amount: "MYR 60.00", count: 1 });
   });
 });
 
