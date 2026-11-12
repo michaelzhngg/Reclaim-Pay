@@ -37,5 +37,10 @@ export function useClaimBundle(id: string) {
     setAttempt((n) => n + 1);
   }, []);
 
-  return { load, retry };
+  /** Re-fetch without dropping the current bundle, for actions that change the claim in place. */
+  const refresh = useCallback(() => {
+    setAttempt((n) => n + 1);
+  }, []);
+
+  return { load, retry, refresh };
 }

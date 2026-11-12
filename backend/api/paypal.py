@@ -18,9 +18,10 @@ from api.rate_limit import PAYPAL_CONNECT_LIMIT, PAYPAL_WEBHOOK_RETRY_LIMIT, lim
 from core import security
 from core.config import settings
 from core.enums import AgentActionType, WebhookEventStatus
-from core.models import PayPalWebhookEvent, User
+from core.models import PayPalWebhookEvent, User, Vendor
 from engine.services.action_log import record_action
 from engine.services.payout_service import notify
+from engine.services.payee_link import PAYEE_COOLDOWN_HOURS, cooldown_until, link_update  # noqa: F401
 from engine.services.paypal_client import PayPalError, PayPalUser, get_paypal_client, mask_email  # noqa: F401
 from engine.services.webhook_events import (
     InvalidWebhook, WebhookNotFound, WebhookNotRetryable, event_id_of, ingest_event, retry_event,
@@ -29,8 +30,7 @@ from engine.services.webhook_events import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Mirrors AutonomyConfig.payee_cooldown_hours until the autonomy store exists.
-PAYEE_COOLDOWN_HOURS = 72
+# Mirrors AutonomyConfig.payee_cooldown_hours; the shared module owns the value.
 _STATE_TTL = timedelta(minutes=10)
 _STATE_PURPOSE = "paypal_link"
 _SIGNIN_STATE_PURPOSE = "paypal_signin"
@@ -83,24 +83,6 @@ def read_signin_state(token: str, binding: str, secret: str, now: datetime) -> N
     claims = _read_state_claims(token, secret, now, _SIGNIN_STATE_PURPOSE)
     if not binding or not hmac.compare_digest(_binding_hash(binding), str(claims.get("binding", ""))):
         raise ValueError("state not bound to this browser")
-
-
-def link_update(current_payer_id: str | None, ever_linked: bool, user: PayPalUser, now: datetime) -> dict:
-    update = {
-        "paypal_payer_id": user.payer_id,
-        "paypal_email": user.email,
-        "paypal_verified": user.verified,
-        "paypal_linked_at": now,
-    }
-    if current_payer_id == user.payer_id:
-        return update
-    # Any change after the first link (including unlink, then link another account) pauses auto-pay.
-    update["payout_destination_changed_at"] = now if ever_linked else None
-    return update
-
-
-def cooldown_until(changed_at: datetime | None, hours: int) -> datetime | None:
-    return changed_at + timedelta(hours=hours) if changed_at else None
 
 
 def build_connect_url(web_url: str, client_id: str, redirect_uri: str, state: str) -> str:
@@ -227,8 +209,11 @@ async def paypal_callback(
     taken = db.exec(
         select(User).where(User.paypal_payer_id == paypal_user.payer_id, User.user_id != user_id)
     ).first()
-    if taken:
-        logger.warning("[PAYPAL_LINK] Payer already linked to another employee; user=%s", user_id)
+    vendor_taken = db.exec(
+        select(Vendor).where(Vendor.paypal_payer_id == paypal_user.payer_id)
+    ).first()
+    if taken or vendor_taken:
+        logger.warning("[PAYPAL_LINK] Payer already linked to another payee; user=%s", user_id)
         return failed("payer_already_linked")
 
     update = link_update(employee.paypal_payer_id, employee.paypal_linked_at is not None, paypal_user, now)

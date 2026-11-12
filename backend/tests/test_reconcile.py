@@ -32,7 +32,7 @@ UID = UUID("87654321-4321-8765-4321-876543218765")
 def facts(amount="48.00", age_hours=6, settled=True, currency="MYR", updated_hours=None, batch="B1"):
     created = NOW - timedelta(hours=age_hours)
     updated = NOW - timedelta(hours=age_hours if updated_hours is None else updated_hours)
-    return PayoutFacts(uuid4(), RID, "Aisyah", Decimal(amount), currency, created, updated, settled, batch)
+    return PayoutFacts(uuid4(), RID, "Aisyah", "Aisyah", Decimal(amount), currency, created, updated, settled, batch)
 
 
 def txn(amount="-48.00", age_hours=6, tid="T1", currency="MYR", code="T0001"):
@@ -333,3 +333,11 @@ def test_endpoint_is_not_captured_by_the_reim_id_route(monkeypatch):
 @pytest.mark.parametrize("days", [0, 31])
 def test_endpoint_rejects_days_outside_paypals_range(days):
     assert _client(UserRole.HR).get("/payouts/reconcile", params={"days": days}).status_code == 422
+
+
+def test_mismatch_names_the_vendor_and_keeps_the_requester():
+    payout = PayoutFacts(uuid4(), RID, "Aisyah", "Hotel Seri Kenanga", Decimal("240.00"), "MYR",
+                         NOW - timedelta(hours=6), NOW - timedelta(hours=6), True, "B1")
+    row = rs._mismatch(payout)
+    assert row.payee_name == "Hotel Seri Kenanga"
+    assert row.employee_name == "Aisyah"

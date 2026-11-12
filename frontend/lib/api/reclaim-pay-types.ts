@@ -155,6 +155,9 @@ export interface PayoutLedgerRow {
   reim_id: string;
   claim_ref: string;
   employee_name: string;
+  /** The vendor for a booking, the employee for a claim. */
+  payee_name: string;
+  kind: "CLAIM" | "VENDOR_BOOKING";
   amount: number;
   currency: string;
   status: PayoutStatus;
@@ -190,7 +193,7 @@ export interface ReimbursementAutonomyFields {
   approvals?: Approval[] | null;
 }
 
-export type BatchSkipReason = "NOT_HR_QUICK" | "NOT_IN_REVIEW" | "SELF_APPROVAL" | "NOTHING_TO_PAY";
+export type BatchSkipReason = "NOT_HR_QUICK" | "NOT_IN_REVIEW" | "SELF_APPROVAL" | "NOTHING_TO_PAY" | "VENDOR_BOOKING";
 
 /** POST /reimbursements/batch-approve */
 export interface BatchApproveResult {

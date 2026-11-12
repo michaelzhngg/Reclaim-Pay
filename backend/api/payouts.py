@@ -10,12 +10,12 @@ from sqlmodel import Session, select
 from api import deps
 from api.rate_limit import MAINTENANCE_RUN_LIMIT, limiter
 from api.schemas import CreatePayoutRequest
-from core.models import User, Reimbursement, Payout
-from core.enums import ReimbursementStatus, UserRole, PayoutStatus
+from core.models import User, Reimbursement, Payout, Vendor
+from core.enums import ReimbursementStatus, UserRole, PayoutStatus, is_vendor_booking
 from engine.jobs.maintenance import MaintenanceReport, StuckPayoutsOut, run_maintenance, stuck_payouts
 from engine.services.approvals import approvals_complete
 from engine.services.funding_service import FundingSummary, alert_hr, funding_summary
-from engine.services.payout_service import initiate_payout_async, payout_plan
+from engine.services.payout_service import initiate_payout_async, payee_for_reim, payout_plan
 from engine.services.payout_status import FINAL_STATUSES, refresh_payout
 from engine.services.paypal_client import PayPalError
 from engine.services.reconcile_history import (
@@ -38,6 +38,7 @@ class PayoutOut(BaseModel):
     payout_id: UUID
     reim_id: UUID
     user_id: UUID
+    vendor_id: Optional[UUID] = None
     amount: float
     currency: str
     status: PayoutStatus
@@ -61,6 +62,8 @@ class PayoutLedgerRow(BaseModel):
     reim_id: UUID
     claim_ref: str
     employee_name: str
+    payee_name: str
+    kind: str
     amount: float
     currency: str
     status: PayoutStatus
@@ -123,12 +126,15 @@ class ReconciliationHistoryOut(BaseModel):
     open_differences: list[ReconciliationDifferenceOut] = []
 
 
-def ledger_row(payout: Payout, reim: Reimbursement, employee: User) -> PayoutLedgerRow:
+def ledger_row(payout: Payout, reim: Reimbursement, employee: User, vendor: Vendor | None = None) -> PayoutLedgerRow:
+    is_booking = is_vendor_booking(reim)
     return PayoutLedgerRow(
         payout_id=payout.payout_id,
         reim_id=payout.reim_id,
         claim_ref=f"RC-{str(payout.reim_id)[:8].upper()}",
         employee_name=employee.name,
+        payee_name=vendor.name if is_booking and vendor else employee.name,
+        kind="VENDOR_BOOKING" if is_booking else "CLAIM",
         amount=float(payout.amount),
         currency=payout.currency,
         status=payout.status,
@@ -146,7 +152,7 @@ def ledger_row(payout: Payout, reim: Reimbursement, employee: User) -> PayoutLed
 _SKIP_DETAIL = {
     "SKIP_NOT_APPROVED": "Claim must be APPROVED (or DISBURSEMENT_FAILED for a retry) before it can be paid.",
     "SKIP_EXISTING": "A payout for this claim is already in progress or has succeeded.",
-    "SKIP_NO_PAYEE": "Employee has not connected a verified PayPal account. Ask them to connect PayPal in Settings.",
+    "SKIP_NO_PAYEE": "The payee has not connected a verified PayPal account.",
 }
 
 
@@ -187,7 +193,12 @@ def list_payouts(
     if to_date:
         query = query.where(Payout.created_at < datetime.combine(to_date + timedelta(days=1), time.min, tzinfo=timezone.utc))
     rows = db.exec(query.order_by(Payout.created_at.desc()).limit(500)).all()
-    return [ledger_row(payout, reim, employee) for payout, reim, employee in rows]
+    vendor_ids = {payout.vendor_id for payout, _reim, _employee in rows if payout.vendor_id}
+    vendors = (
+        {v.vendor_id: v for v in db.exec(select(Vendor).where(Vendor.vendor_id.in_(vendor_ids))).all()}
+        if vendor_ids else {}
+    )
+    return [ledger_row(payout, reim, employee, vendors.get(payout.vendor_id)) for payout, reim, employee in rows]
 
 
 # Declared before GET /{reim_id}, which would otherwise capture "reconcile". Sync because the PayPal SDK blocks.
@@ -292,13 +303,12 @@ async def create_payout(
     if not reim:
         raise HTTPException(status_code=404, detail="Reimbursement not found")
 
-    employee = db.get(User, reim.user_id)
     existing = db.exec(select(Payout).where(Payout.reim_id == body.reim_id)).all()
     _require_genuine_approval(reim, current_user, existing)
     net_amount, applied_offsets = offset_for_reim(db, reim)
     action, _, _ = payout_plan(
         reim.status, net_amount, [p.status for p in existing],
-        bool(employee and employee.paypal_verified and employee.paypal_payer_id),
+        payee_for_reim(db, reim) is not None,
     )
     if action in _SKIP_DETAIL:
         raise HTTPException(status_code=400, detail=_SKIP_DETAIL[action])

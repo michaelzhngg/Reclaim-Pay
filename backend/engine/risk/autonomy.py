@@ -115,7 +115,7 @@ def _hard_stops(
         HardStop.OVER_AUTO_LIMIT: claim.amount > limit,
         HardStop.EMPLOYEE_DAILY_CAP: history.auto_paid_today + claim.amount > config.employee_daily_cap,
         HardStop.EMPLOYEE_MONTHLY_CAP: history.auto_paid_month + claim.amount > config.employee_monthly_cap,
-        HardStop.AGENT_DAILY_BUDGET: ledger.auto_paid_today + claim.amount > config.agent_daily_budget,
+        HardStop.AGENT_DAILY_BUDGET: ledger.auto_paid_today + ledger.vendor_paid_today + claim.amount > config.agent_daily_budget,
         HardStop.HIGH_RISK_SIGNAL: any(s.severity == Severity.HIGH for s in signals),
         HardStop.EXPECTED_LOSS: loss >= config.review_cost,
     }

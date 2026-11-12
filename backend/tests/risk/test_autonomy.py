@@ -34,14 +34,15 @@ def sig(code, sev):
 
 def inputs(amount=48.0, confidence=0.95, judgment="APPROVED", signals=(), paid=5, issues90=0, issues180=0,
            today=0.0, month=0.0, verified=True, changed_hours_ago=None, ledger_today=0.0, breaker=False,
-           over_budget=False, is_hr=False, cfg=None):
+           over_budget=False, is_hr=False, cfg=None, vendor_paid=0.0):
     claim = ClaimFacts(reim_id="11111111-1111-1111-1111-111111111111", user_id="u1", amount=amount, currency="MYR",
                        judgment=judgment, confidence=confidence, over_category_budget=over_budget, claimant_is_hr=is_hr)
     hist = EmployeeHistory(paid_claims=paid, confirmed_issues_90d=issues90, confirmed_issues_180d=issues180,
                            auto_paid_today=today, auto_paid_month=month)
     changed = None if changed_hours_ago is None else NOW - timedelta(hours=changed_hours_ago)
     payee = PayeeStatus(verified=verified, linked_at=NOW - timedelta(days=30), changed_at=changed)
-    ledger = AgentLedger(auto_paid_today=ledger_today, auto_paid_last_hour=0.0, breaker_active=breaker)
+    ledger = AgentLedger(auto_paid_today=ledger_today, auto_paid_last_hour=0.0, breaker_active=breaker,
+                         vendor_paid_today=vendor_paid)
     return claim, list(signals), hist, payee, ledger, cfg or AutonomyConfig(), NOW
 
 
@@ -152,10 +153,15 @@ def test_kill_switch_breaker_caps_and_budget():
     assert HardStop.OVER_CATEGORY_BUDGET in make(over_budget=True).hard_stops
 
 
+def test_vendor_spend_consumes_the_company_daily_budget():
+    assert HardStop.AGENT_DAILY_BUDGET in make(ledger_today=1900, vendor_paid=100).hard_stops
+    assert make(ledger_today=1900, vendor_paid=40).tier == AutonomyTier.AUTO_PAY
+
+
 def test_every_hard_stop_blocks_auto_pay():
     for kw in [dict(cfg=AutonomyConfig(enabled=False)), dict(breaker=True), dict(verified=False),
                dict(changed_hours_ago=1), dict(is_hr=True), dict(over_budget=True), dict(today=280),
-               dict(month=990), dict(ledger_today=1990)]:
+               dict(month=990), dict(ledger_today=1990), dict(ledger_today=1900, vendor_paid=100)]:
         assert make(**kw).tier != AutonomyTier.AUTO_PAY, kw
 
 

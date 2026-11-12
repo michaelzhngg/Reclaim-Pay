@@ -1,7 +1,7 @@
 """policy limits as data: policy_limits and policy_zone_places
 
 Revision ID: 3b1e5f0c9d21
-Revises: c4d8e2f1a6b9
+Revises: c8d2e3f4a5b6
 Create Date: 2026-11-12 15:00:00.000000
 
 """
@@ -11,7 +11,7 @@ from alembic import op
 
 
 revision: str = '3b1e5f0c9d21'
-down_revision: Union[str, None] = 'c4d8e2f1a6b9'
+down_revision: Union[str, None] = 'c8d2e3f4a5b6'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

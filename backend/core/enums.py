@@ -12,6 +12,16 @@ class PrivilegeLevel(str, enum.Enum):
     Executive = "Executive"
 
 
+class ReimbursementKind(str, enum.Enum):
+    CLAIM = "CLAIM"
+    VENDOR_BOOKING = "VENDOR_BOOKING"
+
+
+def is_vendor_booking(record) -> bool:
+    """True when a claim-shaped record is a vendor booking. Missing kind means an old claim."""
+    return getattr(record, "kind", None) == ReimbursementKind.VENDOR_BOOKING.value
+
+
 class ReimbursementStatus(str, enum.Enum):
     PENDING = "PENDING"
     REVIEW = "REVIEW"

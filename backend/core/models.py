@@ -10,6 +10,7 @@ from sqlalchemy import BigInteger, ForeignKey, Index, UniqueConstraint, text
 from core.enums import (
     UserRole,
     PrivilegeLevel,
+    ReimbursementKind,
     ReimbursementStatus,
     JudgmentResult,
     DocumentClass,
@@ -106,7 +107,32 @@ class User(SQLModel, table=True):
 
 
 # ---------------------------------------------------------------------------
-# 2. departments
+# 2. vendors
+# ---------------------------------------------------------------------------
+
+class Vendor(SQLModel, table=True):
+    __tablename__ = "vendors"
+
+    vendor_id: UUID = Field(default_factory=uuid4, primary_key=True)
+    name: str = Field(sa_column=Column(String, nullable=False))
+    # Case-folded, whitespace-collapsed name. Unique so a booking cannot fork the same vendor.
+    name_key: str = Field(sa_column=Column(String, unique=True, index=True, nullable=False))
+    default_category: Optional[str] = Field(default=None, sa_column=Column(String))
+    paypal_email: Optional[str] = Field(default=None, sa_column=Column(String))
+    paypal_payer_id: Optional[str] = Field(default=None, sa_column=Column(String, index=True))
+    paypal_verified: bool = Field(default=False, sa_column=Column(Boolean, nullable=False, server_default="false"))
+    paypal_linked_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    payout_destination_changed_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    is_active: bool = Field(default=True, sa_column=Column(Boolean, nullable=False, server_default="true"))
+    created_by: Optional[UUID] = Field(default=None, foreign_key="employees.user_id")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True))
+    )
+
+
+# ---------------------------------------------------------------------------
+# 3. departments
 # ---------------------------------------------------------------------------
 
 class Department(SQLModel, table=True):
@@ -389,6 +415,11 @@ class Reimbursement(SQLModel, table=True):
         default=None,
         foreign_key="travel_settlements.settlement_id"
     )
+    # A vendor booking uses this row as its financial record. Existing rows are claims.
+    kind: str = Field(
+        default=ReimbursementKind.CLAIM.value,
+        sa_column=Column(String, nullable=False, index=True, server_default="CLAIM")
+    )
     main_category: str = Field(
         sa_column=Column(String, nullable=False, index=True)
     )
@@ -465,7 +496,33 @@ class Reimbursement(SQLModel, table=True):
 
 
 # ---------------------------------------------------------------------------
-# 9. reimbursement_sub_categories
+# 9. vendor_bookings
+# ---------------------------------------------------------------------------
+
+class VendorBooking(SQLModel, table=True):
+    __tablename__ = "vendor_bookings"
+
+    booking_id: UUID = Field(default_factory=uuid4, primary_key=True)
+    reim_id: UUID = Field(
+        foreign_key="reimbursements.reim_id",
+        unique=True,
+        index=True
+    )
+    vendor_id: UUID = Field(
+        foreign_key="vendors.vendor_id",
+        index=True
+    )
+    service_start: date = Field(sa_column=Column(Date, nullable=False))
+    service_end: date = Field(sa_column=Column(Date, nullable=False))
+    purpose: str = Field(sa_column=Column(Text, nullable=False))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True))
+    )
+
+
+# ---------------------------------------------------------------------------
+# 10. reimbursement_sub_categories
 # ---------------------------------------------------------------------------
 
 class ReimbursementSubCategory(SQLModel, table=True):
@@ -783,8 +840,14 @@ class Payout(SQLModel, table=True):
         foreign_key="reimbursements.reim_id",
         index=True
     )
+    # The requesting employee. For a vendor booking the payee is vendor_id, not this user.
     user_id: UUID = Field(
         foreign_key="employees.user_id",
+        index=True
+    )
+    vendor_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="vendors.vendor_id",
         index=True
     )
     amount: float = Field(

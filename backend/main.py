@@ -32,6 +32,7 @@ from api.autonomy import router as autonomy_router
 from api.recoveries import router as recoveries_router
 from api.signal_reviews import router as signal_reviews_router
 from api.spend_check import router as spend_check_router
+from api.vendors import router as vendors_router
 from api import deps
 from core.models import User
 
@@ -102,6 +103,7 @@ app.include_router(recoveries_router, prefix=f"{settings.API_V1_STR}/recoveries"
 # Paths are fully qualified: the routes sit under /reimbursements and /autonomy.
 app.include_router(signal_reviews_router, prefix=settings.API_V1_STR, tags=["signal-reviews"])
 app.include_router(spend_check_router, prefix=f"{settings.API_V1_STR}/spend-check", tags=["spend-check"])
+app.include_router(vendors_router, prefix=settings.API_V1_STR, tags=["vendors"])
 
 @app.get("/")
 async def root():

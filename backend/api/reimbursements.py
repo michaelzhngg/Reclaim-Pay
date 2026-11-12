@@ -28,13 +28,16 @@ from core.models import (
     User, Reimbursement, SupportingDocument, TravelSettlement, Policy,
     LineItem, ReimbursementSubCategory,
     Department, Payout, Notification, SettlementReceipt, PolicyReimbursableCategory,
+    Vendor, VendorBooking,
 )
-from core.enums import AgentActionType, UserRole, ReimbursementStatus, JudgmentResult, PolicyStatus
+from core.enums import AgentActionType, UserRole, ReimbursementStatus, JudgmentResult, PolicyStatus, is_vendor_booking
 from core.database import engine as db_engine
 from engine.agents.compliance_agent import run_compliance_workflow, timeline_emitter
 from engine.progress import ProgressTracker
 from engine.services.action_log import record_action
+from engine.services import autonomy_store
 from engine.services.approvals import DUAL_TIER, register_approval, required_approvals, split_batch
+from engine.services.payee_link import cooldown_until
 from engine.risk.timeline import make_step
 from engine.services.payout_service import initiate_payout_sync
 from engine.services.paypal_client import mask_email
@@ -165,6 +168,7 @@ def _build_reimbursement_response(
     result = {
         "reim_id": str(r.reim_id),
         "user_id": str(r.user_id),
+        "kind": _enum_val(r.kind) or "CLAIM",
         "employee_name": employee_name,
         "department_name": department_name,
         "policy_id": str(r.policy_id) if r.policy_id else None,
@@ -200,7 +204,47 @@ def _build_reimbursement_response(
         "location": None,
         "departure_date": None,
         "arrival_date": None,
+        # Vendor booking display. Payout details stay HR-only.
+        "vendor_id": None,
+        "vendor_name": None,
+        "vendor_verified": None,
+        "vendor_paypal_masked": None,
+        "vendor_cooldown_until": None,
+        "vendor_cooldown_hours": None,
+        "service_start": None,
+        "service_end": None,
     }
+
+    booking = None
+    vendor = None
+    if is_vendor_booking(r):
+        if prefetched is not None:
+            booking = prefetched.bookings.get(r.reim_id)
+            vendor = prefetched.vendors.get(booking.vendor_id) if booking else None
+        else:
+            booking = db.exec(select(VendorBooking).where(VendorBooking.reim_id == r.reim_id)).first()
+            vendor = db.get(Vendor, booking.vendor_id) if booking else None
+        if booking and vendor:
+            cooldown_hours = (
+                prefetched.cooldown_hours if prefetched is not None
+                else autonomy_store.payee_cooldown_hours(db)
+            )
+            cooldown = None
+            if vendor.payout_destination_changed_at:
+                cooldown = cooldown_until(vendor.payout_destination_changed_at, cooldown_hours)
+                if cooldown and cooldown <= datetime.now(timezone.utc):
+                    cooldown = None
+            result.update({
+                "vendor_id": str(vendor.vendor_id),
+                "vendor_name": vendor.name,
+                "vendor_verified": bool(vendor.paypal_verified and vendor.paypal_payer_id) if viewer_is_hr else None,
+                "vendor_paypal_masked": mask_email(vendor.paypal_email) if viewer_is_hr and vendor.paypal_email else None,
+                "vendor_cooldown_until": cooldown.isoformat() if viewer_is_hr and cooldown else None,
+                "vendor_cooldown_hours": cooldown_hours if viewer_is_hr else None,
+                "service_start": booking.service_start.isoformat(),
+                "service_end": booking.service_end.isoformat(),
+                "purpose": booking.purpose,
+            })
 
     if r.settlement_id:
         if prefetched is not None:
@@ -255,6 +299,9 @@ class _ListContext:
     policy_titles: dict
     merchants: dict
     latest_payouts: dict
+    bookings: dict
+    vendors: dict
+    cooldown_hours: int
 
 
 def _list_context(db: Session, reimbursements: list) -> _ListContext:
@@ -296,7 +343,18 @@ def _list_context(db: Session, reimbursements: list) -> _ListContext:
         ).all():
             latest_payouts.setdefault(p.reim_id, p)
 
-    return _ListContext(users, departments, receipt_counts, policy_titles, merchants, latest_payouts)
+    bookings = {
+        b.reim_id: b
+        for b in db.exec(select(VendorBooking).where(VendorBooking.reim_id.in_(reim_ids))).all()
+    } if reim_ids else {}
+    vendor_ids = {b.vendor_id for b in bookings.values()}
+    vendors = (
+        {v.vendor_id: v for v in db.exec(select(Vendor).where(Vendor.vendor_id.in_(vendor_ids))).all()}
+        if vendor_ids else {}
+    )
+
+    return _ListContext(users, departments, receipt_counts, policy_titles, merchants, latest_payouts,
+                        bookings, vendors, autonomy_store.payee_cooldown_hours(db))
 
 
 @router.get("/health")
@@ -310,6 +368,7 @@ def list_reimbursements(
     offset: int = 0,
     status: Optional[str] = None,
     tier: Optional[str] = None,
+    kind: Optional[str] = None,
     audit_selected: Optional[bool] = None,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
@@ -324,6 +383,8 @@ def list_reimbursements(
         stmt = stmt.where(Reimbursement.status == status)
     if tier:
         stmt = stmt.where(Reimbursement.tier == tier)
+    if kind:
+        stmt = stmt.where(Reimbursement.kind == kind)
     if audit_selected is not None:
         stmt = stmt.where(Reimbursement.audit_selected == audit_selected)
 
@@ -445,12 +506,18 @@ def _apply_status(
     db.add(r)
 
     reim_short = str(r.reim_id)[:8]
+    is_booking = is_vendor_booking(r)
+    label = "Booking" if is_booking else "Claim"
     if new_status == ReimbursementStatus.APPROVED:
-        title = f"Claim RC-{reim_short} approved"
-        message = f"Your claim for MYR {float(r.total_approved_amount or 0):,.2f} has been approved and is ready for payout."
+        title = f"{label} RC-{reim_short} approved"
+        if is_booking:
+            message = (f"Your vendor booking for MYR {float(r.total_approved_amount or 0):,.2f} has been approved "
+                       "and the vendor is being paid.")
+        else:
+            message = f"Your claim for MYR {float(r.total_approved_amount or 0):,.2f} has been approved and is ready for payout."
     elif new_status == ReimbursementStatus.REJECTED:
-        title = f"Claim RC-{reim_short} rejected"
-        message = f"Your claim was rejected. Reason: {(hr_note or 'No reason provided')[:200]}"
+        title = f"{label} RC-{reim_short} rejected"
+        message = f"Your {label.lower()} was rejected. Reason: {(hr_note or 'No reason provided')[:200]}"
     else:
         return []
     db.add(Notification(
@@ -523,8 +590,9 @@ def batch_approve(
     def as_row(rid: str, r: Optional[Reimbursement]) -> dict:
         # Unknown IDs have no tier, so they are skipped as NOT_HR_QUICK.
         if r is None:
-            return {"reim_id": rid, "tier": None, "status": None, "user_id": None}
-        return {"reim_id": rid, "tier": r.tier, "status": _enum_val(r.status), "user_id": str(r.user_id)}
+            return {"reim_id": rid, "tier": None, "status": None, "user_id": None, "kind": None}
+        return {"reim_id": rid, "tier": r.tier, "status": _enum_val(r.status), "user_id": str(r.user_id),
+                "kind": r.kind}
 
     rows = [as_row(rid, by_uuid.get(parsed.get(rid))) for rid in requested]
     eligible, skipped = split_batch(rows, str(current_user.user_id))

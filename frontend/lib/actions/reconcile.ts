@@ -8,6 +8,8 @@ export interface ReconcileMismatch {
   reim_id: string;
   claim_ref: string;
   employee_name: string;
+  /** The vendor for a booking; the employee for a claim. */
+  payee_name?: string;
   amount: number;
   currency: string;
   created_at: string;

@@ -113,6 +113,8 @@ class AgentLedger(BaseModel):
     auto_paid_today: float
     auto_paid_last_hour: float
     breaker_active: bool
+    # Vendor payments made today, all tiers. Committed company spend, not agent velocity.
+    vendor_paid_today: float = 0.0
 
 
 class AutonomyConfig(BaseModel):
