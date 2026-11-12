@@ -256,7 +256,8 @@ def forensics_signal(finding: dict | None, document_id: str | None, mode: str) -
     }
     if finding.get("reason"):
         evidence["reason"] = finding["reason"]
-    message = "Image check: possible edited region. " + (finding.get("reason") or "")
+    # The HR card already shows the label as its heading, so the message is just the reason.
+    message = finding.get("reason") or "Image check: possible edited region."
     if mode == "score":
         return make_signal(SignalCode.IMAGE_FORENSICS, Severity.MEDIUM, message.strip(), evidence, document_id)
     signal = make_signal(SignalCode.IMAGE_FORENSICS, Severity.LOW, message.strip(), evidence, document_id)
