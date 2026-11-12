@@ -73,3 +73,19 @@ One entry per non-obvious choice. Each names the alternative that was rejected a
 **Rejected:** 24 hours (warns on normal cron drift) or 48 hours (a missed day is silent for two days).
 
 **Why:** the schedule is daily. 36 hours allows a late or retried run without hiding a genuinely broken schedule for long.
+
+## D10: Notify on new differences, not on every open one
+
+**Chosen:** a notification lists only differences that opened during this run. A daily digest of all still-open differences is not sent.
+
+**Rejected:** notify on every run with open differences, or a once-per-24-hours repeat.
+
+**Why:** a genuinely missing payout can stay open for days while HR investigates. Repeating it daily trains people to ignore the bell. The tab is the persistent list; the notification is the "something changed" signal.
+
+## D11: Suppress outage alerts by the previous run's state
+
+**Chosen:** notify when the previous recorded run was not already `unavailable` or `failed`.
+
+**Rejected:** a 24-hour title window like the funding alert.
+
+**Why:** the daily job runs exactly every 24 hours, so a title window can swallow the next day's alert or block a legitimate new outage. The previous run is the actual outage boundary, and any `ok` or `no_data` run re-arms it.

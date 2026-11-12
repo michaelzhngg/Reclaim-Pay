@@ -12,7 +12,8 @@ from sqlmodel import select
 from api import deps
 from api import payouts as payouts_api
 from core.enums import PayoutStatus, ReimbursementStatus, UserRole
-from core.models import Payout, ReconciliationDifference, ReconciliationRun, Reimbursement, User
+from core.models import Notification, Payout, ReconciliationDifference, ReconciliationRun, Reimbursement, User
+from engine.services import payout_service
 from engine.services import reconcile_history as rh
 from engine.services.reconcile_service import (
     MismatchedPayout, ReconcileSummary, Transaction, TransactionFeed, UnknownTransaction,
@@ -280,3 +281,125 @@ def test_history_endpoint_returns_the_view(monkeypatch):
     assert body["latest"]["run_id"] == str(run.run_id)
     assert body["open_differences"][0]["kind"] == rh.MISSING_IN_PAYPAL
     assert body["last_success_at"] == "2026-11-12T02:00:00Z"
+
+
+def _hr(db, active=True):
+    user = User(email=f"hr-{uuid4().hex[:8]}@test.local", hashed_password="x", name="HR",
+                role=UserRole.HR, is_active=active)
+    db.add(user)
+    db.commit()
+    return user
+
+
+def _notes(db, title):
+    return list(db.exec(select(Notification).where(Notification.title == title)).all())
+
+
+@pytest.fixture
+def no_push(monkeypatch):
+    monkeypatch.setattr(payout_service, "fire_and_forget_push", lambda *args, **kwargs: None)
+
+
+def test_new_differences_notify_active_hr_only(db, no_push):
+    employee, _, payout = _claim_and_payout(db)
+    hr1, hr2 = _hr(db), _hr(db)
+    _hr(db, active=False)
+    _claim_and_payout(db)  # a second employee must never be notified
+    recorded = rh.record_run(db, _summary(mismatches=[_mismatch(payout, employee, payout.created_at)],
+                                         total=1), trigger="schedule", started_at=NOW)
+
+    assert rh.notify_hr(db, recorded) == 2
+    notes = _notes(db, rh.NEW_TITLE)
+    assert {note.user_id for note in notes} == {hr1.user_id, hr2.user_id}
+    assert all(note.link == rh.RECONCILE_LINK and note.type == "error" for note in notes)
+    assert "1 payout marked paid is not in PayPal" in notes[0].message
+
+
+def test_unchanged_open_differences_do_not_notify_again(db, no_push):
+    employee, _, payout = _claim_and_payout(db)
+    _hr(db)
+    mismatch = _mismatch(payout, employee, payout.created_at)
+    first = rh.record_run(db, _summary(mismatches=[mismatch], total=1), trigger="schedule", started_at=NOW)
+    rh.notify_hr(db, first)
+    second_at = NOW + timedelta(hours=1)
+    second = rh.record_run(db, _summary(at=second_at, mismatches=[mismatch], total=1),
+                           trigger="schedule", started_at=second_at)
+
+    assert rh.notify_hr(db, second) == 0
+    assert len(_notes(db, rh.NEW_TITLE)) == 1
+
+
+def test_a_reopened_difference_notifies_again(db, no_push):
+    employee, _, payout = _claim_and_payout(db)
+    _hr(db)
+    mismatch = _mismatch(payout, employee, payout.created_at)
+    first = rh.record_run(db, _summary(mismatches=[mismatch], total=1), trigger="schedule", started_at=NOW)
+    rh.notify_hr(db, first)
+    closed = rh.record_run(db, _summary(at=NOW + timedelta(hours=1), reconciled=1, total=1),
+                           trigger="schedule", started_at=NOW + timedelta(hours=1))
+    rh.notify_hr(db, closed)
+    reopened = rh.record_run(db, _summary(at=NOW + timedelta(hours=2), mismatches=[mismatch], total=1),
+                             trigger="schedule", started_at=NOW + timedelta(hours=2))
+    rh.notify_hr(db, reopened)
+
+    assert reopened.run.differences_new == 1
+    assert len(_notes(db, rh.NEW_TITLE)) == 2
+
+
+def test_an_outage_alerts_once_and_rearms_after_a_good_run(db, no_push):
+    _hr(db)
+    first = rh.record_run(db, _summary(state="unavailable", total=1), trigger="schedule", started_at=NOW)
+    assert rh.notify_hr(db, first) == 1
+    again = rh.record_run(db, _summary(at=NOW + timedelta(hours=1), state="unavailable", total=1),
+                          trigger="schedule", started_at=NOW + timedelta(hours=1))
+    assert rh.notify_hr(db, again) == 0
+    good = rh.record_run(db, _summary(at=NOW + timedelta(hours=2), state="no_data", total=0),
+                         trigger="schedule", started_at=NOW + timedelta(hours=2))
+    assert rh.notify_hr(db, good) == 0
+    later = rh.record_run(db, _summary(at=NOW + timedelta(hours=3), state="unavailable", total=1),
+                          trigger="schedule", started_at=NOW + timedelta(hours=3))
+    assert rh.notify_hr(db, later) == 1
+    assert len(_notes(db, rh.OUTAGE_TITLE)) == 2
+
+
+def test_unknown_only_differences_are_a_warning(db, no_push):
+    _hr(db)
+    unknown = UnknownTransaction(transaction_id="T-UNKNOWN", amount=12, currency="MYR", occurred_at=NOW)
+    recorded = rh.record_run(db, _summary(unknown=[unknown], total=0), trigger="schedule", started_at=NOW)
+
+    assert rh.notify_hr(db, recorded) == 1
+    (note,) = _notes(db, rh.NEW_TITLE)
+    assert note.type == "warning" and "no matching claim" in note.message
+
+
+def test_a_notification_failure_does_not_fail_the_run(db, monkeypatch):
+    employee, _, payout = _claim_and_payout(db)
+    _hr(db)
+    mismatch = _mismatch(payout, employee, payout.created_at)
+    summary = _summary(mismatches=[mismatch], total=1)
+    monkeypatch.setattr(rh, "reconcile", lambda *args, **kwargs: summary)
+
+    def explode(*args, **kwargs):
+        raise RuntimeError("push store down")
+
+    monkeypatch.setattr(rh, "notify", explode)
+    recorded = rh.run_and_record(db, days=3, trigger="schedule", now=NOW)
+
+    assert recorded.run.state == "ok" and recorded.run.differences_new == 1
+    assert db.exec(select(ReconciliationDifference)).one().resolved_at is None
+
+
+def test_a_failed_run_notifies_hr_once(db, monkeypatch, no_push):
+    _claim_and_payout(db)
+    _hr(db)
+    from engine.services import reconcile_service
+    monkeypatch.setattr(reconcile_service.settings, "PAYPAL_MOCK_MODE", False)
+
+    def boom(start, end):
+        raise RuntimeError("sdk exploded")
+
+    with pytest.raises(RuntimeError):
+        rh.run_and_record(db, days=3, trigger="schedule", now=NOW, fetch=boom)
+
+    (note,) = _notes(db, rh.OUTAGE_TITLE)
+    assert "failed before it could compare" in note.message

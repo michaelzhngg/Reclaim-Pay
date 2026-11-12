@@ -13,7 +13,9 @@ from uuid import UUID
 from sqlalchemy import func, text
 from sqlmodel import Session, select
 
-from core.models import ReconciliationDifference, ReconciliationRun
+from core.enums import UserRole
+from core.models import ReconciliationDifference, ReconciliationRun, User
+from engine.services.payout_service import notify
 from engine.services.reconcile_service import (
     ReconcileSummary,
     TransactionFeed,
@@ -31,6 +33,9 @@ DISMISSED = "DISMISSED"
 SUCCESS_STATES = ("ok", "no_data")
 # Serialises writers so two runs cannot both open the same difference.
 ADVISORY_LOCK_KEY = 724243
+NEW_TITLE = "PayPal ledger differences need review"
+OUTAGE_TITLE = "PayPal reconciliation couldn't run"
+RECONCILE_LINK = "/hr/payouts?tab=reconciliation"
 
 
 @dataclass(frozen=True)
@@ -120,6 +125,67 @@ def _open_count(db: Session) -> int:
         .select_from(ReconciliationDifference)
         .where(ReconciliationDifference.resolved_at.is_(None))
     ).one()
+
+
+def _plural(count: int, singular: str, plural: str) -> str:
+    return singular if count == 1 else plural
+
+
+def _new_message(new: list[ReconciliationDifference]) -> str:
+    missing = sum(1 for row in new if row.kind == MISSING_IN_PAYPAL)
+    unknown = sum(1 for row in new if row.kind == UNKNOWN_IN_PAYPAL)
+    parts = []
+    if missing:
+        parts.append(
+            f"{missing} {_plural(missing, 'payout', 'payouts')} marked paid "
+            f"{_plural(missing, 'is', 'are')} not in PayPal"
+        )
+    if unknown:
+        parts.append(
+            f"{unknown} PayPal {_plural(unknown, 'payment', 'payments')} "
+            f"{_plural(unknown, 'has', 'have')} no matching claim"
+        )
+    message = " and ".join(parts)
+    return f"{message[0].upper()}{message[1:]}. Review the differences in Payouts."
+
+
+def _notify_hr(db: Session, title: str, message: str, n_type: str) -> int:
+    hr_ids = db.exec(
+        select(User.user_id)
+        .where(User.role == UserRole.HR, User.is_active == True)  # noqa: E712
+    ).all()
+    sent = 0
+    for user_id in hr_ids:
+        try:
+            notify(db, user_id, n_type, title, message, link=RECONCILE_LINK)
+            sent += 1
+        except Exception:
+            logger.exception("[RECONCILE] Could not notify HR user %s", user_id)
+            db.rollback()
+    return sent
+
+
+def _outage_notified(db: Session, current: ReconciliationRun) -> bool:
+    previous = db.exec(
+        select(ReconciliationRun)
+        .where(ReconciliationRun.run_id != current.run_id)
+        .order_by(ReconciliationRun.started_at.desc())
+        .limit(1)
+    ).first()
+    return previous is not None and previous.state in ("unavailable", "failed")
+
+
+def notify_hr(db: Session, recorded: RecordedRun) -> int:
+    """Route a recorded run to HR. New differences first, otherwise one alert per outage."""
+    run = recorded.run
+    if recorded.new_differences:
+        missing = any(row.kind == MISSING_IN_PAYPAL for row in recorded.new_differences)
+        return _notify_hr(db, NEW_TITLE, _new_message(recorded.new_differences),
+                          "error" if missing else "warning")
+    if run.state in ("unavailable", "failed") and not _outage_notified(db, run):
+        message = run.message or "The check failed before it could compare. Try again from Payouts."
+        return _notify_hr(db, OUTAGE_TITLE, message, "warning")
+    return 0
 
 
 def record_run(db: Session, summary: ReconcileSummary, *, trigger: str,
@@ -240,15 +306,26 @@ def run_and_record(db: Session, *, days: int = JOB_DAYS, trigger: str = "manual"
         summary = reconcile(db, days=days, now=started, fetch=fetch)
     except Exception as exc:
         try:
-            record_failure(db, trigger=trigger, started_at=started, days=days,
-                           error=type(exc).__name__, triggered_by=triggered_by)
+            failed = record_failure(db, trigger=trigger, started_at=started, days=days,
+                                    error=type(exc).__name__, triggered_by=triggered_by)
+            try:
+                notify_hr(db, RecordedRun(run=failed, new_differences=[]))
+            except Exception:
+                logger.exception("[RECONCILE] Could not send the failure notification")
+                db.rollback()
         except Exception:
             logger.exception("[RECONCILE] Could not record the failed run")
         raise
     # The comparison only read. Release its snapshot before the write transaction so two runs
     # cannot both act on an older set of open differences.
     db.rollback()
-    return record_run(db, summary, trigger=trigger, started_at=started, triggered_by=triggered_by)
+    recorded = record_run(db, summary, trigger=trigger, started_at=started, triggered_by=triggered_by)
+    try:
+        notify_hr(db, recorded)
+    except Exception:
+        logger.exception("[RECONCILE] Could not send the reconciliation notification")
+        db.rollback()
+    return recorded
 
 
 def history(db: Session, limit: int = 14) -> History:
