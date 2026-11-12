@@ -12,7 +12,15 @@ from sqlmodel import Session, select
 
 from core.enums import ReimbursementStatus
 from core.models import Recovery, Reimbursement
-from engine.risk.autonomy import decide, limit_for, trust_tier
+from engine.risk.autonomy import (
+    NEW_ISSUE_DAYS,
+    STANDARD_MIN_PAID,
+    TRUSTED_ISSUE_DAYS,
+    TRUSTED_MIN_PAID,
+    decide,
+    limit_for,
+    trust_tier,
+)
 from engine.risk.types import (
     AgentLedger,
     AutonomyConfig,
@@ -38,10 +46,6 @@ DECIDED_STATUSES = {
     ReimbursementStatus.DISBURSEMENT_FAILED.value,
     ReimbursementStatus.REJECTED.value,
 }
-STANDARD_MIN_PAID = 3
-TRUSTED_MIN_PAID = 10
-NEW_ISSUE_DAYS = 90
-TRUSTED_ISSUE_DAYS = 180
 NO_LEDGER = AgentLedger(auto_paid_today=0, auto_paid_last_hour=0, breaker_active=False)
 
 

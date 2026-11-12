@@ -15,6 +15,7 @@ from sqlmodel import Session, select
 from core.config import settings
 from core.enums import AgentActionType, RecoveryStatus, ReimbursementStatus, UserRole
 from core.models import AutonomySettings, Recovery, Reimbursement, User
+from engine.risk.autonomy import NEW_ISSUE_DAYS, TRUSTED_ISSUE_DAYS
 from engine.services.action_log import record_action
 from engine.services.risk_contract import (
     AUTONOMY_TIERS,
@@ -71,8 +72,8 @@ def history_from_rows(rows: list[dict], issue_dates: list[datetime], now: dateti
     now = _utc(now)
     return EmployeeHistory(
         paid_claims=sum(1 for r in rows if str(r.get("status")) == ReimbursementStatus.PAID.value),
-        confirmed_issues_90d=sum(1 for d in issues if d >= now - timedelta(days=90)),
-        confirmed_issues_180d=sum(1 for d in issues if d >= now - timedelta(days=180)),
+        confirmed_issues_90d=sum(1 for d in issues if d >= now - timedelta(days=NEW_ISSUE_DAYS)),
+        confirmed_issues_180d=sum(1 for d in issues if d >= now - timedelta(days=TRUSTED_ISSUE_DAYS)),
         auto_paid_today=float(sum(Decimal(str(r["amount"])) for r in auto if _utc(r["updated_at"]) >= today)),
         auto_paid_month=float(sum(Decimal(str(r["amount"])) for r in auto if _utc(r["updated_at"]) >= month)),
     )
