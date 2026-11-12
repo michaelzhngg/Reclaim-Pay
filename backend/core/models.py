@@ -1315,3 +1315,25 @@ class PayPalWebhookEvent(SQLModel, table=True):
         default=None,
         sa_column=Column(DateTime(timezone=True))
     )
+
+
+# ---------------------------------------------------------------------------
+# monthly_reports (F12): the month-end report finance reads, kept stable once generated.
+# ---------------------------------------------------------------------------
+
+class MonthlyReport(SQLModel, table=True):
+    __tablename__ = "monthly_reports"
+
+    month: str = Field(sa_column=Column(String(7), primary_key=True))  # YYYY-MM, Malaysia time
+    metrics: dict = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    )
+    narrative: str = Field(sa_column=Column(Text, nullable=False))
+    # "model" when the model's text passed the number check, "template" otherwise.
+    narrative_source: str = Field(sa_column=Column(String, nullable=False))
+    generated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    generated_by: Optional[UUID] = Field(default=None, foreign_key="employees.user_id")

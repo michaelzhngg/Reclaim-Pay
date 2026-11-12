@@ -161,6 +161,10 @@ export interface HistoryClaim {
   policyName: string;
   amount: number;
   currency: string;
+  /** main_category, for the category filter. */
+  category: string | null;
+  /** ISO time the claim was resolved (reviewed, else last updated), for the date filter. */
+  resolvedAt: string | null;
   dateSubmitted: string;
   dateResolved: string;
   status: "Approved" | "Rejected" | "Paid";
@@ -200,18 +204,12 @@ function payoutStateOf(r: ReimbursementRaw): PayoutState | null {
  * auto-processed claims within 24 h (lives in dashboard tabs).
  */
 export async function getHRHistory(): Promise<HistoryClaim[]> {
-  const result = await apiGet<ReimbursementRaw[]>(`${API_PREFIX}/reimbursements/`);
+  // The list endpoint returns 50 rows unless told otherwise; history needs every resolved claim.
+  const result = await apiGet<ReimbursementRaw[]>(`${API_PREFIX}/reimbursements/?limit=5000`);
   if (!result.data) return [];
 
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const statusMap: Record<string, "Approved" | "Rejected" | "Paid" | null> = {
-    APPROVED: "Approved",
-    DISBURSING: "Approved",
-    PAID: "Paid",
-    REJECTED: "Rejected",
-    // A failed payout is still an approved claim. The payout column shows the failure.
-    DISBURSEMENT_FAILED: "Approved",
-  };
+  const statusMap = HISTORY_STATUS;
 
   return result.data
     .filter((r) => {
@@ -227,26 +225,70 @@ export async function getHRHistory(): Promise<HistoryClaim[]> {
       (a, b) =>
         new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime(),
     )
-    .map((r) => {
-      const name = r.employee_name ?? "Unknown";
-      const resolvedDate = r.reviewed_at ?? r.updated_at ?? r.created_at;
-      return {
-        id: formatClaimRef(r.reim_id),
-        reim_id: r.reim_id,
-        employeeName: name,
-        employeeInitial: name.charAt(0).toUpperCase(),
-        department: r.department_name ?? "—",
-        policyName: (r.kind ?? "CLAIM") === "VENDOR_BOOKING"
-          ? `Vendor booking · ${r.vendor_name ?? "Unknown vendor"}`
-          : (r.policy_name ?? r.main_category ?? "General"),
-        amount: r.total_claimed_amount ?? 0,
-        currency: r.currency ?? "MYR",
-        dateSubmitted: formatShortDate(r.created_at),
-        dateResolved: formatShortDate(resolvedDate ?? null),
-        status: statusMap[r.status] as "Approved" | "Rejected" | "Paid",
-        payout: payoutStateOf(r),
-      };
-    });
+    .map((r) => toHistoryClaim(r));
+}
+
+const HISTORY_STATUS: Record<string, "Approved" | "Rejected" | "Paid" | null> = {
+  APPROVED: "Approved",
+  DISBURSING: "Approved",
+  PAID: "Paid",
+  REJECTED: "Rejected",
+  // A failed payout is still an approved claim. The payout column shows the failure.
+  DISBURSEMENT_FAILED: "Approved",
+};
+
+/** One history row. `amount` replaces the claimed amount: a report row shows what it adds to the number. */
+function toHistoryClaim(r: ReimbursementRaw, amount?: number): HistoryClaim {
+  const name = r.employee_name ?? "Unknown";
+  const resolvedDate = r.reviewed_at ?? r.updated_at ?? r.created_at;
+  return {
+    id: formatClaimRef(r.reim_id),
+    reim_id: r.reim_id,
+    employeeName: name,
+    employeeInitial: name.charAt(0).toUpperCase(),
+    department: r.department_name ?? "—",
+    policyName: (r.kind ?? "CLAIM") === "VENDOR_BOOKING"
+      ? `Vendor booking · ${r.vendor_name ?? "Unknown vendor"}`
+      : (r.policy_name ?? r.main_category ?? "General"),
+    amount: amount ?? r.total_claimed_amount ?? 0,
+    currency: r.currency ?? "MYR",
+    category: r.main_category ?? null,
+    resolvedAt: resolvedDate ?? null,
+    dateSubmitted: formatShortDate(r.created_at),
+    dateResolved: formatShortDate(resolvedDate ?? null),
+    status: HISTORY_STATUS[r.status] ?? "Approved",
+    payout: payoutStateOf(r),
+  };
+}
+
+export interface ReportClaimsQuery {
+  month: string;
+  metric: string;
+  category?: string;
+  team?: string;
+  code?: string;
+}
+
+export interface ReportClaims {
+  count: number;
+  total: number;
+  currency: string;
+  claims: HistoryClaim[];
+}
+
+/** The claims behind one number on the month-end report (F12), from the same query as the number. */
+export async function getReportClaims(q: ReportClaimsQuery): Promise<ReportClaims | null> {
+  const params = new URLSearchParams({ metric: q.metric });
+  for (const key of ["category", "team", "code"] as const) {
+    const value = q[key];
+    if (value != null) params.set(key, value);
+  }
+  const result = await apiGet<{ count: number; total: number; currency: string; claims: (ReimbursementRaw & { report_amount: number })[] }>(
+    `${API_PREFIX}/reports/monthly/${encodeURIComponent(q.month)}/claims?${params}`,
+  );
+  if (!result.data) return null;
+  const { count, total, currency, claims } = result.data;
+  return { count, total, currency, claims: claims.map((r) => toHistoryClaim(r, r.report_amount)) };
 }
 
 /**
