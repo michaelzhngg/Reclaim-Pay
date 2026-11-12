@@ -27,11 +27,11 @@ const fieldClass =
 const labelClass = "block text-sm font-medium text-ink mb-1.5";
 
 const schema = z.object({
-  name: z.string().trim().min(1, { message: "Enter their full name." }).max(120),
-  user_code: z.string().trim().max(40),
-  email: z.string().trim().email({ message: "Enter a valid email address." }),
-  department_id: z.string(),
-  role: z.enum(["Employee", "HR"]),
+  name: z.string().trim().min(1, { message: "Enter their full name." }).max(120, { message: "Use 120 characters or fewer." }),
+  user_code: z.string().trim().min(1, { message: "Enter their company ID." }).max(40, { message: "Use 40 characters or fewer." }),
+  email: z.string().trim().min(1, { message: "Enter their work email." }).email({ message: "Enter a valid email address." }),
+  department_id: z.string().min(1, { message: "Choose a department." }),
+  role: z.enum(["Employee", "HR"], { message: "Choose a system role." }),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -111,6 +111,7 @@ function CreateEmployeeForm({
   const [error, setError] = useState<string | null>(null);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
+    mode: "onTouched",
     defaultValues: { name: "", user_code: "", email: "", department_id: "", role: "Employee" },
   });
   const { errors, isSubmitting } = form.formState;
@@ -121,8 +122,8 @@ function CreateEmployeeForm({
     const result = await createEmployee({
       name: values.name,
       email: values.email,
-      user_code: values.user_code || undefined,
-      department_id: values.department_id || undefined,
+      user_code: values.user_code,
+      department_id: values.department_id,
       role: values.role,
     });
     if (result.error || !result.data) {
@@ -157,24 +158,29 @@ function CreateEmployeeForm({
         </div>
 
         <div>
-          <label htmlFor="emp-code" className={labelClass}>
-            Company ID <span className="font-normal text-ink-muted">(optional)</span>
-          </label>
-          <input id="emp-code" type="text" autoComplete="off" className={fieldClass} {...form.register("user_code")} />
+          <label htmlFor="emp-code" className={labelClass}>Company ID</label>
+          <input id="emp-code" type="text" autoComplete="off" placeholder="e.g. EMP-1024" className={fieldClass}
+            aria-invalid={errors.user_code ? true : undefined} aria-describedby={errorId("user_code")} {...form.register("user_code")} />
+          {errors.user_code && <p id="user_code-error" className="mt-1.5 text-sm text-danger">{errors.user_code.message}</p>}
         </div>
 
         <div>
           <label htmlFor="emp-dept" className={labelClass}>Department</label>
-          <select id="emp-dept" disabled={departments.loading} className={`${fieldClass} cursor-pointer`}
-            aria-describedby={departments.error ? "dept-error" : undefined} {...form.register("department_id")}>
-            <option value="">{departments.loading ? "Loading departments…" : "No department"}</option>
+          <select id="emp-dept" disabled={departments.loading || !!departments.error} className={`${fieldClass} cursor-pointer`}
+            aria-invalid={errors.department_id ? true : undefined}
+            aria-describedby={[errorId("department_id"), departments.error ? "dept-error" : undefined].filter(Boolean).join(" ") || undefined}
+            {...form.register("department_id")}>
+            <option value="" disabled>{departments.loading ? "Loading departments…" : "Choose a department"}</option>
             {departments.list.map((d) => (
               <option key={d.department_id} value={d.department_id}>{d.name}</option>
             ))}
           </select>
+          {errors.department_id && !departments.error && (
+            <p id="department_id-error" className="mt-1.5 text-sm text-danger">{errors.department_id.message}</p>
+          )}
           {departments.error && (
             <p id="dept-error" className="mt-1.5 text-sm text-danger">
-              Departments didn&apos;t load. You can add the person without one.
+              Departments didn&apos;t load, so you can&apos;t add someone yet. Close this and try again.
             </p>
           )}
         </div>
@@ -202,7 +208,7 @@ function CreateEmployeeForm({
         <button type="button" onClick={onCancel} disabled={isSubmitting} className={btn.secondary}>
           Cancel
         </button>
-        <button type="submit" disabled={isSubmitting} aria-busy={isSubmitting} className={btn.primary}>
+        <button type="submit" disabled={isSubmitting || departments.loading || !!departments.error} aria-busy={isSubmitting} className={btn.primary}>
           {isSubmitting ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
