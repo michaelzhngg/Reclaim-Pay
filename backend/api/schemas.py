@@ -31,10 +31,6 @@ class UserBase(BaseModel):
     is_active: bool = True
 
 
-class UserCreate(UserBase):
-    password: str
-
-
 class UserUpdate(UserBase):
     password: Optional[str] = None
 
@@ -66,6 +62,28 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     email: Optional[str] = None
+
+
+class CreateEmployeeRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    email: EmailStr
+    user_code: Optional[str] = Field(default=None, max_length=40)
+    department_id: Optional[UUID] = None
+    role: UserRole = UserRole.Employee
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordTokenRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=200)
+    purpose: Literal["invite", "reset"]
+
+
+class SetPasswordRequest(PasswordTokenRequest):
+    # The policy's own byte limit gives the readable message; this only stops absurd bodies.
+    new_password: str = Field(max_length=1000)
 
 
 class UpdateProfileRequest(BaseModel):

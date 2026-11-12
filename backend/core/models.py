@@ -96,6 +96,11 @@ class User(SQLModel, table=True):
         default=None,
         sa_column=Column(DateTime(timezone=True))
     )
+    # Set by the invite and reset flows. Sessions issued before it are rejected; null keeps every session valid.
+    password_changed_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True))
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True))
@@ -956,5 +961,29 @@ class AgentAction(SQLModel, table=True):
         sa_column=Column(String(64), nullable=False, unique=True)
     )
     created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+# ---------------------------------------------------------------------------
+# 21. password_tokens
+# ---------------------------------------------------------------------------
+
+class PasswordToken(SQLModel, table=True):
+    """Single-use invite or reset link. Only the SHA-256 of the token is stored."""
+    __tablename__ = "password_tokens"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("employees.user_id", ondelete="CASCADE"),
+                         nullable=False, index=True)
+    )
+    # "invite" or "reset"
+    purpose: str = Field(sa_column=Column(String(16), nullable=False))
+    token_hash: str = Field(sa_column=Column(String(64), nullable=False, unique=True))
+    expires_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    used_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False)
     )

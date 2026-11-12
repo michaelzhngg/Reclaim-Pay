@@ -56,6 +56,8 @@ class AgentActionType(str, enum.Enum):
     PAYEE_LINKED = "PAYEE_LINKED"
     PAYEE_LINK_FAILED = "PAYEE_LINK_FAILED"
     PAYPAL_SIGNIN = "PAYPAL_SIGNIN"
+    EMPLOYEE_CREATED = "EMPLOYEE_CREATED"
+    INVITE_RESENT = "INVITE_RESENT"
 
 
 class JudgmentResult(str, enum.Enum):
