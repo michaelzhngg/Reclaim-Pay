@@ -36,7 +36,7 @@ def create_department(
 @router.get("/", response_model=List[DepartmentResponse])
 def list_departments(
     db: Session = Depends(deps.get_db),
-    current_user = Depends(deps.get_current_user),
+    current_user = Depends(deps.get_current_non_contractor_user),
 ) -> List[Department]:
     return db.exec(select(Department)).all()
 
@@ -45,7 +45,7 @@ def list_departments(
 def get_department(
     department_id: str,
     db: Session = Depends(deps.get_db),
-    current_user = Depends(deps.get_current_user),
+    current_user = Depends(deps.get_current_non_contractor_user),
 ) -> Department:
     try:
         dept_uuid = UUID(department_id)

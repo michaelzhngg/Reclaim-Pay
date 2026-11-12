@@ -24,7 +24,7 @@ export interface User {
   user_code?: string | null;
   email: string;
   name: string;
-  role: "HR" | "Employee";
+  role: "HR" | "Employee" | "Contractor";
   department_id?: string | null;
   department_name?: string | null;
   rank?: number;

@@ -84,7 +84,7 @@ def vendor_out(vendor: Vendor, viewer_is_hr: bool, cooldown_hours: int = PAYEE_C
 @router.get("/vendors", response_model=list[VendorOut])
 def list_vendors(
     db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(deps.get_current_non_contractor_user),
 ):
     """Active vendors for the booking picker. Employees see names, not payout details."""
     vendors = db.exec(select(Vendor).where(Vendor.is_active == True).order_by(Vendor.name)).all()  # noqa: E712
