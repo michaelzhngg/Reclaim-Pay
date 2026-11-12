@@ -27,19 +27,91 @@ def _absolute(link: str | None) -> str | None:
     return settings.FRONTEND_PUBLIC_URL.rstrip("/") + "/" + link.lstrip("/")
 
 
+# Brand colours from DESIGN.md. Email clients ignore CSS variables, so they are written out here.
+INK = "#0b0b1e"
+MUTED = "#5c5c72"
+PAPER = "#f5f5f9"
+LINE = "#e6e6ee"
+ACCENT = "#4647d3"
+FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+
+
+def logo_url() -> str:
+    # A PNG the site already serves; Gmail and Outlook don't show SVG.
+    return settings.FRONTEND_PUBLIC_URL.rstrip("/") + "/icons/icon-192x192.png"
+
+
+def _paragraphs(text: str) -> str:
+    out = []
+    for part in text.split("\n\n"):
+        lines = "<br>".join(html.escape(line) for line in part.split("\n"))
+        out.append(f'<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:{INK}">{lines}</p>')
+    return "".join(out)
+
+
+def render_html(subject: str, text: str, url: str | None, link_label: str) -> str:
+    """Branded, table-based layout so it holds together in Gmail, Outlook and Apple Mail."""
+    first_line = text.split("\n", 1)[0]
+    button = ""
+    fallback = ""
+    if url:
+        href = html.escape(url, quote=True)
+        button = (
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px">'
+            f'<tr><td align="center" bgcolor="{INK}" style="border-radius:10px">'
+            f'<a href="{href}" target="_blank" style="display:block;padding:14px 24px;font-family:{FONT};'
+            f'font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:10px">'
+            f"{html.escape(link_label)}</a></td></tr></table>"
+        )
+        fallback = (
+            f'<p style="margin:18px 0 0;font-size:12px;line-height:1.5;color:{MUTED}">'
+            "If the button doesn&#39;t work, paste this link into your browser:<br>"
+            f'<a href="{href}" style="color:{ACCENT};word-break:break-all">{html.escape(url)}</a></p>'
+        )
+    return (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">'
+        f"<title>{html.escape(subject)}</title></head>"
+        f'<body style="margin:0;padding:0;background:{PAPER}">'
+        # Inbox preview text, hidden in the body.
+        f'<div style="display:none;max-height:0;overflow:hidden;opacity:0">{html.escape(first_line)}</div>'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="{PAPER}" style="background:{PAPER}">'
+        '<tr><td align="center" style="padding:32px 16px">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">'
+        # Logo and wordmark
+        '<tr><td align="center" style="padding:0 0 20px">'
+        '<table role="presentation" cellpadding="0" cellspacing="0"><tr>'
+        f'<td style="padding-right:10px"><img src="{html.escape(logo_url(), quote=True)}" width="36" height="36" '
+        'alt="" style="display:block;border:0;border-radius:8px"></td>'
+        f'<td style="font-family:{FONT};font-size:20px;font-weight:700;letter-spacing:-0.3px;color:{INK}">'
+        f'Reclaim <span style="color:{ACCENT}">Pay</span></td>'
+        "</tr></table></td></tr>"
+        # Card
+        f'<tr><td bgcolor="#ffffff" style="background:#ffffff;border:1px solid {LINE};border-radius:16px;'
+        f'padding:28px 28px 24px;font-family:{FONT}">'
+        f'<h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;font-weight:700;color:{INK}">{html.escape(subject)}</h1>'
+        f"{_paragraphs(text)}{button}{fallback}"
+        "</td></tr>"
+        # Footer
+        f'<tr><td align="center" style="padding:20px 8px 0;font-family:{FONT};font-size:12px;line-height:1.5;color:{MUTED}">'
+        "Reclaim Pay &middot; expense claims paid to PayPal<br>"
+        "You got this email because of your Reclaim Pay account."
+        "</td></tr>"
+        "</table></td></tr></table></body></html>"
+    )
+
+
 def build_payload(to: str, subject: str, text: str, link: str | None = None,
                   link_label: str = DEFAULT_LINK_LABEL) -> dict:
     url = _absolute(link)
     plain = text if not url else f"{text}\n\n{link_label}: {url}"
-    body = "".join(f"<p>{html.escape(part)}</p>" for part in text.split("\n\n"))
-    if url:
-        body += f'<p><a href="{html.escape(url, quote=True)}">{html.escape(link_label)}</a></p>'
     return {
         "from": settings.EMAIL_FROM,
         "to": [to],
         "subject": subject,
         "text": plain,
-        "html": f'<div style="font-family:sans-serif;font-size:15px;line-height:1.5">{body}</div>',
+        "html": render_html(subject, text, url, link_label),
     }
 
 
