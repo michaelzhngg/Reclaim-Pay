@@ -109,7 +109,11 @@ def test_me_returns_the_trust_card_without_risk_details(api):
     assert body["next_tier"] == "TRUSTED" and body["next_limit"] == 200.0
     assert body["claims_to_next_tier"] == 10 - body["paid_claims"]
     assert set(body) == {"trust_tier", "auto_limit", "paid_claims", "next_tier", "claims_to_next_tier",
-                         "reasons", "currency", "next_limit", "limited_until"}
+                         "reasons", "currency", "next_limit", "limited_until", "changes", "levels",
+                         "hold_days", "trusted_clean_days"}
+    # The replay starts at NEW, so a STANDARD employee has at least one change, ending where they are now.
+    assert body["changes"] and body["changes"][0]["to_tier"] == "STANDARD"
+    assert [lv["auto_limit"] for lv in body["levels"]] == [50.0, 100.0, 200.0]
     raw = res.text
     assert "signal" not in raw.lower() and "risk" not in raw.lower()
 
@@ -125,6 +129,10 @@ def test_me_explains_a_recent_correction(api):
     assert body["trust_tier"] == "NEW" and body["next_tier"] == "STANDARD"
     assert body["limited_until"] is not None
     assert body["reasons"][0].startswith("Instant payouts are limited after a recent correction.")
+    if body["changes"]:
+        latest = body["changes"][0]
+        assert latest["to_tier"] == "NEW" and latest["cause"] in ("recovery", "correction")
+        assert latest["reim_id"] is not None
 
 
 def test_me_is_employee_only(api):
