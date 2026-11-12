@@ -145,6 +145,13 @@ export interface ReimbursementRaw {
   fx_rate_at?: string | null;
   fx_source?: string | null;
   fx_unavailable?: boolean;
+  /** What approval locked: the amount and currency PayPal will send. */
+  payout_amount?: number | null;
+  payout_currency?: string | null;
+  payout_fx_rate?: number | null;
+  payout_fx_at?: string | null;
+  /** What the payout would be if HR approved now. HR only, nothing is locked. */
+  payout_preview?: PayoutPreview | null;
   line_items?: LineItem[];
   judgment: "APPROVED" | "REJECTED" | "PARTIAL" | "NEEDS_INFO";
   confidence: number | null;
@@ -179,6 +186,17 @@ export interface ReimbursementRaw {
   vendor_cooldown_hours?: number | null;
   service_start?: string | null;
   service_end?: string | null;
+}
+
+/** The expected payout HR sees before approving. Nothing is locked until approval. */
+export interface PayoutPreview {
+  amount: number;
+  currency: string;
+  /** Claim currency to payout currency. */
+  rate: number | null;
+  as_of: string | null;
+  source: string | null;
+  company_amount: number | null;
 }
 
 /** Merchant names for a claim, e.g. "Grab, Hilton +1". Empty when none were read. */
@@ -328,6 +346,13 @@ export interface ClaimBundle {
   fx_rate_at: string | null;
   fx_source: string | null;
   fx_unavailable: boolean;
+  /** What approval locked: the amount and currency PayPal will send. */
+  payout_amount: number | null;
+  payout_currency: string | null;
+  payout_fx_rate: number | null;
+  payout_fx_at: string | null;
+  /** What the payout would be if HR approved now. */
+  payout_preview: PayoutPreview | null;
   /** The contractor's terms, when this claim came from a contract. */
   contract: ContractRecord | null;
   /** True for a contractor invoice; the period is the work it covers. */

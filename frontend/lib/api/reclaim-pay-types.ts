@@ -169,6 +169,8 @@ export interface PayoutLedgerRow {
   provider_item_id: string | null;
   attempt: number;
   audit_selected: boolean;
+  /** Set when the guard or PayPal refused this attempt. */
+  failure_code?: string | null;
   created_at: string;
   updated_at: string;
 }

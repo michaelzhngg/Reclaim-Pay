@@ -83,6 +83,9 @@ function LedgerCard({ row }: { row: PayoutLedgerRow }) {
       <div className="mt-2 text-xs min-w-0">
         <CopyBatchId value={row.provider_batch_id} />
       </div>
+      {row.failure_code && (
+        <p className="mt-1 text-xs font-mono text-danger break-words">{row.failure_code}</p>
+      )}
     </li>
   );
 }

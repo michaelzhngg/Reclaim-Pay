@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, AlertTriangle, Clock, ShieldCheck, ShieldX, ChevronDown, ZoomIn, Pencil, FileText, ExternalLink, Download, X, Loader2, Send, CheckCircle2 } from "lucide-react";
 import type { ClaimBundle } from "@/lib/api/types";
 import { formatClaimRef, formatMoney } from "@/lib/format";
-import { companyLineAmount, fxQuoteText } from "@/lib/fx";
+import { companyLineAmount, formatFxTimestamp, fxQuoteText } from "@/lib/fx";
 import { contractSummaryRows, formatRate } from "@/lib/contracts";
 import { invoicePeriodLabel, quantityLabel } from "@/lib/invoices";
 import { SuccessModal, isAwaitingSecondApproval } from "../../hr_components/SuccessModal";
@@ -360,6 +360,17 @@ export default function ReviewPage() {
   const companyCurrency = bundle?.company_currency || claimCurrency;
   const fmt = (n: number | undefined | null) => formatMoney(claimCurrency, n ?? 0);
   const fmtCompany = (n: number | undefined | null) => formatMoney(companyCurrency, n ?? 0);
+  // The locked snapshot wins; before approval the preview is the same calculation, unlocked.
+  const expectedPayout = bundle
+    ? (bundle.payout_amount != null && bundle.payout_currency
+        ? { currency: bundle.payout_currency, amount: bundle.payout_amount, company_amount: null, as_of: bundle.payout_fx_at }
+        : bundle.payout_preview)
+    : null;
+  const payoutHeading = !expectedPayout
+    ? null
+    : bundle?.payout_amount != null
+      ? "Payout"
+      : "Expected payout";
   const [approvals, setApprovals] = useState<Record<string, string>>({});
   const [decision, setDecision] = useState<Decision>(null);
   const [note, setNote] = useState("");
@@ -902,6 +913,21 @@ export default function ReviewPage() {
                   <p className="text-xs text-danger mt-1">
                     No company rate for this currency. This claim needs HR review and cannot be paid until a rate exists.
                   </p>
+                )}
+                {expectedPayout && expectedPayout.currency !== claimCurrency && (
+                  <div className="border-t border-line mt-2 pt-2">
+                    <p className="text-xs text-ink-muted">{payoutHeading}</p>
+                    <p className="text-xs font-mono font-medium text-ink mt-0.5">
+                      {formatMoney(expectedPayout.currency, expectedPayout.amount)}
+                      {expectedPayout.company_amount != null &&
+                        ` ≈ ${formatMoney(companyCurrency, expectedPayout.company_amount)}`}
+                    </p>
+                    {expectedPayout.as_of && (
+                      <p className="text-xs text-ink-muted mt-0.5">
+                        Rate locked at approval. Quoted {formatFxTimestamp(expectedPayout.as_of)}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
