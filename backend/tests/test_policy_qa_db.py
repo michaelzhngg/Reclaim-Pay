@@ -174,6 +174,7 @@ def test_summary_has_no_names_or_times_and_counts_sections(setup, monkeypatch):
     assert s.recent_unanswered[0].question.startswith("Can I claim")
     assert s.recent_unanswered[0].asked_on.isoformat() == "2026-11-12"
     assert s.top_sections[0].section == "3.2 Meals" and s.top_sections[0].count == 1
+    assert s.top_sections[0].excerpt.startswith("Meals above RM100")  # the heading is not repeated
     dumped = s.model_dump_json()
     assert "Farid" not in dumped and str(me.user_id) not in dumped and me.email not in dumped and "09:00" not in dumped
 

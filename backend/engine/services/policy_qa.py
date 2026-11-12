@@ -189,6 +189,11 @@ def _section_label(s: PolicySection) -> str:
     return heading if 0 < len(heading) <= 80 else f"Part {(s.section_order or 0) + 1}"
 
 
+def _excerpt(s: PolicySection, label: str) -> str:
+    text = _plain(s.content)
+    return text[len(label):].strip() if text.startswith(label) else text  # don't repeat a heading used as the label
+
+
 def question_summary(db: Session, now: datetime, days: int = 30) -> QuestionSummary:
     rows = db.exec(select(PolicyQuestion).where(PolicyQuestion.created_at >= now - timedelta(days=days))
                    .order_by(PolicyQuestion.created_at.desc())).all()
@@ -200,8 +205,9 @@ def question_summary(db: Session, now: datetime, days: int = 30) -> QuestionSumm
         if s is None:
             continue
         p = db.get(Policy, s.policy_id)
-        top.append(SectionCount(policy_title=p.title if p else "Policy", section=_section_label(s),
-                                excerpt=_plain(s.content)[:160],
+        label = _section_label(s)
+        top.append(SectionCount(policy_title=p.title if p else "Policy", section=label,
+                                excerpt=_excerpt(s, label)[:160],
                                 count=n))
     return QuestionSummary(
         days=days, total=len(rows), unanswered=len(gaps), top_sections=top,
