@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import type { Recovery, TrustChange, TrustInfo } from "@/lib/api/reclaim-pay-types";
 import {
+  badgeName,
   correctionRuleLine,
   formatShortDate,
-  levelLines,
   recentChangeLines,
   trustChangeLine,
   deadlineLine,
@@ -13,8 +13,6 @@ import {
   formatLimit,
   isDisputeOpen,
   noticeLine,
-  trustLine,
-  trustProgress,
   trustReasonLine,
 } from "./copy";
 
@@ -32,30 +30,15 @@ const recovery: Recovery = {
   offset_reim_id: null, paypal_invoice_id: null, created_at: "2026-11-03T10:00:00Z", updated_at: "2026-11-03T10:00:00Z",
 };
 
-describe("trust line", () => {
-  it("reads the way the UX report writes it", () => {
-    expect(trustLine(standard)).toBe("Instant payouts up to MYR 100 · 2 more approved claims to reach MYR 200");
-  });
-  it("uses the singular for one claim", () => {
-    expect(trustLine({ ...standard, claims_to_next_tier: 1 })).toBe(
-      "Instant payouts up to MYR 100 · 1 more approved claim to reach MYR 200");
-  });
-  it("names the next tier when the backend leaves out its limit", () => {
-    expect(trustLine({ ...standard, next_limit: null, currency: "" })).toBe(
-      "Instant payouts up to MYR 100 · 2 more approved claims to reach Trusted");
-  });
-  it("says so plainly at the top tier", () => {
-    const top: TrustInfo = { ...standard, trust_tier: "TRUSTED", auto_limit: 200, next_tier: null, claims_to_next_tier: 0, next_limit: null };
-    expect(trustLine(top)).toBe("Instant payouts up to MYR 200 · This is the highest level.");
-    expect(trustProgress(top)).toBe(1);
+describe("badge names", () => {
+  it("maps each level to a badge", () => {
+    expect(badgeName("NEW")).toBe("Bronze");
+    expect(badgeName("STANDARD")).toBe("Silver");
+    expect(badgeName("TRUSTED")).toBe("Gold");
   });
   it("keeps cents only when the limit has them", () => {
     expect(formatLimit("MYR", 100)).toBe("MYR 100");
     expect(formatLimit("MYR", 87.5)).toBe("MYR 87.50");
-  });
-  it("measures progress from paid claims", () => {
-    expect(trustProgress(standard)).toBeCloseTo(0.8);
-    expect(trustProgress({ ...standard, paid_claims: 0, claims_to_next_tier: 0 })).toBe(0);
   });
 });
 
@@ -130,8 +113,8 @@ describe("recent level changes", () => {
     expect(formatShortDate("2026-10-20T03:00:00Z", NOW, KL)).toBe("20 Oct");
     expect(formatShortDate("2025-10-20T03:00:00Z", NOW, KL)).toBe("20 Oct 2025");
   });
-  it("says when a level was reached", () => {
-    expect(trustChangeLine(up, info, NOW, KL)).toBe("You reached Standard on 20 Oct: instant payouts up to MYR 100.");
+  it("says when a badge was earned", () => {
+    expect(trustChangeLine(up, info, NOW, KL)).toBe("You earned the Silver badge on 20 Oct: instant payouts up to MYR 100.");
   });
   it("names the claim behind a correction and nothing else", () => {
     expect(trustChangeLine(down, info, NOW, KL)).toBe(
@@ -148,11 +131,11 @@ describe("recent level changes", () => {
   it("explains a limit that came back with time", () => {
     const back = { ...up, cause: "time_passed" as const };
     expect(trustChangeLine(back, info, NOW, KL)).toBe(
-      "You reached Standard on 20 Oct: instant payouts up to MYR 100. It had been 90 days since your last correction.");
+      "You earned the Silver badge on 20 Oct: instant payouts up to MYR 100. It had been 90 days since your last correction.");
     expect(trustChangeLine({ ...back, from_tier: "STANDARD", to_tier: "TRUSTED", to_limit: 200 }, info, NOW, KL)).toBe(
-      "You reached Trusted on 20 Oct: instant payouts up to MYR 200. It had been 180 days since your last correction.");
+      "You earned the Gold badge on 20 Oct: instant payouts up to MYR 200. It had been 180 days since your last correction.");
     expect(trustChangeLine(back, { currency: "MYR" }, NOW, KL)).toBe(
-      "You reached Standard on 20 Oct: instant payouts up to MYR 100.");
+      "You earned the Silver badge on 20 Oct: instant payouts up to MYR 100.");
   });
   it("shows at most three, in the order given", () => {
     const lines = recentChangeLines({ ...info, changes: [down, up, up, up] }, NOW, KL);
@@ -170,28 +153,9 @@ describe("recent level changes", () => {
 });
 
 describe("how instant payouts work", () => {
-  const info: TrustInfo = {
-    ...standard, hold_days: 90, trusted_clean_days: 180,
-    levels: [
-      { tier: "NEW", auto_limit: 50, min_paid_claims: 0 },
-      { tier: "STANDARD", auto_limit: 100, min_paid_claims: 3 },
-      { tier: "TRUSTED", auto_limit: 200, min_paid_claims: 10 },
-    ],
-  };
-
-  it("lists every level with its limit and marks the employee's own", () => {
-    expect(levelLines(info)).toEqual([
-      { tier: "NEW", text: "New: up to MYR 50. Everyone starts here.", current: false },
-      { tier: "STANDARD", text: "Standard: up to MYR 100, after 3 approved claims. This is your level.", current: true },
-      { tier: "TRUSTED", text: "Trusted: up to MYR 200, after 10 approved claims, with no correction in the last 180 days.", current: false },
-    ]);
-  });
-  it("lists nothing when the backend sends no levels", () => {
-    expect(levelLines(standard)).toEqual([]);
-  });
   it("says one correction lowers the limit and for how long", () => {
-    expect(correctionRuleLine(info)).toBe(
+    expect(correctionRuleLine({ ...standard, hold_days: 90 })).toBe(
       "A correction means HR confirmed a problem with one of your claims, or we had to recover a payout. " +
-      "One correction moves you back to New for 90 days. Your approved claims still count after that.");
+      "One correction moves you back to Bronze for 90 days. Your approved claims still count after that.");
   });
 });
