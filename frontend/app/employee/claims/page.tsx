@@ -34,7 +34,9 @@ import { VerificationScreen } from "./_components/VerificationScreen";
 import { SubmitDialog } from "./_components/SubmitDialog";
 import { ClaimDialog } from "./_components/ClaimDialog";
 import { closeAttempt, claimSummary, type SubmitPhase } from "./_components/submitDialogState";
+import InvoiceForm from "./_components/InvoiceForm";
 import { formatMoney } from "@/lib/format";
+import { useAuth } from "@/context/AuthContext";
 // CameraModal removed: using native <input capture="environment"> instead
 
 // ─── Server Actions ───────────────────────────────────────────────────────────
@@ -377,6 +379,10 @@ function BatchDropzone({ isFull, isLoading, onAdd, inputRef, cameraRef, expanded
 function CaptureReceiptContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
+  const isContractor = user?.role === "Contractor";
+  // Contractors can submit either receipts or an invoice. Employees only see receipts.
+  const [mode, setMode] = useState<"receipts" | "invoice">("receipts");
 
   // ── Stage ──────────────────────────────────────────────────────────────────
   const [stage, setStage] = useState<Stage>("form");
@@ -1046,13 +1052,39 @@ function CaptureReceiptContent() {
 
         {/* ── Page Header (form stage only) ─────────────────────────────────── */}
         {stage === "form" && (
-          <div className="flex flex-col gap-1">
-            <h2 id="claims-page-title" tabIndex={-1} className="font-display font-semibold text-3xl md:text-4xl text-ink outline-none">
-              Capture receipts
-            </h2>
-            <p className="text-base text-ink-muted font-body leading-relaxed">
-              Upload your receipts and Reclaim AI will extract the data for you.
-            </p>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <h2 id="claims-page-title" tabIndex={-1} className="font-display font-semibold text-3xl md:text-4xl text-ink outline-none">
+                {mode === "invoice" ? "Submit an invoice" : "Capture receipts"}
+              </h2>
+              <p className="text-base text-ink-muted font-body leading-relaxed">
+                {mode === "invoice"
+                  ? "Bill your contract rate for time or services. HR reviews each invoice before it is paid."
+                  : "Upload your receipts and Reclaim AI will extract the data for you."}
+              </p>
+            </div>
+            {isContractor && (
+              <div role="tablist" aria-label="Submission type" className="inline-flex w-fit rounded-full border border-line bg-surface p-1">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "receipts"}
+                  onClick={() => setMode("receipts")}
+                  className={`min-h-9 rounded-full px-4 font-body text-sm font-semibold transition-colors ${mode === "receipts" ? "bg-accent text-on-accent" : "text-ink-muted hover:text-ink"}`}
+                >
+                  Expense claim
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "invoice"}
+                  onClick={() => setMode("invoice")}
+                  className={`min-h-9 rounded-full px-4 font-body text-sm font-semibold transition-colors ${mode === "invoice" ? "bg-accent text-on-accent" : "text-ink-muted hover:text-ink"}`}
+                >
+                  Invoice
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1114,7 +1146,16 @@ function CaptureReceiptContent() {
         )}
 
         {/* ── FORM STAGE ────────────────────────────────────────────────────── */}
-        {stage === "form" && (
+        {stage === "form" && isContractor && mode === "invoice" && (
+          <div className="flex flex-col gap-6">
+            <InvoiceForm />
+            <p className="font-body text-xs text-ink-muted">
+              An invoice is still a claim under your contract. It appears in your history and in HR triage.
+            </p>
+          </div>
+        )}
+
+        {stage === "form" && mode === "receipts" && (
           <div className="flex flex-col gap-6">
 
             {fileError && (

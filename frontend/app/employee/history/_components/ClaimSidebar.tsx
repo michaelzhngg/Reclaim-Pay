@@ -18,6 +18,7 @@ import {
 import type { HistoryClaim, LineItem, ClaimStatus } from "./historyData";
 import MoneyFlow from "@/components/timeline/MoneyFlow";
 import { formatClaimRef, formatMoney } from "@/lib/format";
+import { invoicePeriodLabel } from "@/lib/invoices";
 
 // ─── Prop types ───────────────────────────────────────────────────────────────
 
@@ -309,6 +310,14 @@ function ClaimFormModal({
                   <span className="font-semibold">{claim.claimContext.vendorName}</span>
                 </div>
               )}
+              {claim.isInvoice && (
+                <div className="flex gap-2">
+                  <span className="text-ink-muted w-28 shrink-0">Invoice period:</span>
+                  <span className="font-semibold">
+                    {invoicePeriodLabel(claim.invoicePeriodStart, claim.invoicePeriodEnd)}
+                  </span>
+                </div>
+              )}
               {claim.claimContext.serviceStart && (
                 <div className="flex gap-2">
                   <span className="text-ink-muted w-28 shrink-0">Service start:</span>
@@ -355,7 +364,7 @@ function ClaimFormModal({
           {/* Line Items Table */}
           <section className="mb-8">
             <h3 className="font-body font-semibold text-sm text-ink mb-3 border-b border-line pb-1">
-              Expense line items ({claim.lineItems.length} {claim.isVendorBooking ? "booking" : claim.lineItems.length === 1 ? "receipt" : "receipts"})
+              Expense line items ({claim.lineItems.length} {claim.isVendorBooking ? "booking" : claim.isInvoice ? "invoice line" : claim.lineItems.length === 1 ? "receipt" : "receipts"})
             </h3>
             <table className="w-full border-collapse" style={{ fontSize: "12px" }}>
               <thead>

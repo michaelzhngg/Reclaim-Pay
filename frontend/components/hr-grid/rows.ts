@@ -49,6 +49,10 @@ export interface TriageRow {
   serviceStart: string | null;
   serviceEnd: string | null;
   purpose: string | null;
+  /** A contractor invoice is still a CLAIM row, with a work period. */
+  isInvoice: boolean;
+  invoicePeriodStart: string | null;
+  invoicePeriodEnd: string | null;
 }
 
 /** HR labels from the copy deck (§13.1). */
@@ -116,6 +120,9 @@ export function toTriageRow(r: TriageSource): TriageRow {
     serviceStart: r.service_start ?? null,
     serviceEnd: r.service_end ?? null,
     purpose: r.purpose ?? null,
+    isInvoice: Boolean(r.is_invoice),
+    invoicePeriodStart: r.invoice_period_start ?? null,
+    invoicePeriodEnd: r.invoice_period_end ?? null,
   };
 }
 

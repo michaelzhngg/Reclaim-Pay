@@ -37,7 +37,10 @@ export type HardStop =
   | "EMPLOYEE_MONTHLY_CAP"
   | "AGENT_DAILY_BUDGET"
   | "HIGH_RISK_SIGNAL"
-  | "EXPECTED_LOSS";
+  | "EXPECTED_LOSS"
+  | "FX_RATE_UNAVAILABLE"
+  | "CONTRACTOR_NOT_TRUSTED"
+  | "OVER_CONTRACT_LIMIT";
 
 export interface RiskSignal {
   code: SignalCode;

@@ -62,6 +62,10 @@ export interface HistoryClaim {
   /** True for a company-paid vendor booking, so the list can label it. */
   isVendorBooking?: boolean;
   vendorName?: string;
+  /** True for a contractor invoice, which is still a claim row with a work period. */
+  isInvoice?: boolean;
+  invoicePeriodStart?: string | null;
+  invoicePeriodEnd?: string | null;
   lineItems: LineItem[];
   receiptCount: number;
   /** Backend URL used by the Download PDF button. */

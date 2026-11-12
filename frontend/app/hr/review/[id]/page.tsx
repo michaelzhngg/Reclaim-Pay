@@ -6,7 +6,8 @@ import { ArrowLeft, AlertTriangle, Clock, ShieldCheck, ShieldX, ChevronDown, Zoo
 import type { ClaimBundle } from "@/lib/api/types";
 import { formatClaimRef, formatMoney } from "@/lib/format";
 import { companyLineAmount, fxQuoteText } from "@/lib/fx";
-import { contractSummaryRows } from "@/lib/contracts";
+import { contractSummaryRows, formatRate } from "@/lib/contracts";
+import { invoicePeriodLabel, quantityLabel } from "@/lib/invoices";
 import { SuccessModal, isAwaitingSecondApproval } from "../../hr_components/SuccessModal";
 import { useAuth } from "@/context/AuthContext";
 import { updateReimbursementStatus } from "@/lib/actions/hr";
@@ -538,6 +539,47 @@ export default function ReviewPage() {
                   <Field key={row.label} label={row.label} value={row.value} />
                 ))}
               </div>
+            </Card>
+          )}
+
+          {/* The invoice period and rate, before the money decision */}
+          {bundle.is_invoice && (
+            <Card title="Contractor invoice">
+              <div className="p-4 sm:p-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <Field label="Period" value={invoicePeriodLabel(bundle.invoice_period_start, bundle.invoice_period_end)} />
+                <Field
+                  label="Quantity"
+                  value={bundle.contract
+                    ? quantityLabel(bundle.line_items[0]?.quantity, bundle.contract.rate_unit)
+                    : "Not set"}
+                />
+                <Field
+                  label="Unit price"
+                  value={fmt(bundle.line_items[0]?.unit_price ?? null)}
+                />
+                <Field
+                  label="Contract rate"
+                  value={bundle.contract
+                    ? formatRate(bundle.contract.currency, bundle.contract.rate_amount, bundle.contract.rate_unit)
+                    : "Not set"}
+                />
+                <Field label="Claimed amount" value={fmt(bundle.totals.total_requested)} />
+                <Field
+                  label="Company equivalent"
+                  value={fxQuoteText(
+                    claimCurrency,
+                    bundle.totals.total_requested,
+                    companyCurrency,
+                    bundle.fx_rate_to_company,
+                    bundle.fx_rate_at,
+                  )}
+                />
+              </div>
+              {bundle.invoice_over_contract_rate && (
+                <p className="px-4 sm:px-6 pb-4 font-body text-sm text-warning">
+                  Billed above the contract rate. This invoice needs an HR decision and cannot auto-pay.
+                </p>
+              )}
             </Card>
           )}
 

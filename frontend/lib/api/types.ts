@@ -127,6 +127,10 @@ export interface ReimbursementRaw {
   /** Set for a contractor claim. */
   contract_id?: string | null;
   contract?: ContractRecord | null;
+  /** True for a contractor invoice. It is still a CLAIM row with an invoice period. */
+  is_invoice?: boolean;
+  invoice_period_start?: string | null;
+  invoice_period_end?: string | null;
   settlement_id: string | null;
   main_category: string;
   currency: string;
@@ -285,6 +289,9 @@ export interface BundleLineItem {
   status: LineItemStatus;
   requested_amount: number;
   approved_amount: number;
+  /** Invoice line quantity and rate, when the row is a contractor invoice. */
+  quantity?: number | null;
+  unit_price?: number | null;
   /** Company-currency equivalents for the receipt row, when a quote exists. */
   requested_company_amount?: number | null;
   approved_company_amount?: number | null;
@@ -323,6 +330,13 @@ export interface ClaimBundle {
   fx_unavailable: boolean;
   /** The contractor's terms, when this claim came from a contract. */
   contract: ContractRecord | null;
+  /** True for a contractor invoice; the period is the work it covers. */
+  is_invoice: boolean;
+  invoice_period_start: string;
+  invoice_period_end: string;
+  /** HR-only reason from intake. Empty for a normal claim or an invoice at the contract rate. */
+  invoice_contract_reason: string;
+  invoice_over_contract_rate: boolean;
   travel_destination: string;
   travel_purpose: string;
   departure_date: string;

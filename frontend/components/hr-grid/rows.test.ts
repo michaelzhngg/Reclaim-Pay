@@ -74,6 +74,18 @@ describe("toTriageRow", () => {
   it("counts approvals", () => {
     expect(toTriageRow(raw({ approvals: [{ hr_id: "hr-1", at: "2026-11-03T10:05:00Z" }] })).approvals).toBe(1);
   });
+
+  it("keeps a contractor invoice a claim row with its period", () => {
+    const r = toTriageRow(raw({
+      is_invoice: true,
+      invoice_period_start: "2026-11-01",
+      invoice_period_end: "2026-11-05",
+    }));
+    expect(r.kind).toBe("CLAIM");
+    expect(r.isInvoice).toBe(true);
+    expect(r.invoicePeriodStart).toBe("2026-11-01");
+    expect(r.invoicePeriodEnd).toBe("2026-11-05");
+  });
 });
 
 describe("tierTabs", () => {
