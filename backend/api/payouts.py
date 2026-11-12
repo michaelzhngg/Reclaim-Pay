@@ -16,7 +16,7 @@ from core.enums import ReimbursementStatus, UserRole, PayoutStatus, is_vendor_bo
 from engine.jobs.maintenance import MaintenanceReport, StuckPayoutsOut, run_maintenance, stuck_payouts
 from engine.services.approvals import approvals_complete
 from engine.services.funding_service import FundingSummary, alert_hr, funding_summary
-from engine.services import payout_guard
+from engine.services import fx, payout_guard
 from engine.services.payout_service import (
     PayoutRefused,
     initiate_payout_async,
@@ -74,6 +74,9 @@ class PayoutLedgerRow(BaseModel):
     kind: str
     amount: float
     currency: str
+    claim_currency: str
+    company_amount: float
+    company_currency: str
     status: PayoutStatus
     tier: Optional[str] = None
     provider_batch_id: Optional[str] = None
@@ -146,6 +149,10 @@ def ledger_row(payout: Payout, reim: Reimbursement, employee: User, vendor: Vend
         kind="VENDOR_BOOKING" if is_booking else "CLAIM",
         amount=float(payout.amount),
         currency=payout.currency,
+        # The payout currency and amount above; the claim's own currency and company value here.
+        claim_currency=reim.currency,
+        company_amount=float(fx.stored_company_amount(reim)),
+        company_currency=fx.company_currency(),
         status=payout.status,
         # tier and audit_selected arrive with the autonomy columns (Chingiz B, DB-1).
         tier=getattr(reim, "tier", None),

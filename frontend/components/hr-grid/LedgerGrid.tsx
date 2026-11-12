@@ -74,6 +74,9 @@ function LedgerCard({ row }: { row: PayoutLedgerRow }) {
           {formatMoney(row.currency, row.amount)}
         </p>
       </div>
+      <p className="mt-1 font-mono text-xs text-ink-muted">
+        Claim {row.claim_currency} · {formatMoney(row.company_currency, row.company_amount)} company
+      </p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-3 text-xs text-ink-muted">
         <StatusPill status={row.status} />
         {row.tier && <span>{tierLabel(row.tier)}</span>}
@@ -95,8 +98,8 @@ export default function LedgerGrid({ rows }: { rows: PayoutLedgerRow[] }) {
   // Tiers aren't stored on payouts yet. Until one is, a Route column would say "Not recorded" on every row.
   const showRoute = hasAnyTier(rows);
 
-  // Minimum widths add up to 956 px with Route and 826 px without, so every column fits the
-  // ~960 px content area at a 1280 px window (sidebar 256 px, page padding 64 px).
+  // Minimum widths add up to about 1106 px with Route and 976 px without, so every column
+  // fits the ~960 px content area at a 1280 px window with horizontal scroll for the rest.
   const columnDefs = useMemo<ColDef<PayoutLedgerRow>[]>(
     () => [
       {
@@ -115,6 +118,14 @@ export default function LedgerGrid({ rows }: { rows: PayoutLedgerRow[] }) {
         type: "rightAligned",
         cellClass: "font-mono font-medium",
         valueFormatter: (p) => (p.data ? formatMoney(p.data.currency, p.data.amount) : ""),
+      },
+      {
+        headerName: "Claim · company",
+        width: 150,
+        sortable: false,
+        cellClass: "font-mono text-xs",
+        valueGetter: (p) =>
+          p.data ? `${p.data.claim_currency} · ${formatMoney(p.data.company_currency, p.data.company_amount)}` : "",
       },
       {
         field: "status",

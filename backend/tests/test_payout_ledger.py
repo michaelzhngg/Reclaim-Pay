@@ -28,6 +28,7 @@ def test_ledger_row_shape():
     row = payouts_api.ledger_row(*_row())
     assert row.claim_ref == "RC-12345678" and row.employee_name == "Aisyah"
     assert row.status == PayoutStatus.SUCCEEDED and row.amount == 48.0 and row.attempt == 1
+    assert row.claim_currency == "MYR" and row.company_amount == 48.0 and row.company_currency == "MYR"
     assert row.tier is None and row.audit_selected is False
 
 
