@@ -19,7 +19,7 @@ import {
   stuckReason,
 } from "@/components/hr-grid/webhookHealth";
 
-const BADGE = "inline-flex rounded-full border px-2.5 py-0.5 text-[12px] font-semibold";
+const BADGE = "inline-flex items-center justify-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-center text-[12px] font-semibold";
 const BUTTON = "inline-flex items-center justify-center gap-1.5 min-h-[44px] px-3 rounded-control border border-line text-sm font-semibold text-ink hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-60 disabled:cursor-wait cursor-pointer";
 
 async function fetchHealth() {
