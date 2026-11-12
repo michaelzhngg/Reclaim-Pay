@@ -93,6 +93,13 @@ function mapToBundle(r: TriageSource): ClaimBundle {
     departure_date: r.departure_date ?? "",
     arrival_date: r.arrival_date ?? "",
     is_overseas: false,
+    kind: r.kind ?? "CLAIM",
+    vendor_name: r.vendor_name ?? "",
+    vendor_verified: r.vendor_verified ?? false,
+    vendor_paypal_masked: r.vendor_paypal_masked ?? "",
+    vendor_cooldown_until: r.vendor_cooldown_until ?? "",
+    service_start: r.service_start ?? "",
+    service_end: r.service_end ?? "",
     line_items: lineItems,
     totals: {
       total_requested: r.total_claimed_amount ?? 0,

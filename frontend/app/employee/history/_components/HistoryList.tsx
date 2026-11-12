@@ -50,7 +50,16 @@ export default function HistoryList({ claims, onSelectClaim }: HistoryListProps)
                 className="border-t border-line first:border-t-0 hover:bg-surface-muted transition-colors cursor-pointer group"
               >
                 <td className="px-4 py-3 text-ink-muted whitespace-nowrap">{claim.date}</td>
-                <td className="px-4 py-3 text-ink font-medium">{claim.category}</td>
+                <td className="px-4 py-3 text-ink font-medium">
+                  <span className="flex flex-col">
+                    {claim.category}
+                    {claim.isVendorBooking && (
+                      <span className="mt-1 w-fit rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">
+                        Vendor booking
+                      </span>
+                    )}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-ink">
                   <div className="flex flex-col">
                     <span className="font-semibold">{claim.merchant}</span>
@@ -97,6 +106,7 @@ export default function HistoryList({ claims, onSelectClaim }: HistoryListProps)
                 </p>
                 <p className="font-body text-xs text-ink-muted truncate mt-0.5">
                   {claim.date.split(",")[0]} · {claim.category}
+                  {claim.isVendorBooking ? " · Vendor booking" : ""}
                 </p>
               </div>
 

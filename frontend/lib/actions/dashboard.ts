@@ -24,15 +24,18 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const fmt = (n: number) =>
     `MYR ${n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const bucket = (statuses: string[]) => {
-    const items = result.data!.filter((r) => statuses.includes(r.status));
+  const bucket = (statuses: string[], excludeBookings = false) => {
+    const items = result.data!.filter(
+      (r) => statuses.includes(r.status) && !(excludeBookings && r.kind === "VENDOR_BOOKING"),
+    );
     return { amount: fmt(items.reduce((s, r) => s + (r.total_claimed_amount ?? 0), 0)), count: items.length };
   };
 
   return {
     awaitingReview: bucket(["REVIEW", "PENDING", "APPEALED"]),
-    reimbursedThisMonth: bucket(["APPROVED"]),
-    alreadyPaid: bucket(["PAID"]),
+    // Vendor payments are company spend, not money reimbursed to the employee.
+    reimbursedThisMonth: bucket(["APPROVED"], true),
+    alreadyPaid: bucket(["PAID"], true),
   };
 }
 

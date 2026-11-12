@@ -12,6 +12,11 @@ class PrivilegeLevel(str, enum.Enum):
     Executive = "Executive"
 
 
+class ReimbursementKind(str, enum.Enum):
+    CLAIM = "CLAIM"
+    VENDOR_BOOKING = "VENDOR_BOOKING"
+
+
 class ReimbursementStatus(str, enum.Enum):
     PENDING = "PENDING"
     REVIEW = "REVIEW"

@@ -51,6 +51,9 @@ export interface HistoryClaim {
   approvedAmount: number;
   status: ClaimStatus;
   hrNote?: string;
+  /** True for a company-paid vendor booking, so the list can label it. */
+  isVendorBooking?: boolean;
+  vendorName?: string;
   lineItems: LineItem[];
   receiptCount: number;
   /** Backend URL used by the Download PDF button. */

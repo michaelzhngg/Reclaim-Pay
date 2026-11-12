@@ -93,9 +93,29 @@ export interface LineItem {
 }
 
 /** Raw shape returned by the FastAPI GET /reimbursements/ and /reimbursements/{id} endpoints. */
+/** A vendor the employee can book. Payout details stay on the server. */
+export interface VendorOption {
+  vendor_id: string;
+  name: string;
+  default_category?: string | null;
+  paypal_ready: boolean;
+}
+
+export interface VendorBookingRequest {
+  vendor_id?: string;
+  vendor_name?: string;
+  category: string;
+  amount: number;
+  service_start: string;
+  service_end: string;
+  purpose: string;
+}
+
 export interface ReimbursementRaw {
   reim_id: string;
   user_id: string;
+  /** CLAIM for an ordinary expense claim, VENDOR_BOOKING for a company-paid vendor booking. */
+  kind?: "CLAIM" | "VENDOR_BOOKING";
   employee_name?: string;
   department_name?: string;
   policy_id: string | null;
@@ -131,6 +151,14 @@ export interface ReimbursementRaw {
   location?: string | null;
   departure_date?: string | null;
   arrival_date?: string | null;
+  /** Vendor booking display. Payout details are HR-only. */
+  vendor_id?: string | null;
+  vendor_name?: string | null;
+  vendor_verified?: boolean | null;
+  vendor_paypal_masked?: string | null;
+  vendor_cooldown_until?: string | null;
+  service_start?: string | null;
+  service_end?: string | null;
 }
 
 /** Merchant names for a claim, e.g. "Grab, Hilton +1". Empty when none were read. */
@@ -168,9 +196,13 @@ export function mapReimbursementToClaim(r: ReimbursementRaw): ClaimSummary {
     id: r.reim_id,
     date: displayDate,
     category: r.policy_name ?? r.main_category ?? "General",
-    subCategory: `${r.receipt_count ?? 0} receipts`,
+    subCategory: (r.kind ?? "CLAIM") === "VENDOR_BOOKING"
+      ? "Vendor booking"
+      : `${r.receipt_count ?? 0} receipts`,
     // Never r.summary: that is the AI's verdict, and employees must not see it.
-    merchant: merchantLabel(r),
+    merchant: (r.kind ?? "CLAIM") === "VENDOR_BOOKING"
+      ? (r.vendor_name || "Vendor booking")
+      : merchantLabel(r),
     amount: formattedAmount,
     amountNumeric: amountValue,
     status: statusMap[r.status] ?? "Pending",
@@ -266,6 +298,14 @@ export interface ClaimBundle {
   departure_date: string;
   arrival_date: string;
   is_overseas: boolean;
+  /** Vendor booking fields. Empty for a claim. */
+  kind?: "CLAIM" | "VENDOR_BOOKING";
+  vendor_name?: string;
+  vendor_verified?: boolean;
+  vendor_paypal_masked?: string;
+  vendor_cooldown_until?: string;
+  service_start?: string;
+  service_end?: string;
   line_items: BundleLineItem[];
   totals: {
     total_requested: number;

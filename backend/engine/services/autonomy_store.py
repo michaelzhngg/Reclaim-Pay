@@ -98,6 +98,14 @@ def payee_from_user(user: User) -> PayeeStatus:
     )
 
 
+def payee_from_vendor(vendor) -> PayeeStatus:
+    return PayeeStatus(
+        verified=bool(vendor.paypal_verified and vendor.paypal_payer_id),
+        linked_at=vendor.paypal_linked_at,
+        changed_at=vendor.payout_destination_changed_at,
+    )
+
+
 def _claim_row(r: Reimbursement) -> dict:
     amount = r.total_approved_amount if r.total_approved_amount is not None else r.total_claimed_amount
     return {

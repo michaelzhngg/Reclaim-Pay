@@ -88,6 +88,11 @@ function TriageCard({
             <p className="text-xs text-ink-muted mt-0.5 truncate">
               <span className="font-mono">{row.ref}</span> · {row.category}
             </p>
+            {row.kind === "VENDOR_BOOKING" && (
+              <span className="mt-1 inline-flex rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">
+                Vendor booking{row.vendorName ? ` · ${row.vendorName}` : ""}
+              </span>
+            )}
           </div>
           <p className="font-mono font-medium text-sm text-ink shrink-0">
             {formatMoney(row.currency, row.amount)}
@@ -104,7 +109,7 @@ function TriageCard({
           </div>
         )}
         <p className="mt-2 text-xs text-ink-muted">
-          AI: {verdictLabel(row.aiVerdict)}
+          {row.kind === "VENDOR_BOOKING" ? "Policy:" : "AI:"} {verdictLabel(row.aiVerdict)}
           {row.confidence != null && ` ${row.confidence.toFixed(2)}`} · {statusLabel(row)}
         </p>
       </Link>
@@ -143,6 +148,11 @@ export default function TriageGrid({ rows, selectable, selfId, selected, onSelec
             <span className="flex flex-col leading-tight min-w-0">
               <span className="truncate font-medium text-ink">{p.data.employee}</span>
               <span className="truncate text-xs text-ink-muted">{p.data.category}</span>
+              {p.data.kind === "VENDOR_BOOKING" && (
+                <span className="truncate text-xs font-semibold text-accent">
+                  Vendor booking{p.data.vendorName ? ` · ${p.data.vendorName}` : ""}
+                </span>
+              )}
             </span>
           ) : null,
       },

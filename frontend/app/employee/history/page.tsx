@@ -60,6 +60,8 @@ function mapToHistoryClaim(r: ReimbursementRaw): HistoryClaim {
     approvedAmount: net,
     status: claimStatus,
     hrNote: (r.ai_reasoning?.['hr_note'] as string | undefined),
+    isVendorBooking: (r.kind ?? "CLAIM") === "VENDOR_BOOKING",
+    vendorName: r.vendor_name ?? undefined,
     lineItems,
     receiptCount: lineItems.length,
     pdfDownloadUrl: `/api/v1/reimbursements/${r.reim_id}/pdf`,

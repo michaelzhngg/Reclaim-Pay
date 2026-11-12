@@ -458,7 +458,8 @@ export default function ReviewPage() {
           <ArrowLeft className="w-4 h-4" strokeWidth={2.25} aria-hidden="true" /> Back to Dashboard
         </button>
         <h1 className="font-display font-semibold text-2xl md:text-3xl text-ink">
-          Review Claim <span className="font-mono font-normal text-ink-muted text-lg md:text-xl">{formatClaimRef(bundle.id)}</span>
+          {bundle.kind === "VENDOR_BOOKING" ? "Review Vendor Booking" : "Review Claim"}{" "}
+          <span className="font-mono font-normal text-ink-muted text-lg md:text-xl">{formatClaimRef(bundle.id)}</span>
         </h1>
         <p className="text-sm text-ink-muted mt-1" suppressHydrationWarning>
   Submitted {new Date(bundle.submitted_at).toLocaleString("en-MY")} 
@@ -486,7 +487,27 @@ export default function ReviewPage() {
             </Card>
           )}
 
+          {/* Vendor booking details */}
+          {bundle.kind === "VENDOR_BOOKING" && (
+            <Card title="Vendor">
+              <div className="p-4 sm:p-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <Field label="Vendor" value={bundle.vendor_name || "Not set"} />
+                <Field label="Service start" value={bundle.service_start || "Not set"} />
+                <Field label="Service end" value={bundle.service_end || "Not set"} />
+                <Field label="PayPal account" value={bundle.vendor_paypal_masked || "Not set"} />
+                <Field label="Payout account" value={bundle.vendor_verified ? "Verified" : "Not verified"} />
+                {bundle.vendor_cooldown_until && (
+                  <Field label="Auto-pay paused until" value={bundle.vendor_cooldown_until} />
+                )}
+              </div>
+              <p className="px-4 sm:px-6 pb-4 text-xs text-ink-muted">
+                This is a company-paid booking. There is no receipt yet. The vendor is paid directly and no employee float is involved.
+              </p>
+            </Card>
+          )}
+
           {/* Official Document */}
+          {bundle.kind !== "VENDOR_BOOKING" && (
           <Card title="Official Document">
             <div className="p-4 sm:p-6">
               <div className="flex items-center gap-3 mb-4">
@@ -521,9 +542,10 @@ export default function ReviewPage() {
               </div>
             </div>
           </Card>
+          )}
 
           {/* Financial Breakdown */}
-          <Card title={<>Financial Breakdown <span className="ml-2 text-xs font-body font-normal text-ink-muted">{bundle.line_items.length} receipts</span></>}>
+          <Card title={<>Financial Breakdown <span className="ml-2 text-xs font-body font-normal text-ink-muted">{bundle.line_items.length} {bundle.kind === "VENDOR_BOOKING" ? "booking" : "receipts"}</span></>}>
             {/* Desktop Table */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">

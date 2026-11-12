@@ -291,6 +291,8 @@ async def create_payout(
     reim = db.get(Reimbursement, body.reim_id)
     if not reim:
         raise HTTPException(status_code=404, detail="Reimbursement not found")
+    if (reim.kind or "CLAIM") == "VENDOR_BOOKING":
+        raise HTTPException(status_code=400, detail="Vendor payouts are not enabled yet.")
 
     employee = db.get(User, reim.user_id)
     existing = db.exec(select(Payout).where(Payout.reim_id == body.reim_id)).all()

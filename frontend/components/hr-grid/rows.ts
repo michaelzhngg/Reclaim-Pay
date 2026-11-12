@@ -43,6 +43,8 @@ export interface TriageRow {
   submittedAt: string | null;
   approvals: number;
   auditSelected: boolean;
+  kind: "CLAIM" | "VENDOR_BOOKING";
+  vendorName: string | null;
 }
 
 /** HR labels from the copy deck (§13.1). */
@@ -74,6 +76,7 @@ export const SKIP_REASON_LABEL: Record<BatchSkipReason, string> = {
   NOT_IN_REVIEW: "already decided",
   SELF_APPROVAL: "your own claim",
   NOTHING_TO_PAY: "no approved amount",
+  VENDOR_BOOKING: "vendor bookings need individual review",
 };
 
 const SEVERITY_RANK: Record<Severity, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
@@ -103,6 +106,8 @@ export function toTriageRow(r: TriageSource): TriageRow {
     submittedAt: r.created_at,
     approvals: r.approvals?.length ?? 0,
     auditSelected: r.audit_selected ?? decision.audit_selected ?? false,
+    kind: r.kind ?? "CLAIM",
+    vendorName: r.vendor_name ?? null,
   };
 }
 
@@ -149,6 +154,7 @@ export function exclusionReason(row: TriageRow, selfId: string | null | undefine
   if (row.tier !== "HR_QUICK") return "NOT_HR_QUICK";
   if (row.status !== "REVIEW") return "NOT_IN_REVIEW";
   if (selfId && row.userId === selfId) return "SELF_APPROVAL";
+  if (row.kind === "VENDOR_BOOKING") return "VENDOR_BOOKING";
   return null;
 }
 

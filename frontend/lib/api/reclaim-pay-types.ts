@@ -190,7 +190,7 @@ export interface ReimbursementAutonomyFields {
   approvals?: Approval[] | null;
 }
 
-export type BatchSkipReason = "NOT_HR_QUICK" | "NOT_IN_REVIEW" | "SELF_APPROVAL" | "NOTHING_TO_PAY";
+export type BatchSkipReason = "NOT_HR_QUICK" | "NOT_IN_REVIEW" | "SELF_APPROVAL" | "NOTHING_TO_PAY" | "VENDOR_BOOKING";
 
 /** POST /reimbursements/batch-approve */
 export interface BatchApproveResult {

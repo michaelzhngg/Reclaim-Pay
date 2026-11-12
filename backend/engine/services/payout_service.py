@@ -78,6 +78,10 @@ def _plan(reim_id: UUID, db: Session):
     if not reim:
         return None, None, ("SKIP_NOT_APPROVED", None, 0), []
     existing = _existing_payouts(db, reim_id)
+    if (reim.kind or "CLAIM") == "VENDOR_BOOKING":
+        # Vendor payouts land in the next slice. Refuse rather than fall back to the requester's account.
+        logger.info("[AUTO_PAYOUT] Vendor booking reim=%s is not payable yet", reim_id)
+        return reim, None, ("SKIP_VENDOR_UNSUPPORTED", None, 0), existing
     employee = db.get(User, reim.user_id)
     payee_verified = bool(employee and employee.paypal_verified and employee.paypal_payer_id)
     net_amount, _applied = offset_for_reim(db, reim)
