@@ -5,10 +5,13 @@ export function proxy(request: NextRequest) {
   const token = request.cookies.get('session')?.value;
   const { pathname } = request.nextUrl;
 
-  // Public paths — landing, login, API, and PWA/static assets bypass the auth gate
+  // Public paths: landing, login, the password link pages, API, and PWA/static assets bypass the auth gate
   if (
     pathname === '/' ||
     pathname.startsWith('/login') ||
+    pathname === '/forgot-password' ||
+    pathname === '/set-password' ||
+    pathname === '/reset-password' ||
     pathname.startsWith('/api/') ||
     pathname.startsWith('/images/') ||
     pathname.startsWith('/icons/') ||
@@ -29,5 +32,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|manifest.json|sw.js|icons|login).*)'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|manifest.json|sw.js|icons|login|forgot-password|set-password|reset-password).*)'],
 };

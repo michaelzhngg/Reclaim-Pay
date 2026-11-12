@@ -17,6 +17,8 @@ const ACTION_LABEL: Record<string, string> = {
   RECOVERY_STATUS: "Recovery status changed",
   HR_APPROVAL: "HR approved",
   PAYEE_LINKED: "PayPal account linked",
+  EMPLOYEE_CREATED: "Account created",
+  INVITE_RESENT: "Invitation re-sent",
 };
 
 export function actionLabel(action: Pick<AgentAction, "action_type" | "payload">): string {
@@ -82,6 +84,8 @@ export function actionSummary(action: Pick<AgentAction, "action_type" | "payload
         : null;
     case "PAYEE_LINKED":
       return str(p.email);
+    case "EMPLOYEE_CREATED":
+      return p.role === "HR" ? "HR account" : p.role === "Employee" ? "Employee account" : null;
     default:
       return null;
   }

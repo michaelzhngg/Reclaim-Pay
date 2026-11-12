@@ -30,8 +30,10 @@ const DEMO_CREDENTIALS: Record<"hr" | "employee", { email: string; password: str
 const PAYPAL_FAILED_MESSAGE =
   "We couldn't sign you in with PayPal. Use your email and password, or ask HR to check your PayPal link.";
 
-const FORGOT_PASSWORD_MESSAGE =
-  "Password reset is not available in this demo. Use a demo account above, or ask HR to reset your password.";
+const PASSWORD_DONE_MESSAGE: Record<string, string> = {
+  set: "Password set. Sign in.",
+  changed: "Password changed. Sign in.",
+};
 
 const inputClass = `${inputRecipe} aria-invalid:shadow-[0_0_0_1px_var(--color-danger),0_0_0_4px_rgb(196_21_63/0.12)]`;
 
@@ -39,7 +41,7 @@ export default function LoginPage() {
   const { login, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [restrictionToast, setRestrictionToast] = useState<string | null>(null);
+  const [passwordDone, setPasswordDone] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [demoBanner, setDemoBanner] = useState<"hr" | "employee" | null>(null);
   const [openingPayPal, setOpeningPayPal] = useState(false);
@@ -92,6 +94,12 @@ export default function LoginPage() {
       window.history.replaceState(null, "", "/login");
     }
 
+    const done = PASSWORD_DONE_MESSAGE[params.get("password") ?? ""];
+    if (done) {
+      setPasswordDone(done);
+      window.history.replaceState(null, "", "/login");
+    }
+
     if (demo === "hr" || demo === "employee") {
       const creds = DEMO_CREDENTIALS[demo];
       form.setValue("email", creds.email);
@@ -113,16 +121,6 @@ export default function LoginPage() {
     window.addEventListener("pageshow", reset);
     return () => window.removeEventListener("pageshow", reset);
   }, []);
-
-  useEffect(() => {
-    if (!restrictionToast) return;
-    const timer = window.setTimeout(() => setRestrictionToast(null), 6000);
-    return () => window.clearTimeout(timer);
-  }, [restrictionToast]);
-
-  const handleForgotPassword = () => {
-    setRestrictionToast(FORGOT_PASSWORD_MESSAGE);
-  };
 
   const busy = isLoading || isValidating;
 
@@ -211,6 +209,11 @@ export default function LoginPage() {
 
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
                 <div aria-live="polite" className="space-y-2 empty:hidden">
+                  {passwordDone && !error && !demoBanner && (
+                    <div role="status" className="rounded-xl bg-success-soft px-4 py-2.5 text-center text-[13px] font-medium text-success">
+                      {passwordDone}
+                    </div>
+                  )}
                   {demoBanner && !error && (
                     <div role="status" className="flex items-center justify-center gap-2 rounded-xl bg-primary/[0.06] px-4 py-2.5 text-[13px] font-medium text-primary">
                       <span className="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-primary" aria-hidden="true" />
@@ -253,13 +256,12 @@ export default function LoginPage() {
                     <label className="block text-[13px] font-medium text-on-surface" htmlFor="password">
                       Password
                     </label>
-                    <button
-                      type="button"
-                      onClick={handleForgotPassword}
+                    <Link
+                      href="/forgot-password"
                       className="-my-2 -mr-2 inline-flex min-h-11 items-center rounded-lg px-2 text-[13px] font-medium text-primary hover:text-primary-dim"
                     >
                       Forgot password?
-                    </button>
+                    </Link>
                   </div>
                   <div className="relative">
                     <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant/70" aria-hidden="true" />
@@ -285,13 +287,6 @@ export default function LoginPage() {
                   {form.formState.errors.password && (
                     <p id="password-error" className="mt-1.5 text-[13px] text-danger">{form.formState.errors.password.message}</p>
                   )}
-                  <div aria-live="polite">
-                    {restrictionToast && (
-                      <p role="status" className="pt-2 text-[13px] text-on-surface-variant">
-                        {restrictionToast}
-                      </p>
-                    )}
-                  </div>
                 </div>
 
                 <button className={`${btn.dark} ${btn.lg} mt-2 w-full`} type="submit" disabled={busy} aria-busy={busy}>
