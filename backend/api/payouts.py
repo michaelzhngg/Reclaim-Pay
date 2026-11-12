@@ -3,14 +3,16 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from api import deps
+from api.rate_limit import MAINTENANCE_RUN_LIMIT, limiter
 from api.schemas import CreatePayoutRequest
 from core.models import User, Reimbursement, Payout
 from core.enums import ReimbursementStatus, UserRole, PayoutStatus
+from engine.jobs.maintenance import MaintenanceReport, StuckPayoutsOut, run_maintenance, stuck_payouts
 from engine.services.approvals import approvals_complete
 from engine.services.funding_service import FundingSummary, alert_hr, funding_summary
 from engine.services.payout_service import initiate_payout_async, payout_plan
@@ -29,6 +31,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 _REFRESH_AFTER = timedelta(seconds=10)
+_MANUAL_MAINTENANCE_BATCH = 50
 
 
 class PayoutOut(BaseModel):
@@ -254,6 +257,29 @@ async def payout_funding(
         logger.exception("[FUNDING] Could not send the low-balance alert")
         db.rollback()
     return summary
+
+
+# Declared before GET /{reim_id}, which would otherwise capture "stuck" and "maintenance".
+@router.get("/stuck", response_model=StuckPayoutsOut)
+def get_stuck_payouts(
+    limit: int = Query(default=200, ge=1, le=500),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    return stuck_payouts(db, limit=limit)
+
+
+@router.post("/maintenance/run", response_model=MaintenanceReport)
+@limiter.limit(MAINTENANCE_RUN_LIMIT)
+async def run_payout_maintenance(
+    request: Request,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    report = await run_maintenance(db, payout_limit=_MANUAL_MAINTENANCE_BATCH)
+    if report.locked:
+        raise HTTPException(status_code=409, detail="Maintenance is already running")
+    return report
 
 
 @router.post("/", response_model=PayoutOut)

@@ -17,6 +17,7 @@ from core.enums import (
     PayoutStatus,
     RecoveryStatus,
     AgentActionType,
+    WebhookEventStatus,
 )
 
 
@@ -1116,4 +1117,53 @@ class ReconciliationDifference(SQLModel, table=True):
     resolved_by: Optional[UUID] = Field(
         default=None,
         foreign_key="employees.user_id"
+    )
+
+# ---------------------------------------------------------------------------
+# 23. paypal_webhook_events
+# ---------------------------------------------------------------------------
+
+class PayPalWebhookEvent(SQLModel, table=True):
+    """Verified PayPal deliveries, keyed by PayPal's event ID. The dead-letter queue is a status here."""
+    __tablename__ = "paypal_webhook_events"
+    __table_args__ = (Index("ix_paypal_webhook_events_status_updated_at", "status", "updated_at"),)
+
+    event_id: str = Field(
+        sa_column=Column(String(255), primary_key=True)
+    )
+    event_type: str = Field(
+        sa_column=Column(String(128), nullable=False, index=True)
+    )
+    # Payout item ID or invoice ID, best effort, for support lookup.
+    resource_id: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(255), index=True)
+    )
+    status: WebhookEventStatus = Field(
+        default=WebhookEventStatus.RECEIVED,
+        sa_column=Column(String, nullable=False, index=True)
+    )
+    attempts: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0")
+    )
+    error: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text)
+    )
+    payload: dict = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    processed_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True))
     )

@@ -371,6 +371,72 @@ export interface AgentActionsResult {
   actions: AgentAction[];
 }
 
+export type WebhookEventStatus = "RECEIVED" | "PROCESSED" | "IGNORED" | "FAILED" | "DEAD_LETTER";
+
+/** One row of the PayPal webhook ledger. The payload is never returned by the list endpoint. */
+export interface WebhookEvent {
+  event_id: string;
+  event_type: string;
+  resource_id: string | null;
+  status: WebhookEventStatus;
+  attempts: number;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+  processed_at: string | null;
+}
+
+export interface PayoutSweepReport {
+  checked: number;
+  refreshed: number;
+  changed: number;
+  still_open: number;
+  unrefreshable: number;
+  errors: number;
+  mock: boolean;
+  truncated: boolean;
+}
+
+export interface WebhookSweepReport {
+  checked: number;
+  processed: number;
+  dead_lettered: number;
+  errors: number;
+  truncated: boolean;
+}
+
+/** POST /payouts/maintenance/run */
+export interface MaintenanceReport {
+  started_at: string;
+  finished_at: string;
+  locked: boolean;
+  payouts: PayoutSweepReport;
+  webhooks: WebhookSweepReport;
+}
+
+/** GET /payouts/stuck */
+export interface StuckPayout {
+  payout_id: string;
+  reim_id: string;
+  claim_ref: string;
+  employee_name: string;
+  amount: number;
+  currency: string;
+  status: PayoutStatus;
+  provider_batch_id: string | null;
+  created_at: string;
+  updated_at: string;
+  age_hours: number;
+  refreshable: boolean;
+}
+
+export interface StuckPayouts {
+  older_than_hours: number;
+  checked_at: string;
+  mock: boolean;
+  payouts: StuckPayout[];
+}
+
 /** Formats an amount the way the backend writes it in notifications, e.g. "MYR 48.00". */
 export function formatMoney(currency: string, amount: number): string {
   return `${currency} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

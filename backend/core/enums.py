@@ -32,6 +32,14 @@ class PayoutStatus(str, enum.Enum):
     REVERSED = "REVERSED"
 
 
+class WebhookEventStatus(str, enum.Enum):
+    RECEIVED = "RECEIVED"
+    PROCESSED = "PROCESSED"
+    IGNORED = "IGNORED"
+    FAILED = "FAILED"
+    DEAD_LETTER = "DEAD_LETTER"
+
+
 class RecoveryStatus(str, enum.Enum):
     NOTICE_SENT = "NOTICE_SENT"
     DISPUTED = "DISPUTED"
@@ -56,6 +64,8 @@ class AgentActionType(str, enum.Enum):
     PAYEE_LINKED = "PAYEE_LINKED"
     PAYEE_LINK_FAILED = "PAYEE_LINK_FAILED"
     PAYPAL_SIGNIN = "PAYPAL_SIGNIN"
+    WEBHOOK_DEAD_LETTER = "WEBHOOK_DEAD_LETTER"
+    WEBHOOK_RETRY = "WEBHOOK_RETRY"
 
 
 class JudgmentResult(str, enum.Enum):

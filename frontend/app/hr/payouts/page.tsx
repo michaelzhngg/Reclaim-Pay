@@ -9,12 +9,14 @@ import FundingCard from "./_components/FundingCard";
 import LedgerTab from "./_components/LedgerTab";
 import ReconciliationTab from "./_components/ReconciliationTab";
 import RecoveriesTab from "./_components/RecoveriesTab";
+import WebhooksTab from "./_components/WebhooksTab";
 
 const TABS = [
   { id: "ledger", label: "Ledger" },
   { id: "reconciliation", label: "Reconciliation" },
   { id: "audit", label: "Audit queue" },
   { id: "recoveries", label: "Recoveries" },
+  { id: "webhooks", label: "Webhooks" },
   { id: "log", label: "Agent log" },
 ] as const;
 
@@ -78,6 +80,7 @@ function PayoutTabs() {
         {tab === "reconciliation" && <ReconciliationTab onLoaded={onTabLoaded} />}
         {tab === "audit" && <AuditQueueTab onLoaded={onTabLoaded} />}
         {tab === "recoveries" && <RecoveriesTab onOpenAudit={() => choose("audit")} onLoaded={onTabLoaded} />}
+        {tab === "webhooks" && <WebhooksTab onLoaded={onTabLoaded} />}
         {tab === "log" && <AgentLogTab onLoaded={onTabLoaded} />}
       </section>
     </>

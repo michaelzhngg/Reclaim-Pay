@@ -17,6 +17,8 @@ const ACTION_LABEL: Record<string, string> = {
   RECOVERY_STATUS: "Recovery status changed",
   HR_APPROVAL: "HR approved",
   PAYEE_LINKED: "PayPal account linked",
+  WEBHOOK_DEAD_LETTER: "PayPal event dead-lettered",
+  WEBHOOK_RETRY: "PayPal event retried",
 };
 
 export function actionLabel(action: Pick<AgentAction, "action_type" | "payload">): string {
