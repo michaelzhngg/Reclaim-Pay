@@ -401,3 +401,50 @@ def test_secrets_never_reach_the_logs(client, pg_db, resend, caplog):
     secrets_seen += [r[0] for r in pg_db.exec(text("SELECT token_hash FROM password_tokens")).all()]
     logged = "\n".join(r.getMessage() for r in caplog.records)
     assert all(s not in logged for s in secrets_seen)
+
+
+# Email result reported to HR
+
+def test_invite_response_says_when_the_email_was_sent(client, pg_db, resend):
+    hr = _person(pg_db, UserRole.HR)
+    body = _create(client, _bearer(pg_db, hr)).json()
+    assert body["email_status"] == "sent"
+    assert body["email_error"] is None
+    assert len(resend.calls) == 1
+
+
+def test_invite_response_says_email_is_off_without_a_key(client, pg_db, resend, monkeypatch):
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "")
+    hr = _person(pg_db, UserRole.HR)
+    created = _create(client, _bearer(pg_db, hr))
+    assert created.status_code == 201
+    body = created.json()
+    assert body["email_status"] == "off"
+    assert body["email_error"] is None
+    assert body["invite_link"]  # HR can still pass the link on
+    assert len(resend.calls) == 0
+    resent = client.post(f"/api/v1/employee/{body['employee']['user_id']}/invite", headers=_bearer(pg_db, hr)).json()
+    assert resent["email_status"] == "off"
+
+
+def test_invite_response_reports_a_refused_email_without_the_key(client, pg_db, resend):
+    resend.mock(return_value=httpx.Response(403, json={"message": "The send.example.com domain is not verified."}))
+    hr = _person(pg_db, UserRole.HR)
+    body = _create(client, _bearer(pg_db, hr)).json()
+    assert body["email_status"] == "failed"
+    assert "not verified" in body["email_error"]
+    assert settings.RESEND_API_KEY not in json.dumps(body)
+
+    resend.mock(return_value=httpx.Response(401, json={"message": "API key is invalid"}))
+    body = _create(client, _bearer(pg_db, hr)).json()
+    assert body["email_status"] == "failed"
+    assert body["email_error"] == "Resend refused the API key."
+    assert settings.RESEND_API_KEY not in json.dumps(body)
+
+
+def test_invite_response_reports_an_unreachable_email_service(client, pg_db, resend):
+    resend.mock(side_effect=httpx.ConnectError("down"))
+    hr = _person(pg_db, UserRole.HR)
+    body = _create(client, _bearer(pg_db, hr)).json()
+    assert body["email_status"] == "failed"
+    assert body["email_error"] == "Resend could not be reached."

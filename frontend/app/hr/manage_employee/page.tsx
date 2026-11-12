@@ -39,6 +39,12 @@ type DepartmentsState = { list: Department[]; loading: boolean; error: string | 
 
 // ─── One-time invite link ───────────────────────────────────────────────────
 
+/** Title for the dialog: only say "sent" when an email really went out. */
+function inviteTitle(invite: InviteResult, resent = false): string {
+  if (invite.email_status !== "sent") return "Send the link yourself";
+  return resent ? "New invitation sent" : "Invitation sent";
+}
+
 function InviteLinkPanel({ invite, onDone }: { invite: InviteResult; onDone: () => void }) {
   const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
   const fieldRef = useRef<HTMLInputElement>(null);
@@ -56,9 +62,18 @@ function InviteLinkPanel({ invite, onDone }: { invite: InviteResult; onDone: () 
 
   return (
     <div className="px-5 py-5 space-y-4">
-      <p role="status" className="text-sm text-ink">
-        Invitation sent to <span className="font-semibold break-all">{invite.email}</span>. It is valid for 7 days.
-      </p>
+      {invite.email_status === "sent" ? (
+        <p role="status" className="text-sm text-ink">
+          Invitation sent to <span className="font-semibold break-all">{invite.email}</span>. It is valid for 7 days.
+        </p>
+      ) : (
+        <p role="alert" className="rounded-control bg-warning-soft px-3 py-2 text-sm text-warning">
+          {invite.email_status === "off"
+            ? "No email was sent because email isn't set up on the server. "
+            : `The email to ${invite.email} could not be sent${invite.email_error ? `: ${invite.email_error.replace(/\.$/, "")}` : ""}. `}
+          Send this link to <span className="font-semibold break-all">{invite.email}</span> yourself. It is valid for 7 days.
+        </p>
+      )}
 
       <div>
         <label htmlFor="invite-link" className={labelClass}>Invitation link</label>
@@ -83,8 +98,8 @@ function InviteLinkPanel({ invite, onDone }: { invite: InviteResult; onDone: () 
       </div>
 
       <p id="invite-link-note" className="text-sm text-ink-muted">
-        If the email doesn&apos;t arrive, send this link to them yourself. It&apos;s shown only this once, and whoever has
-        it can set this account&apos;s password.
+        {invite.email_status === "sent" ? "If the email doesn't arrive, send this link to them yourself. " : ""}
+        It&apos;s shown only this once, and whoever has it can set this account&apos;s password.
       </p>
 
       <div className="flex justify-end pt-1">
@@ -565,7 +580,7 @@ export default function ManageEmployeePage() {
       setActionError(result.error ?? "We couldn't send a new invitation. Try again.");
       return;
     }
-    setDialog({ kind: "invite", invite: result.data, title: "New invitation sent" });
+    setDialog({ kind: "invite", invite: result.data, title: inviteTitle(result.data, true) });
     reload();
   }
 
@@ -650,7 +665,7 @@ export default function ManageEmployeePage() {
               departments={departments}
               onCancel={closeDialog}
               onCreated={(invite) => {
-                setDialog({ kind: "invite", invite, title: "Invitation sent" });
+                setDialog({ kind: "invite", invite, title: inviteTitle(invite) });
                 reload();
               }}
             />

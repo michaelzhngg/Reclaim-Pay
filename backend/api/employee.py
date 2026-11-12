@@ -60,10 +60,14 @@ def list_employees(
     ]
 
 
-def _invite_response(plain: str, token) -> dict:
+def _invite_response(plain: str, token, email_result: tuple[str, str | None]) -> dict:
+    email_status, email_error = email_result
     return {
         "invite_link": account_emails.invite_link(plain),
         "invite_expires_at": token.expires_at.isoformat(),
+        # "sent", "off" (no API key on the server) or "failed" (Resend said no).
+        "email_status": email_status,
+        "email_error": email_error,
     }
 
 
@@ -112,10 +116,10 @@ def create_employee(
         "user_id": str(user.user_id), "role": _value(user.role),
     })
     db.refresh(user)
-    account_emails.send_invite(user.email, user.name, plain)
+    email_result = account_emails.send_invite(user.email, user.name, plain)
     return {
         "employee": _record(user, dept.name if dept else None, "pending"),
-        **_invite_response(plain, token),
+        **_invite_response(plain, token, email_result),
     }
 
 
@@ -136,8 +140,8 @@ def resend_invite(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This account is inactive.")
     plain, token = password_tokens.issue(db, user, password_tokens.INVITE)
     record_action(db, AgentActionType.INVITE_RESENT, str(current_user.user_id), None, {"user_id": str(user.user_id)})
-    account_emails.send_invite(user.email, user.name, plain)
-    return {"email": user.email, **_invite_response(plain, token)}
+    email_result = account_emails.send_invite(user.email, user.name, plain)
+    return {"email": user.email, **_invite_response(plain, token, email_result)}
 
 
 EDITABLE_FIELDS = ("name", "user_code", "department_id", "role", "is_active")

@@ -1,6 +1,6 @@
 """Copy for the account emails: invitation, password reset and the changed-password notice."""
 from core.config import settings
-from core.email_service import fire_and_forget_email
+from core.email_service import fire_and_forget_email, send_email_result
 
 INVITE_SUBJECT = "Set up your Reclaim Pay account"
 RESET_SUBJECT = "Reset your Reclaim Pay password"
@@ -45,9 +45,10 @@ def changed_text(name: str) -> str:
     )
 
 
-def send_invite(email: str, name: str, token: str) -> None:
-    fire_and_forget_email(email, INVITE_SUBJECT, invite_text(name), link=invite_link(token),
-                          link_label="Set your password")
+def send_invite(email: str, name: str, token: str) -> tuple[str, str | None]:
+    """HR is waiting on this one, so send it now and report ("sent", None), ("off", None) or ("failed", reason)."""
+    return send_email_result(email, INVITE_SUBJECT, invite_text(name), link=invite_link(token),
+                             link_label="Set your password")
 
 
 def send_reset(email: str, name: str, token: str) -> None:

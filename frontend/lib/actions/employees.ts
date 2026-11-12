@@ -45,6 +45,9 @@ export interface InviteResult {
   email: string;
   invite_link: string;
   invite_expires_at: string;
+  /** "sent", "off" (the server has no email key) or "failed" (the email service refused it). */
+  email_status: "sent" | "off" | "failed";
+  email_error: string | null;
 }
 
 export async function listEmployees(): Promise<{ data: EmployeeRecord[]; error: string | null }> {
@@ -62,7 +65,7 @@ export async function getDepartments(): Promise<{ data: Department[]; error: str
 }
 
 export async function createEmployee(input: NewEmployee): Promise<{ data: InviteResult | null; error: string | null }> {
-  const result = await apiPost<{ employee: EmployeeRecord; invite_link: string; invite_expires_at: string }>(
+  const result = await apiPost<Omit<InviteResult, "email"> & { employee: EmployeeRecord }>(
     `${API_PREFIX}/employee/`,
     {
       name: input.name,
@@ -74,8 +77,8 @@ export async function createEmployee(input: NewEmployee): Promise<{ data: Invite
   );
   if (result.status === 422) return { data: null, error: "Check the name and email, then try again." };
   if (!result.data) return { data: null, error: result.error ?? "We couldn't create the account. Try again." };
-  const { employee, invite_link, invite_expires_at } = result.data;
-  return { data: { email: employee.email, invite_link, invite_expires_at }, error: null };
+  const { employee, ...invite } = result.data;
+  return { data: { email: employee.email, ...invite }, error: null };
 }
 
 export async function resendInvite(userId: string): Promise<{ data: InviteResult | null; error: string | null }> {
