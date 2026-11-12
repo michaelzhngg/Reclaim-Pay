@@ -16,6 +16,11 @@ from engine.services.funding_service import FundingSummary, alert_hr, funding_su
 from engine.services.payout_service import initiate_payout_async, payout_plan
 from engine.services.payout_status import FINAL_STATUSES, refresh_payout
 from engine.services.paypal_client import PayPalError
+from engine.services.reconcile_history import (
+    JOB_DAYS,
+    history as reconciliation_history,
+    run_and_record,
+)
 from engine.services.reconcile_service import ReconcileSummary, reconcile
 from engine.services.recovery_service import offset_for_reim
 
@@ -62,6 +67,56 @@ class PayoutLedgerRow(BaseModel):
     audit_selected: bool
     created_at: datetime
     updated_at: datetime
+
+
+class ReconciliationRunOut(BaseModel):
+    run_id: UUID
+    trigger: str
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+    days: int
+    window_start: datetime
+    window_end: datetime
+    state: str
+    reconciled: int
+    total: int
+    pending: int
+    differences_new: int
+    differences_open: int
+    data_through: Optional[datetime] = None
+    mock: bool
+    message: Optional[str] = None
+    error: Optional[str] = None
+    triggered_by: Optional[UUID] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReconciliationDifferenceOut(BaseModel):
+    difference_id: UUID
+    kind: str
+    payout_id: Optional[UUID] = None
+    reim_id: Optional[UUID] = None
+    transaction_id: Optional[str] = None
+    amount: float
+    currency: str
+    employee_name: Optional[str] = None
+    occurred_at: datetime
+    first_seen_at: datetime
+    last_seen_at: datetime
+    resolved_at: Optional[datetime] = None
+    resolution: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReconciliationHistoryOut(BaseModel):
+    latest: Optional[ReconciliationRunOut] = None
+    last_success_at: Optional[datetime] = None
+    runs: list[ReconciliationRunOut] = []
+    open_differences: list[ReconciliationDifferenceOut] = []
 
 
 def ledger_row(payout: Payout, reim: Reimbursement, employee: User) -> PayoutLedgerRow:
@@ -139,6 +194,33 @@ def reconcile_payouts(
     current_user: User = Depends(deps.get_current_hr_user),
 ):
     return reconcile(db, days)
+
+
+@router.get("/reconcile/history", response_model=ReconciliationHistoryOut)
+def reconcile_history(
+    runs: int = Query(default=14, ge=1, le=50),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    found = reconciliation_history(db, runs)
+    return ReconciliationHistoryOut(
+        latest=ReconciliationRunOut.model_validate(found.latest) if found.latest else None,
+        last_success_at=found.last_success_at,
+        runs=[ReconciliationRunOut.model_validate(run) for run in found.runs],
+        open_differences=[
+            ReconciliationDifferenceOut.model_validate(row) for row in found.open_differences
+        ],
+    )
+
+
+@router.post("/reconcile/run", response_model=ReconciliationRunOut)
+def reconcile_now(
+    days: int = Query(default=JOB_DAYS, ge=1, le=30),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    recorded = run_and_record(db, days=days, trigger="manual", triggered_by=current_user.user_id)
+    return ReconciliationRunOut.model_validate(recorded.run)
 
 
 # Also before GET /{reim_id}. Alert only: it never changes a claim or a payout.
