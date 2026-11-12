@@ -192,6 +192,7 @@ def load_backtest_cases(db: Session, now: datetime, days: int = 90) -> list[Back
         select(Reimbursement)
         .where(
             Reimbursement.created_at >= since,
+            Reimbursement.kind == "CLAIM",
             Reimbursement.autonomy.is_not(None),
             Reimbursement.status.in_(DECIDED_STATUSES),
         )
@@ -201,7 +202,12 @@ def load_backtest_cases(db: Session, now: datetime, days: int = 90) -> list[Back
         return []
     user_ids = {r.user_id for r in claims}
     rows: dict[UUID, list[tuple[datetime, dict]]] = {u: [] for u in user_ids}
-    for r in db.exec(select(Reimbursement).where(Reimbursement.user_id.in_(user_ids))).all():
+    for r in db.exec(
+        select(Reimbursement).where(
+            Reimbursement.user_id.in_(user_ids),
+            Reimbursement.kind == "CLAIM",
+        )
+    ).all():
         row = store._claim_row(r)
         rows[r.user_id].append((store._utc(row["updated_at"]), row))
     issues = _issue_dates_by_user(db, user_ids)
@@ -304,7 +310,9 @@ def employee_trust(db: Session, user_id: UUID, config: AutonomyConfig, now: date
     paid_at = [
         store._claim_row(r)["updated_at"]
         for r in db.exec(select(Reimbursement).where(
-            Reimbursement.user_id == user_id, Reimbursement.status == ReimbursementStatus.PAID.value
+            Reimbursement.user_id == user_id,
+            Reimbursement.kind == "CLAIM",
+            Reimbursement.status == ReimbursementStatus.PAID.value,
         )).all()
     ]
 

@@ -60,8 +60,10 @@ function mapToHistoryClaim(r: ReimbursementRaw): HistoryClaim {
     approvedAmount: net,
     status: claimStatus,
     hrNote: (r.ai_reasoning?.['hr_note'] as string | undefined),
+    isVendorBooking: (r.kind ?? "CLAIM") === "VENDOR_BOOKING",
+    vendorName: r.vendor_name ?? undefined,
     lineItems,
-    receiptCount: lineItems.length,
+    receiptCount: (r.kind ?? "CLAIM") === "VENDOR_BOOKING" ? 0 : lineItems.length,
     pdfDownloadUrl: `/api/v1/reimbursements/${r.reim_id}/pdf`,
     settlementId: r.settlement_id,
     settlementTemplateUrl: r.settlement_id
@@ -79,6 +81,9 @@ function mapToHistoryClaim(r: ReimbursementRaw): HistoryClaim {
       departurDate: r.departure_date ?? undefined,
       arrivalDate: r.arrival_date ?? undefined,
       overseas: false,
+      vendorName: r.vendor_name ?? undefined,
+      serviceStart: r.service_start ?? undefined,
+      serviceEnd: r.service_end ?? undefined,
     },
   };
 }

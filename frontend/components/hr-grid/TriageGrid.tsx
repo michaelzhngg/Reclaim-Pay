@@ -88,6 +88,18 @@ function TriageCard({
             <p className="text-xs text-ink-muted mt-0.5 truncate">
               <span className="font-mono">{row.ref}</span> · {row.category}
             </p>
+            {row.kind === "VENDOR_BOOKING" && (
+              <span className="mt-1 inline-flex flex-col gap-0.5 text-xs">
+                <span className="w-fit rounded-full bg-accent-soft px-2 py-0.5 font-semibold text-accent">
+                  Vendor booking{row.vendorName ? ` · ${row.vendorName}` : ""}
+                </span>
+                <span className="text-ink-muted">
+                  {row.vendorVerified ? "Verified" : "Not verified"}
+                  {row.serviceStart ? ` · ${row.serviceStart} to ${row.serviceEnd ?? row.serviceStart}` : ""}
+                </span>
+                {row.purpose && <span className="text-ink-muted truncate">{row.purpose}</span>}
+              </span>
+            )}
           </div>
           <p className="font-mono font-medium text-sm text-ink shrink-0">
             {formatMoney(row.currency, row.amount)}
@@ -104,7 +116,7 @@ function TriageCard({
           </div>
         )}
         <p className="mt-2 text-xs text-ink-muted">
-          AI: {verdictLabel(row.aiVerdict)}
+          {row.kind === "VENDOR_BOOKING" ? "Policy:" : "AI:"} {verdictLabel(row.aiVerdict)}
           {row.confidence != null && ` ${row.confidence.toFixed(2)}`} · {statusLabel(row)}
         </p>
       </Link>
@@ -143,6 +155,18 @@ export default function TriageGrid({ rows, selectable, selfId, selected, onSelec
             <span className="flex flex-col leading-tight min-w-0">
               <span className="truncate font-medium text-ink">{p.data.employee}</span>
               <span className="truncate text-xs text-ink-muted">{p.data.category}</span>
+              {p.data.kind === "VENDOR_BOOKING" && (
+                <span className="flex flex-col leading-tight min-w-0 text-xs">
+                  <span className="truncate font-semibold text-accent">
+                    Vendor booking{p.data.vendorName ? ` · ${p.data.vendorName}` : ""}
+                  </span>
+                  <span className="truncate text-ink-muted">
+                    {p.data.vendorVerified ? "Verified" : "Not verified"}
+                    {p.data.serviceStart ? ` · ${p.data.serviceStart} to ${p.data.serviceEnd ?? p.data.serviceStart}` : ""}
+                  </span>
+                  {p.data.purpose && <span className="truncate text-ink-muted">{p.data.purpose}</span>}
+                </span>
+              )}
             </span>
           ) : null,
       },

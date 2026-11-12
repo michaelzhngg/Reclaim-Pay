@@ -28,3 +28,11 @@ def test_batch_only_takes_hr_quick_in_review():
     ok, skipped = split_batch(rows, approver_id="hr1")
     assert ok == ["a"]
     assert {s["reim_id"]: s["reason"] for s in skipped} == {"b": "NOT_HR_QUICK", "c": "NOT_IN_REVIEW", "d": "SELF_APPROVAL"}
+
+
+def test_batch_never_takes_a_vendor_booking():
+    rows = [{"reim_id": "b1", "tier": "HR_QUICK", "status": "REVIEW", "user_id": "e1", "kind": "VENDOR_BOOKING"},
+            {"reim_id": "c1", "tier": "HR_QUICK", "status": "REVIEW", "user_id": "e1", "kind": "CLAIM"}]
+    ok, skipped = split_batch(rows, approver_id="hr1")
+    assert ok == ["c1"]
+    assert skipped == [{"reim_id": "b1", "reason": "VENDOR_BOOKING"}]

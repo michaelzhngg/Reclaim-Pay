@@ -13,6 +13,7 @@ import { triageRows, type TriageRow, type TriageSource } from "@/components/hr-g
 import { triageReimbursements } from "@/src/mocks/triageFixtures";
 import { formatClaimRef } from "@/lib/format";
 import { toClaimAutonomy } from "@/lib/hr/evidence";
+import { hrClaimStats } from "@/lib/claims/stats";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -93,6 +94,15 @@ function mapToBundle(r: TriageSource): ClaimBundle {
     departure_date: r.departure_date ?? "",
     arrival_date: r.arrival_date ?? "",
     is_overseas: false,
+    kind: r.kind ?? "CLAIM",
+    vendor_id: r.vendor_id ?? "",
+    vendor_name: r.vendor_name ?? "",
+    vendor_verified: r.vendor_verified ?? false,
+    vendor_paypal_masked: r.vendor_paypal_masked ?? "",
+    vendor_cooldown_until: r.vendor_cooldown_until ?? "",
+    vendor_cooldown_hours: r.vendor_cooldown_hours ?? 72,
+    service_start: r.service_start ?? "",
+    service_end: r.service_end ?? "",
     line_items: lineItems,
     totals: {
       total_requested: r.total_claimed_amount ?? 0,
@@ -125,8 +135,6 @@ export interface HRClaims {
   error: string | null;
 }
 
-const FINAL_STATUSES = ["APPROVED", "DISBURSING", "PAID", "REJECTED"];
-
 /**
  * The HR dashboard's data. Rows and counts are worked out here, so the page receives
  * the triage rows instead of every raw claim.
@@ -140,8 +148,7 @@ export async function getHRClaims(): Promise<HRClaims> {
 }
 
 function summarizeClaims(reims: TriageSource[]): HRClaims {
-  const autoSolved = reims.filter((r) => r.reviewed_by == null && FINAL_STATUSES.includes(r.status)).length;
-  return { rows: triageRows(reims), stats: { total: reims.length, autoSolved }, error: null };
+  return { rows: triageRows(reims), stats: hrClaimStats(reims), error: null };
 }
 
 export interface HistoryClaim {
@@ -176,6 +183,9 @@ function payoutStateOf(r: ReimbursementRaw): PayoutState | null {
     return { kind: "failed", reason: r.payout?.failure_code ?? null };
   }
   if (r.status === "DISBURSING" || p === "ACCEPTED" || p === "REQUESTED") return { kind: "sending" };
+  if ((r.kind ?? "CLAIM") === "VENDOR_BOOKING") {
+    return r.vendor_verified ? { kind: "not_sent" } : { kind: "waiting_link" };
+  }
   if (r.payee_linked === false) return { kind: "waiting_link" };
   return { kind: "not_sent" };
 }
@@ -225,7 +235,9 @@ export async function getHRHistory(): Promise<HistoryClaim[]> {
         employeeName: name,
         employeeInitial: name.charAt(0).toUpperCase(),
         department: r.department_name ?? "—",
-        policyName: r.policy_name ?? r.main_category ?? "General",
+        policyName: (r.kind ?? "CLAIM") === "VENDOR_BOOKING"
+          ? `Vendor booking · ${r.vendor_name ?? "Unknown vendor"}`
+          : (r.policy_name ?? r.main_category ?? "General"),
         amount: r.total_claimed_amount ?? 0,
         currency: r.currency ?? "MYR",
         dateSubmitted: formatShortDate(r.created_at),

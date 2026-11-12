@@ -26,6 +26,18 @@ def test_ledger_sums_today_and_last_hour_and_breaker():
     assert led.auto_paid_today == 80 and led.auto_paid_last_hour == 50 and led.breaker_active is True
 
 
+def test_ledger_counts_paid_vendor_bookings_not_approved_ones():
+    vendor_rows = [
+        {"status": "PAID", "amount": 240, "updated_at": NOW - timedelta(hours=1)},
+        {"status": "DISBURSING", "amount": 60, "updated_at": NOW - timedelta(hours=2)},
+        {"status": "APPROVED", "amount": 500, "updated_at": NOW - timedelta(hours=1)},
+        {"status": "PAID", "amount": 90, "updated_at": NOW - timedelta(days=2)},
+    ]
+    led = ledger_from_rows([], now=NOW, breaker_until=None, vendor_rows=vendor_rows)
+    assert led.vendor_paid_today == 300
+    assert led.auto_paid_today == 0 and led.auto_paid_last_hour == 0
+
+
 def test_today_and_month_use_utc_calendar_boundaries():
     rows = [row("APPROVED", "AUTO_PAY", 10, 15.5),  # 23:30 on Nov 2: this month, not today
             row("PAID", "AUTO_PAY", 20, 24 * 3),    # Oct 31: neither

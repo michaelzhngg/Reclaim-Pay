@@ -47,7 +47,7 @@ def register_approval(
 
 
 def split_batch(rows: list[dict], approver_id: str) -> tuple[list[str], list[dict]]:
-    """Split batch rows into approvable IDs and skips. Checks run in order: tier, status, self."""
+    """Split batch rows into approvable IDs and skips. Checks run in order: tier, status, self, kind."""
     approved: list[str] = []
     skipped: list[dict] = []
     for row in rows:
@@ -57,6 +57,9 @@ def split_batch(rows: list[dict], approver_id: str) -> tuple[list[str], list[dic
             reason = "NOT_IN_REVIEW"
         elif str(row.get("user_id")) == str(approver_id):
             reason = "SELF_APPROVAL"
+        elif row.get("kind") == "VENDOR_BOOKING":
+            # A booking needs an individual look at the vendor and dates.
+            reason = "VENDOR_BOOKING"
         else:
             approved.append(row["reim_id"])
             continue

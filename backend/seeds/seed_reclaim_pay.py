@@ -42,6 +42,8 @@ from core.models import (
     SupportingDocument,
     TravelSettlement,
     User,
+    Vendor,
+    VendorBooking,
 )
 from engine.risk.autonomy import decide, trust_tier
 from engine.services.autonomy_store import CONFIRMED_RECOVERY_STATUSES
@@ -61,6 +63,7 @@ from engine.risk.types import (
 )
 
 SEED_TAG = "reclaim-pay-demo-v1"
+SEED_BOOKING_TAG = "reclaim-pay-vendor-booking-v1"
 SEED_EMAIL_DOMAIN = "seed.reclaim.my"
 # Fixed namespace so the same seed and index always give the same reim_id (and so the same audit sample).
 ID_NAMESPACE = uuid.UUID("6f1d3c2a-8a51-4c1e-9d0b-52a3c1e7d901")
@@ -501,6 +504,11 @@ def _seeded_reim_ids(db: Session) -> list[uuid.UUID]:
         Reimbursement.ai_reasoning.op("->>")("demo_seed") == SEED_TAG)).all())
 
 
+def _seeded_booking_reim_ids(db: Session) -> list[uuid.UUID]:
+    return list(db.exec(select(Reimbursement.reim_id).where(
+        Reimbursement.ai_reasoning.op("->>")("demo_seed") == SEED_BOOKING_TAG)).all())
+
+
 def _delete_claims(db: Session, reim_ids: list, settlement_ids: list, document_ids: list) -> None:
     """Delete claims and the rows that point at them, children first."""
     if reim_ids:
@@ -512,6 +520,7 @@ def _delete_claims(db: Session, reim_ids: list, settlement_ids: list, document_i
             ReconciliationDifference.payout_id.in_(payout_ids),
         )))
         db.exec(delete(Payout).where(Payout.reim_id.in_(reim_ids)))
+        db.exec(delete(VendorBooking).where(VendorBooking.reim_id.in_(reim_ids)))
         db.exec(delete(ReimbursementSubCategory).where(ReimbursementSubCategory.reim_id.in_(reim_ids)))
         db.exec(delete(LineItem).where(LineItem.reim_id.in_(reim_ids)))
     if document_ids:
@@ -529,7 +538,7 @@ def _delete_claims(db: Session, reim_ids: list, settlement_ids: list, document_i
 
 
 def delete_seeded_history(db: Session) -> int:
-    reim_ids = _seeded_reim_ids(db)
+    reim_ids = _seeded_reim_ids(db) + _seeded_booking_reim_ids(db)
     if not reim_ids:
         return 0
     settlement_ids = [s for s in db.exec(select(Reimbursement.settlement_id).where(
@@ -631,6 +640,60 @@ def write_history(db: Session, history: list[SeedClaim], users: dict[str, User])
     db.flush()
 
 
+def _upsert_vendor(db: Session, name: str, category: str, verified: bool, payer: str | None,
+                   email: str | None, created_by: uuid.UUID, now: datetime) -> Vendor:
+    from engine.services.vendor_booking_service import vendor_name_key
+
+    vendor = db.exec(select(Vendor).where(Vendor.name_key == vendor_name_key(name))).first()
+    if vendor is None:
+        vendor = Vendor(name=name, name_key=vendor_name_key(name), created_by=created_by)
+        db.add(vendor)
+        db.flush()
+    vendor.default_category = category
+    vendor.is_active = True
+    if verified and payer:
+        vendor.paypal_payer_id = payer
+        vendor.paypal_email = email
+        vendor.paypal_verified = True
+        vendor.paypal_linked_at = now - timedelta(days=30)
+        vendor.payout_destination_changed_at = None
+    db.add(vendor)
+    db.flush()
+    return vendor
+
+
+def write_vendor_bookings(db: Session, users: dict[str, User], now: datetime) -> None:
+    """Two demo bookings: a verified hotel over the employee limit, and a new travel vendor."""
+    from engine.services.vendor_booking_service import create_booking
+
+    hr = users["HR001"]
+    _upsert_vendor(db, "Hotel Seri Kenanga", "Accommodations", True, "VENDORHOTEL01",
+                   "billing@hotelserikenanga.example", hr.user_id, now)
+    _upsert_vendor(db, "Kirana Travel Sdn Bhd", "Transportation", False, None, None, hr.user_id, now)
+
+    specs = (
+        ("Hotel Seri Kenanga", "Accommodations", 240.0, 5, 7,
+         "Two nights for the regional sales meeting"),
+        ("Kirana Travel Sdn Bhd", "Transportation", 85.0, 3, 3,
+         "Airport transfer for the client visit"),
+    )
+    user = users["SWE123"]
+    for name, category, amount, start_days, end_days, purpose in specs:
+        reim, _booking, _vendor, _created = create_booking(
+            db, user,
+            vendor_name=name,
+            category=category,
+            amount=amount,
+            service_start=(now + timedelta(days=start_days)).date(),
+            service_end=(now + timedelta(days=end_days)).date(),
+            purpose=purpose,
+            now=now,
+        )
+        reim.ai_reasoning = {**(reim.ai_reasoning or {}), "demo_seed": SEED_BOOKING_TAG}
+        db.add(reim)
+        db.commit()
+
+
 def _summary(c: SeedClaim) -> str:
     if c.status == ReimbursementStatus.REJECTED:
         return f"Rejected by HR after review: {c.signals[0].message}."
@@ -653,6 +716,8 @@ def seed(db: Session, reset: bool = False, clear: bool = False, now: datetime | 
     if existing == 0:
         history = generate_history(now=now)
         write_history(db, history, users)
+    if not _seeded_booking_reim_ids(db):
+        write_vendor_bookings(db, users, now)
     db.commit()
     return {"deleted": deleted, "cleared": cleared, "skipped": existing > 0, "history": history, "users": users}
 
