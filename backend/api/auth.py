@@ -1,20 +1,30 @@
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from starlette.requests import Request
+from sqlalchemy import func
 from sqlmodel import Session, select
 
-from core import security
+from core import account_emails, password_tokens, security
 from core.config import settings
+from core.database import engine
 from core.models import User
-from core.enums import UserRole, PrivilegeLevel
+from core.password_policy import password_problems
+from engine.services.paypal_client import mask_email
 from api import schemas, deps
 from api.schemas import UpdateProfileRequest
 from api.rate_limit import AUTH_LIMIT, limiter
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+FORGOT_REPLY = {"detail": "If an account exists for that email, we sent a reset link."}
+LINK_ERRORS = {
+    password_tokens.INVITE: "This link has expired or was already used. Ask HR to send a new invitation.",
+    password_tokens.RESET: "This link has expired or was already used. Request a new reset link.",
+}
 
 @router.post("/login", response_model=schemas.Token)
 @limiter.limit(AUTH_LIMIT)
@@ -44,60 +54,6 @@ def login_access_token(
     return {
         "access_token": access_token,
         "token_type": "bearer",
-    }
-
-@router.post("/register", response_model=schemas.UserResponse)
-@limiter.limit(AUTH_LIMIT)
-def register_user(
-    request: Request,
-    user_in: schemas.UserCreate,
-    db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_hr_user),
-) -> Any:
-    """
-    Create a user. HR only: an open route would let anyone create an HR account.
-    """
-    statement = select(User).where(User.email == user_in.email)
-    user = db.exec(statement).first()
-    if user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="The user with this email already exists in the system.",
-        )
-    
-    # Handle department_id string -> UUID conversion
-    department_id = None
-    if user_in.department_id:
-        from uuid import UUID
-        department_id = UUID(str(user_in.department_id)) if user_in.department_id else None
-
-    user_obj = User(
-        email=user_in.email,
-        user_code=user_in.user_code or None,
-        hashed_password=security.get_password_hash(user_in.password),
-        name=user_in.name,
-        role=user_in.role,
-        # role=UserRole.Employee,  # Production code
-        department_id=department_id,
-        rank=user_in.rank,
-        privilege_level=user_in.privilege_level,
-        is_active=True,
-    )
-    db.add(user_obj)
-    db.commit()
-    db.refresh(user_obj)
-
-    return {
-        "user_id": str(user_obj.user_id),
-        "user_code": user_obj.user_code,
-        "email": user_obj.email,
-        "name": user_obj.name,
-        "role": user_obj.role.value if user_obj.role and hasattr(user_obj.role, "value") else user_obj.role,
-        "department_id": str(user_obj.department_id) if user_obj.department_id else None,
-        "privilege_level": user_obj.privilege_level.value if user_obj.privilege_level and hasattr(user_obj.privilege_level, "value") else user_obj.privilege_level,
-        "rank": user_obj.rank,
-        "is_active": user_obj.is_active,
-        "created_at": user_obj.created_at.isoformat() if user_obj.created_at else None,
     }
 
 @router.get("/me")
@@ -175,3 +131,89 @@ def update_profile(
         "privilege_level": u.privilege_level.value if u.privilege_level and hasattr(u.privilege_level, "value") else u.privilege_level,
         "is_active": u.is_active,
     }
+
+
+def open_session() -> Session:
+    return Session(engine)
+
+
+def send_reset_if_eligible(email: str) -> None:
+    """Runs after the response is sent, so a known email takes no longer to answer than an unknown one."""
+    try:
+        with open_session() as db:
+            user = db.exec(select(User).where(func.lower(User.email) == email.strip().lower())).first()
+            if user is None or not user.is_active:
+                return
+            now = datetime.now(timezone.utc)
+            recent = password_tokens.resets_sent_since(db, user.user_id, now - timedelta(hours=1))
+            if recent >= password_tokens.RESET_EMAILS_PER_HOUR:
+                return
+            plain, _ = password_tokens.issue(db, user, password_tokens.RESET, now)
+            db.commit()
+            account_emails.send_reset(user.email, user.name, plain)
+    except Exception as exc:
+        # Type only: a database error message could carry query parameters.
+        logger.warning("[AUTH] Reset request could not be processed: %s", type(exc).__name__)
+
+
+@router.post("/forgot-password")
+@limiter.limit("5/minute")
+def forgot_password(
+    request: Request,
+    body: schemas.ForgotPasswordRequest,
+    background: BackgroundTasks,
+) -> dict:
+    """Public. The same answer whether or not the account exists."""
+    background.add_task(send_reset_if_eligible, str(body.email))
+    return FORGOT_REPLY
+
+
+@router.post("/password-token")
+@limiter.limit("20/minute")
+def password_token_info(
+    request: Request,
+    body: schemas.PasswordTokenRequest,
+    db: Session = Depends(deps.get_db),
+) -> dict:
+    """Public. Lets the set-password page greet the person before they type. A POST keeps the token out of access logs."""
+    found = password_tokens.find_valid(db, body.token, body.purpose)
+    if not found:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=LINK_ERRORS[body.purpose])
+    token, user = found
+    return {
+        "purpose": token.purpose,
+        "name": user.name,
+        "email_masked": mask_email(user.email),
+        "expires_at": token.expires_at.isoformat(),
+    }
+
+
+@router.post("/set-password")
+@limiter.limit(AUTH_LIMIT)
+def set_password(
+    request: Request,
+    body: schemas.SetPasswordRequest,
+    db: Session = Depends(deps.get_db),
+) -> dict:
+    """Public. Spends an invite or reset token and ends every earlier session for the account."""
+    found = password_tokens.find_valid(db, body.token, body.purpose, lock=True)
+    if not found:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=LINK_ERRORS[body.purpose])
+    problems = password_problems(body.new_password)
+    if problems:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=" ".join(problems))
+
+    token, user = found
+    now = datetime.now(timezone.utc)
+    user.hashed_password = security.get_password_hash(body.new_password)
+    user.password_changed_at = now
+    token.used_at = now
+    password_tokens.revoke_unused(db, user.user_id, None, now)
+    db.add(user)
+    db.add(token)
+    db.commit()
+
+    if token.purpose == password_tokens.RESET:
+        account_emails.send_changed_notice(user.email, user.name)
+        return {"purpose": token.purpose, "detail": "Password changed. Sign in."}
+    return {"purpose": token.purpose, "detail": "Password set. Sign in."}

@@ -11,13 +11,10 @@ PAYPAL_AUTH_METHOD = "paypal"
 def create_access_token(
     subject: Union[str, Any], expires_delta: Optional[timedelta] = None, extra_claims: Optional[dict] = None
 ) -> str:
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
-    to_encode = {**(extra_claims or {}), "exp": expire, "sub": str(subject)}
+    now = datetime.now(timezone.utc)
+    expire = now + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    # Fractional iat: a password set a moment before sign-in must not reject the new session.
+    to_encode = {**(extra_claims or {}), "exp": expire, "iat": now.timestamp(), "sub": str(subject)}
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 

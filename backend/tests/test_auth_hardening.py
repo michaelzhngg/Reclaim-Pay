@@ -5,11 +5,14 @@ from pydantic import ValidationError
 from engine.risk.types import AutonomyConfig
 
 
-def test_register_needs_an_hr_login():
+def test_creating_an_account_needs_an_hr_login():
     from main import app
 
-    body = {"email": "attacker@example.com", "name": "A", "role": "HR", "password": "x"}
-    assert TestClient(app).post("/api/v1/auth/register", json=body).status_code == 401
+    client = TestClient(app)
+    body = {"email": "attacker@example.com", "name": "A", "role": "HR"}
+    assert client.post("/api/v1/employee/", json=body).status_code == 401
+    # The old open-looking route is gone, not just guarded.
+    assert client.post("/api/v1/auth/register", json={**body, "password": "x"}).status_code in (404, 405)
 
 
 @pytest.mark.parametrize(

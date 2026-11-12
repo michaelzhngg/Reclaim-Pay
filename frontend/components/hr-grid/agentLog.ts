@@ -17,6 +17,8 @@ const ACTION_LABEL: Record<string, string> = {
   RECOVERY_STATUS: "Recovery status changed",
   HR_APPROVAL: "HR approved",
   PAYEE_LINKED: "PayPal account linked",
+  EMPLOYEE_CREATED: "Account created",
+  INVITE_RESENT: "Invitation re-sent",
   SIGNAL_REVIEWED: "Check rated",
   WEBHOOK_DEAD_LETTER: "PayPal event dead-lettered",
   WEBHOOK_RETRY: "PayPal event retried",
@@ -87,6 +89,8 @@ export function actionSummary(action: Pick<AgentAction, "action_type" | "payload
         : null;
     case "PAYEE_LINKED":
       return str(p.email);
+    case "EMPLOYEE_CREATED":
+      return p.role === "HR" ? "HR account" : p.role === "Employee" ? "Employee account" : null;
     case "SIGNAL_REVIEWED": {
       const code = str(p.code);
       const verdict = VERDICT_LABEL[str(p.verdict) ?? ""];
