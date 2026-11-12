@@ -351,6 +351,10 @@ export type AgentActionType =
   | "KILL_SWITCH"
   | "BREAKER_TRIPPED"
   | "PAYOUT_CREATED"
+  | "POLICY_UPLOADED"
+  | "POLICY_DEPRECATED"
+  | "POLICY_DELETED"
+  | "POLICY_BUDGETS_CHANGED"
   | (string & {});
 
 /** One entry of the hash-chained agent log. */
@@ -358,6 +362,8 @@ export interface AgentAction {
   action_id: number;
   action_type: AgentActionType;
   actor: string;
+  /** The actor's display name, when the actor is a user who still exists. Older backends omit it. */
+  actor_name?: string | null;
   reim_id: string | null;
   payload: Record<string, unknown>;
   prev_hash?: string;
