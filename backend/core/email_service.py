@@ -50,18 +50,21 @@ def _error_message(response: httpx.Response) -> str:
         return response.text[:300]
 
 
-def send_email_sync(to: str, subject: str, text: str, link: str | None = None,
-                    link_label: str = DEFAULT_LINK_LABEL) -> bool:
-    """Returns True when Resend accepted the email."""
+def send_email_result(to: str, subject: str, text: str, link: str | None = None,
+                      link_label: str = DEFAULT_LINK_LABEL) -> tuple[str, str | None]:
+    """Send now and say what happened: ("sent", None), ("off", None) or ("failed", reason).
+
+    The reason is safe to show to HR: it never contains the API key.
+    """
     global _no_key_logged
     key = settings.RESEND_API_KEY
     if not key:
         if not _no_key_logged:
-            logger.info("[EMAIL] RESEND_API_KEY is not set, email is off")
+            logger.warning("[EMAIL] RESEND_API_KEY is not set, email is off")
             _no_key_logged = True
-        return False
+        return "off", None
     if not to:
-        return False
+        return "failed", "There is no email address."
     try:
         response = httpx.post(
             RESEND_URL,
@@ -71,11 +74,20 @@ def send_email_sync(to: str, subject: str, text: str, link: str | None = None,
         )
     except Exception as exc:
         logger.warning("[EMAIL] Resend request failed: %s", type(exc).__name__)
-        return False
+        return "failed", "Resend could not be reached."
     if response.status_code >= 400:
-        logger.warning("[EMAIL] Resend answered %s: %s", response.status_code, _error_message(response))
-        return False
-    return True
+        message = _error_message(response)
+        logger.warning("[EMAIL] Resend answered %s: %s", response.status_code, message)
+        if response.status_code in (401, 403) and "domain" not in message.lower():
+            return "failed", "Resend refused the API key."
+        return "failed", message or f"Resend answered {response.status_code}."
+    return "sent", None
+
+
+def send_email_sync(to: str, subject: str, text: str, link: str | None = None,
+                    link_label: str = DEFAULT_LINK_LABEL) -> bool:
+    """Returns True when Resend accepted the email."""
+    return send_email_result(to, subject, text, link, link_label)[0] == "sent"
 
 
 def fire_and_forget_email(to: str, subject: str, text: str, link: str | None = None,
