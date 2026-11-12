@@ -133,6 +133,33 @@ def test_rejected_deliveries_write_no_ledger_row(pg_db, monkeypatch):
     assert pg_db.exec(select(PayPalWebhookEvent)).all() == []
 
 
+def test_blank_event_id_is_rejected_before_any_write(pg_db, monkeypatch):
+    client = _client(monkeypatch, pg_db)
+    for event_id in ("   ", None):
+        event = {"id": event_id, "event_type": "CHECKOUT.ORDER.APPROVED", "resource": {}}
+        assert client.post("/paypal/webhook", json=event).status_code == 400
+    pg_db.expire_all()
+    assert pg_db.exec(select(PayPalWebhookEvent)).all() == []
+
+
+def test_unmatched_payout_item_is_a_retryable_failure(pg_db, monkeypatch):
+    client = _client(monkeypatch, pg_db)
+    event = {
+        "id": f"WH-{uuid4().hex}",
+        "event_type": "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
+        "resource": {
+            "payout_item_id": "NO-SUCH-ITEM",
+            "transaction_status": "SUCCESS",
+            "payout_item": {"sender_item_id": str(uuid4())},
+        },
+    }
+    assert client.post("/paypal/webhook", json=event).status_code == 500
+    pg_db.expire_all()
+    row = pg_db.get(PayPalWebhookEvent, event["id"])
+    assert row.status == WebhookEventStatus.FAILED
+    assert "No payout matched" in row.error
+
+
 def test_concurrent_duplicate_claims_once(pg_db, monkeypatch):
     url = os.environ["TEST_DATABASE_URL"]
     engine = create_engine(url)

@@ -23,7 +23,7 @@ from engine.services.action_log import record_action
 from engine.services.payout_service import notify
 from engine.services.paypal_client import PayPalError, PayPalUser, get_paypal_client, mask_email  # noqa: F401
 from engine.services.webhook_events import (
-    InvalidWebhook, WebhookNotFound, WebhookNotRetryable, ingest_event, retry_event,
+    InvalidWebhook, WebhookNotFound, WebhookNotRetryable, event_id_of, ingest_event, retry_event,
 )
 
 router = APIRouter()
@@ -385,14 +385,10 @@ async def paypal_webhook(request: Request, db: Session = Depends(deps.get_db)):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    if not isinstance(event, dict):
-        raise HTTPException(status_code=400, detail="Webhook body must be a JSON object")
     try:
-        event_id = event.get("id")
-        if not isinstance(event_id, str) or not event_id.strip():
-            raise InvalidWebhook("Webhook event id is missing")
-    except InvalidWebhook:
-        raise HTTPException(status_code=400, detail="Webhook event id is missing")
+        event_id = event_id_of(event)
+    except InvalidWebhook as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     if not settings.PAYPAL_MOCK_MODE:
         try:
@@ -431,7 +427,7 @@ def list_webhook_events(
 
 
 @router.post("/events/{event_id}/retry", response_model=WebhookEventOut)
-@limiter.limit(PAYPAL_WEBHOOK_RETRY_LIMIT)
+@limiter.shared_limit(PAYPAL_WEBHOOK_RETRY_LIMIT, scope="paypal-webhook-retry")
 def retry_webhook_event(
     request: Request,
     event_id: str,

@@ -2,7 +2,7 @@
 
 **Task:** ClickUp G3, from the go-live roadmap in `docs/hackathon/FUTURE-DEVELOPMENT-PLAN.md` §4.1.
 **Branch:** `feat/g3-webhook-hardening`, based on `main` at `ce1469f`.
-**Status:** plan only. No implementation in this phase.
+**Status:** implemented on `feat/g3-webhook-hardening`; see `DECISIONS.md` and `GAPS.md` for the as-built choices and limitations.
 
 ## 1. Problem
 
@@ -130,13 +130,13 @@ backwards or notify twice.
 | `RECEIVED` | lease expired | reclaim and handle | 200 / 500 |
 | `FAILED` | any | reclaim and handle | 200 / 500 |
 | `DEAD_LETTER` | automatic delivery | duplicate, no work | 200 |
-| `DEAD_LETTER` | HR retry | claim with a fresh attempt budget | 200 with outcome |
+| `DEAD_LETTER` | HR retry | claim and increment attempts | 200 with outcome |
 
 - A handler error sets `FAILED`, stores the error, and returns 500 so PayPal retries. The sweep also
   retries it.
 - After `WEBHOOK_MAX_ATTEMPTS` (default 5) failures, the row becomes `DEAD_LETTER` and the endpoint
   returns 200. This tells PayPal to stop retrying; the event is now HR's responsibility.
-- A manual HR retry resets the attempt budget. If it fails, the row goes back to `DEAD_LETTER` rather
+- A manual HR retry increments the attempt count. If it fails, the row goes back to `DEAD_LETTER` rather
   than `FAILED`, so the automatic sweep does not hammer it.
 - Only dead-lettering and manual retries write to the action log (`WEBHOOK_DEAD_LETTER`,
   `WEBHOOK_RETRY`). Intermediate failures are application logs, not hash-chain entries, or the chain

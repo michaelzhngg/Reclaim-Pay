@@ -155,8 +155,8 @@ def _claim_row(db: Session, existing: PayPalWebhookEvent, now: datetime,
         if updated and updated > now - _lease():
             return existing, False
 
-    # A manual retry gets a fresh budget. An automatic retry advances the attempt.
-    existing.attempts = 1 if manual else (existing.attempts or 0) + 1
+    # A manual retry still counts as an attempt; the operator gets a fresh try, not a rewritten history.
+    existing.attempts = (existing.attempts or 0) + 1
     existing.status = WebhookEventStatus.RECEIVED
     existing.error = None
     existing.updated_at = now

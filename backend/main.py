@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 # Load .env into os.environ BEFORE LangChain imports so LangSmith tracing activates
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
-from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded

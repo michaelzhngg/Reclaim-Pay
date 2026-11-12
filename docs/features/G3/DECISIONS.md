@@ -36,14 +36,15 @@ At the cap the event becomes `DEAD_LETTER` and returns 200 so PayPal stops.
 and slows recovery during a transient outage. Always returning 500 leaves PayPal retrying a
 permanent failure and risks the webhook being disabled.
 
-## 5. Manual retry resets the attempt budget and failure returns to dead letter
+## 5. Manual retry increments attempts and failure returns to dead letter
 
-**Chosen:** an HR retry sets `attempts = 1`; a failed manual retry stays `DEAD_LETTER` and does not
-re-enter the automatic sweep.
+**Chosen:** every claimed retry, automatic or manual, increments `attempts`. A failed manual retry
+stays `DEAD_LETTER` and does not re-enter the automatic sweep.
 
-**Rejected:** incrementing the old attempt count on manual retry, or letting a failed manual retry
-become `FAILED`. HR is acting after a fix; the operator should get a fresh try, and a failed manual
-attempt should not cause an hourly loop the operator did not ask for.
+**Rejected:** resetting the count to 1 on a manual retry. That erased the failure history and made
+the recorded attempts disagree with the ticket. The operator still gets a fresh try; the history
+just stays honest. A failed manual attempt stays parked so the hourly sweep does not cause an
+unrequested loop.
 
 ## 6. Hourly tick with a 24-hour per-payout threshold
 

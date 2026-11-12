@@ -72,3 +72,11 @@ status and updated_at indexes will grow with the table. Pair a retention job wit
 
 A run checks at most 200 payouts and 100 webhook events; the manual endpoint uses 50 payouts. More
 stale work is picked up on the next tick. This is deliberate backpressure, not a loss of work.
+
+## 12. A refresh that returns early does not advance `updated_at`
+
+`refresh_payout` returns without a write when the payout already has a final status or has no
+`provider_batch_id`. The sweep pre-filters both cases, but a final-status race can still return
+early. Because `updated_at` then stays old, the next hourly tick can select that payout again. This
+is harmless but means a final race can be rechecked every hour until the row's stored status is
+refreshed. The same applies to any future early-return path added to `refresh_payout`.
