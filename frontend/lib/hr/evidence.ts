@@ -179,6 +179,16 @@ function claimLinks(ids: string[]): EvidenceView["claims"] {
   return [...new Set(ids)].map((id) => ({ href: `/hr/view/${id}`, ref: formatClaimRef(id) }));
 }
 
+/** "Lower right" from a box in fractions of the image size. */
+function imageArea(r: Record<string, unknown>): string | null {
+  const x = num(r.x), y = num(r.y), w = num(r.w), h = num(r.h);
+  if (x === null || y === null || w === null || h === null) return null;
+  const third = (v: number, names: [string, string, string]) => names[Math.min(2, Math.max(0, Math.floor(v * 3)))];
+  const vertical = third(y + h / 2, ["Upper", "Middle", "Lower"]);
+  const horizontal = third(x + w / 2, ["left", "centre", "right"]);
+  return vertical === "Middle" && horizontal === "centre" ? "Centre" : `${vertical} ${horizontal}`;
+}
+
 /**
  * What to show under a signal's message. Evidence keys differ between the
  * backend detectors and the demo fixtures, so each shape is read defensively and
@@ -262,6 +272,19 @@ export function signalEvidence(s: RiskSignal, currency: string): EvidenceView {
     case "VISUAL_ANOMALY":
       fact("What the AI saw", str(e.description));
       break;
+    case "IMAGE_FORENSICS": {
+      const regions = (Array.isArray(e.regions) ? e.regions : []).filter(
+        (r): r is Record<string, unknown> => typeof r === "object" && r !== null,
+      );
+      fact("Where on the image", regions.length ? imageArea(regions[0]) : null);
+      const score = num(e.score);
+      fact("Check score", score === null ? null : `${score}/100`);
+      view.note =
+        e.scored === true
+          ? "Image checks can misfire on filtered or stitched photos. Compare the area with the rest of the receipt."
+          : "Not scored: shown for information only. It added no points and did not change the lane.";
+      break;
+    }
     case "PRICE_ABOVE_MARKET": {
       fact("Claimed", money(e.claimed), true);
       fact("Typical price", money(e.median));

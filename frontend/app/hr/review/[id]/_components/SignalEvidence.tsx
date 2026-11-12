@@ -11,8 +11,21 @@ const SEVERITY_TONE: Record<Severity, string> = {
 
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
-/** One signal: what was found, how many points it added, and the evidence behind it. */
-export function SignalEvidence({ id, signal, currency }: { id: string; signal: RiskSignal; currency: string }) {
+/**
+ * One signal: what was found, how many points it added, and the evidence behind it.
+ * `observed` marks a finding kept outside the decision (observe mode): no severity, no points.
+ */
+export function SignalEvidence({
+  id,
+  signal,
+  currency,
+  observed = false,
+}: {
+  id: string;
+  signal: RiskSignal;
+  currency: string;
+  observed?: boolean;
+}) {
   const view = signalEvidence(signal, currency);
   const headingId = `${id}-heading`;
 
@@ -22,12 +35,16 @@ export function SignalEvidence({ id, signal, currency }: { id: string; signal: R
         <h5 id={headingId} className="font-body font-semibold text-sm text-ink">
           {signalLabel(signal.code)}
         </h5>
-        <span className="flex items-baseline gap-2 text-xs">
-          <span className={`font-semibold ${SEVERITY_TONE[signal.severity] ?? SEVERITY_TONE.LOW}`}>
-            {SEVERITY_LABEL[signal.severity] ?? signal.severity} severity
+        {observed ? (
+          <span className="text-xs font-semibold text-ink-muted">Information only</span>
+        ) : (
+          <span className="flex items-baseline gap-2 text-xs">
+            <span className={`font-semibold ${SEVERITY_TONE[signal.severity] ?? SEVERITY_TONE.LOW}`}>
+              {SEVERITY_LABEL[signal.severity] ?? signal.severity} severity
+            </span>
+            {signal.points > 0 && <span className="font-mono text-ink-muted">+{signal.points}</span>}
           </span>
-          {signal.points > 0 && <span className="font-mono text-ink-muted">+{signal.points}</span>}
-        </span>
+        )}
       </div>
 
       {signal.message && <p className="mt-2 text-sm text-ink leading-relaxed">{signal.message}</p>}

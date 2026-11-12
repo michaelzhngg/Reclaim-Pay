@@ -9,8 +9,10 @@ import hashlib
 import logging
 import time
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Callable, Mapping
+from urllib.parse import quote
 from uuid import UUID
 
 import httpx
@@ -40,6 +42,14 @@ class PayoutBatch:
     batch_id: str
     batch_status: str
     items: list[PayoutItem]
+
+
+@dataclass(frozen=True)
+class Balance:
+    currency: str
+    # What PayPal can spend now. Total minus anything withheld.
+    available: Decimal
+    as_of: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -128,6 +138,45 @@ def _parse_batch(data: dict) -> PayoutBatch:
             error=(error.get("name") if isinstance(error, dict) else error) or None,
         ))
     return PayoutBatch(header.get("payout_batch_id", ""), header.get("batch_status", ""), items)
+
+
+def _money_value(money: object) -> Decimal | None:
+    if not isinstance(money, dict):
+        return None
+    try:
+        value = Decimal(str(money.get("value")))
+    except (InvalidOperation, ValueError):
+        return None
+    return value if value.is_finite() else None
+
+
+def _parse_time(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def parse_balance(data: dict, currency: str) -> Balance | None:
+    """Reads GET /v1/reporting/balances. None when the account lists no `currency` balance at all.
+
+    Raises ValueError when the currency is listed but no amount can be read (missing, NaN or Infinity).
+    """
+    wanted = currency.upper()
+    as_of = _parse_time(data.get("as_of_time"))
+    for raw in data.get("balances") or []:
+        if not isinstance(raw, dict) or str(raw.get("currency", "")).upper() != wanted:
+            continue
+        available = _money_value(raw.get("available_balance"))
+        if available is None:
+            available = _money_value(raw.get("total_balance"))
+        if available is None:
+            raise ValueError(f"PayPal listed a {wanted} balance without a readable amount")
+        return Balance(wanted, available, as_of)
+    return None
 
 
 def _as_bool(value: object) -> bool:
@@ -223,6 +272,14 @@ class PayPalClient:
         data = await self.request("POST", f"/v1/payments/payouts-item/{item_id}/cancel")
         return data.get("transaction_status", "")
 
+    async def get_balance(self, currency: str) -> Balance | None:
+        """Needs the "Transaction search" permission on the app, like Transaction Search. Without it PayPal answers 403.
+
+        None when the account holds no balance in `currency`.
+        """
+        data = await self.request("GET", f"/v1/reporting/balances?currency_code={quote(currency.upper())}")
+        return parse_balance(data, currency)
+
     async def verify_webhook(self, headers: Mapping[str, str], event: dict, webhook_id: str) -> bool:
         lowered = {k.lower(): v for k, v in headers.items()}
         fields = {key: lowered.get(header) for key, header in _WEBHOOK_HEADERS.items()}
@@ -285,6 +342,9 @@ class MockPayPalClient:
 
     async def cancel_payout_item(self, item_id: str) -> str:
         return "CANCELED"
+
+    async def get_balance(self, currency: str) -> Balance | None:
+        return Balance(currency.upper(), Decimal(str(settings.PAYPAL_MOCK_BALANCE)), datetime.now(timezone.utc))
 
     async def verify_webhook(self, headers: Mapping[str, str], event: dict, webhook_id: str) -> bool:
         return True

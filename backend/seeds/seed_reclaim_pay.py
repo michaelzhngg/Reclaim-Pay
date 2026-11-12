@@ -33,6 +33,7 @@ from core.models import (
     DocumentChangeLog,
     LineItem,
     Payout,
+    ReconciliationDifference,
     Recovery,
     Reimbursement,
     ReimbursementSubCategory,
@@ -504,6 +505,12 @@ def _delete_claims(db: Session, reim_ids: list, settlement_ids: list, document_i
     """Delete claims and the rows that point at them, children first."""
     if reim_ids:
         db.exec(delete(Recovery).where(or_(Recovery.reim_id.in_(reim_ids), Recovery.offset_reim_id.in_(reim_ids))))
+        payout_ids = list(db.exec(select(Payout.payout_id).where(Payout.reim_id.in_(reim_ids))).all())
+        # A difference can point at the payout or the claim; either FK blocks the delete.
+        db.exec(delete(ReconciliationDifference).where(or_(
+            ReconciliationDifference.reim_id.in_(reim_ids),
+            ReconciliationDifference.payout_id.in_(payout_ids),
+        )))
         db.exec(delete(Payout).where(Payout.reim_id.in_(reim_ids)))
         db.exec(delete(ReimbursementSubCategory).where(ReimbursementSubCategory.reim_id.in_(reim_ids)))
         db.exec(delete(LineItem).where(LineItem.reim_id.in_(reim_ids)))

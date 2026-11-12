@@ -12,6 +12,7 @@ import pymupdf4llm
 from langchain_core.messages import HumanMessage, SystemMessage
 from sqlmodel import Session, select
 
+from core.config import settings
 from core.models import (
     SupportingDocument, Policy, User, TravelSettlement,
     SettlementCategory, SettlementReceipt,
@@ -24,6 +25,7 @@ from engine.prompts.document_prompts import (
 )
 from engine.prompts.untrusted import DATA_RULE, wrap_text
 from engine.risk.shield.fingerprint import phash_file, sha256_file
+from engine.risk.shield.forensics import analyze_image
 from engine.risk.shield.provenance import inspect_image
 from engine.tools.generate_reimbursement_template import generate_reimbursement_template  # noqa: F401 (re-exported)
 
@@ -341,7 +343,17 @@ def _fingerprint(doc: SupportingDocument, file_path: str, file_type: str) -> Non
         return
     doc.phash = phash_file(file_path)
     signals = inspect_image(file_path, str(doc.document_id))
-    doc.shield = {"provenance": [s.model_dump(mode="json") for s in signals]}
+    shield: dict = {"provenance": [s.model_dump(mode="json") for s in signals]}
+    if settings.IMAGE_FORENSICS_MODE != "off":
+        # analyze_image never raises; this guard only keeps a surprise from costing the upload its fingerprint.
+        try:
+            finding = analyze_image(file_path)
+        except Exception:
+            logger.exception("[PROCESS_RECEIPTS] Image forensics failed for %s", file_path)
+            finding = None
+        if finding is not None:
+            shield["forensics"] = finding
+    doc.shield = shield
 
 
 # ---------------------------------------------------------------------------

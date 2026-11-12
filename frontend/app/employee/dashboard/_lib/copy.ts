@@ -1,13 +1,16 @@
-// Copy builders for the dashboard's fast-track card and overpayment notice.
+// Copy builders for the dashboard's instant-payout badge and overpayment notice.
 // Strings follow DETAIL-PLAN §13.4. Kept pure so the wording is unit-tested.
 
 import { formatClaimRef, formatMoney } from "@/lib/format";
 import type { DisputeError, Recovery, TrustChange, TrustInfo, TrustTier } from "@/lib/api/reclaim-pay-types";
 
-const TIER_LABEL: Record<TrustTier, string> = { NEW: "New", STANDARD: "Standard", TRUSTED: "Trusted" };
+export type BadgeName = "Bronze" | "Silver" | "Gold";
 
-export function tierLabel(tier: TrustTier): string {
-  return TIER_LABEL[tier];
+const BADGE: Record<TrustTier, BadgeName> = { NEW: "Bronze", STANDARD: "Silver", TRUSTED: "Gold" };
+
+/** Employees see their level as a badge: NEW is Bronze, STANDARD Silver, TRUSTED Gold. */
+export function badgeName(tier: TrustTier): BadgeName {
+  return BADGE[tier];
 }
 
 /** "MYR 100" for whole limits, "MYR 87.50" otherwise. */
@@ -24,18 +27,6 @@ export function limitLine(info: TrustInfo): string {
   return `Instant payouts up to ${formatLimit(info.currency || "MYR", info.auto_limit)}`;
 }
 
-/** "Instant payouts up to MYR 100 · 2 more approved claims to reach MYR 200" */
-export function trustLine(info: TrustInfo): string {
-  const currency = info.currency || "MYR";
-  const limit = limitLine(info);
-  if (isTopTier(info) || !info.next_tier) return `${limit} · This is the highest level.`;
-
-  const n = Math.max(0, info.claims_to_next_tier);
-  const claims = n === 1 ? "1 more approved claim" : `${n} more approved claims`;
-  const target = info.next_limit ? formatLimit(currency, info.next_limit) : tierLabel(info.next_tier);
-  return `${limit} · ${claims} to reach ${target}`;
-}
-
 /**
  * The backend's own employee-facing explanation, e.g. "Instant payouts are
  * limited after a recent correction. They return to normal on 27 Jan 2027."
@@ -44,14 +35,6 @@ export function trustLine(info: TrustInfo): string {
 export function trustReasonLine(info: TrustInfo): string | null {
   const text = info.reasons.map(r => r.trim()).filter(Boolean).join(" ");
   return text || null;
-}
-
-/** Share of the way to the next tier, 0 to 1. */
-export function trustProgress(info: TrustInfo): number {
-  if (isTopTier(info)) return 1;
-  const left = Math.max(0, info.claims_to_next_tier);
-  const total = info.paid_claims + left;
-  return total === 0 ? 0 : Math.min(1, info.paid_claims / total);
 }
 
 // ─── Dates ───────────────────────────────────────────────────────────────────
@@ -102,7 +85,7 @@ export function trustChangeLine(
     return `Your instant-payout limit went down to ${limit} on ${date} after ${why}.`;
   }
 
-  const reached = `You reached ${tierLabel(change.to_tier)} on ${date}: instant payouts up to ${limit}.`;
+  const reached = `You earned the ${badgeName(change.to_tier)} badge on ${date}: instant payouts up to ${limit}.`;
   if (change.cause !== "time_passed") return reached;
   const days = change.to_tier === "TRUSTED" ? info.trusted_clean_days : info.hold_days;
   return days ? `${reached} It had been ${days} days since your last correction.` : reached;
@@ -123,30 +106,12 @@ export const EXPLAINER_INTRO =
 export const EXPLAINER_OPEN_NOTICE_LINE =
   "A recovery notice that is still open, or that you are disputing, doesn't change your limit.";
 
-/** "Standard: up to MYR 100, after 3 approved claims." One line per level, lowest first. */
-export function levelLines(info: TrustInfo): { tier: TrustTier; text: string; current: boolean }[] {
-  const currency = info.currency || "MYR";
-  return (info.levels ?? []).map(level => {
-    const head = `${tierLabel(level.tier)}: up to ${formatLimit(currency, level.auto_limit)}`;
-    let when = "Everyone starts here.";
-    if (level.min_paid_claims > 0) {
-      const claims = level.min_paid_claims === 1 ? "1 approved claim" : `${level.min_paid_claims} approved claims`;
-      when = level.tier === "TRUSTED" && info.trusted_clean_days
-        ? `after ${claims}, with no correction in the last ${info.trusted_clean_days} days.`
-        : `after ${claims}.`;
-    }
-    const current = level.tier === info.trust_tier;
-    const text = `${level.min_paid_claims > 0 ? `${head}, ${when}` : `${head}. ${when}`}${current ? " This is your level." : ""}`;
-    return { tier: level.tier, text, current };
-  });
-}
-
 /** What a correction is and what it does to the limit. */
 export function correctionRuleLine(info: TrustInfo): string {
   const what = "A correction means HR confirmed a problem with one of your claims, or we had to recover a payout.";
   const hold = info.hold_days
-    ? `One correction moves you back to New for ${info.hold_days} days. Your approved claims still count after that.`
-    : "One correction moves you back to New for a while. Your approved claims still count after that.";
+    ? `One correction moves you back to Bronze for ${info.hold_days} days. Your approved claims still count after that.`
+    : "One correction moves you back to Bronze for a while. Your approved claims still count after that.";
   return `${what} ${hold}`;
 }
 

@@ -1,21 +1,21 @@
 import os
 import logging
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from dotenv import load_dotenv
 
 # Load .env into os.environ BEFORE LangChain imports so LangSmith tracing activates
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
-from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlmodel import Session, select
 
 from core.config import settings
 from core.database import engine, init_db
 from engine.llm import check_glm_health
-from api.rate_limit import limiter
+from api.rate_limit import limiter, rate_limit_exceeded_handler
 from api.auth import router as auth_router
 from api.documents import router as documents_router
 from api.notifications import router as notifications_router
@@ -41,8 +41,16 @@ async def lifespan(app: FastAPI):
     # Initialize VAPID keys for push notifications
     from core.push_service import init_vapid_keys
     init_vapid_keys()
+    maintenance_task = None
+    if settings.MAINTENANCE_JOB_ENABLED:
+        from engine.jobs.maintenance import maintenance_loop
+        maintenance_task = asyncio.create_task(maintenance_loop())
     yield
     # Clean up on shutdown
+    if maintenance_task:
+        maintenance_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await maintenance_task
     engine.dispose()
     
 # ─── Silencing Annoying Health Check Logs ──────────────────────────────────────
@@ -62,7 +70,7 @@ app = FastAPI(
 )
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # Set all CORS enabled origins
 origins = settings.FRONTEND_URL.split(",")

@@ -3,18 +3,27 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from api import deps
+from api.rate_limit import MAINTENANCE_RUN_LIMIT, limiter
 from api.schemas import CreatePayoutRequest
 from core.models import User, Reimbursement, Payout
 from core.enums import ReimbursementStatus, UserRole, PayoutStatus
+from engine.jobs.maintenance import MaintenanceReport, StuckPayoutsOut, run_maintenance, stuck_payouts
 from engine.services.approvals import approvals_complete
+from engine.services.funding_service import FundingSummary, alert_hr, funding_summary
 from engine.services.payout_service import initiate_payout_async, payout_plan
 from engine.services.payout_status import FINAL_STATUSES, refresh_payout
 from engine.services.paypal_client import PayPalError
+from engine.services.reconcile_history import (
+    JOB_DAYS,
+    dismiss as dismiss_difference,
+    history as reconciliation_history,
+    run_and_record,
+)
 from engine.services.reconcile_service import ReconcileSummary, reconcile
 from engine.services.recovery_service import offset_for_reim
 
@@ -22,6 +31,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 _REFRESH_AFTER = timedelta(seconds=10)
+_MANUAL_MAINTENANCE_BATCH = 50
 
 
 class PayoutOut(BaseModel):
@@ -61,6 +71,56 @@ class PayoutLedgerRow(BaseModel):
     audit_selected: bool
     created_at: datetime
     updated_at: datetime
+
+
+class ReconciliationRunOut(BaseModel):
+    run_id: UUID
+    trigger: str
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+    days: int
+    window_start: datetime
+    window_end: datetime
+    state: str
+    reconciled: int
+    total: int
+    pending: int
+    differences_new: int
+    differences_open: int
+    data_through: Optional[datetime] = None
+    mock: bool
+    message: Optional[str] = None
+    error: Optional[str] = None
+    triggered_by: Optional[UUID] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReconciliationDifferenceOut(BaseModel):
+    difference_id: UUID
+    kind: str
+    payout_id: Optional[UUID] = None
+    reim_id: Optional[UUID] = None
+    transaction_id: Optional[str] = None
+    amount: float
+    currency: str
+    employee_name: Optional[str] = None
+    occurred_at: datetime
+    first_seen_at: datetime
+    last_seen_at: datetime
+    resolved_at: Optional[datetime] = None
+    resolution: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReconciliationHistoryOut(BaseModel):
+    latest: Optional[ReconciliationRunOut] = None
+    last_success_at: Optional[datetime] = None
+    runs: list[ReconciliationRunOut] = []
+    open_differences: list[ReconciliationDifferenceOut] = []
 
 
 def ledger_row(payout: Payout, reim: Reimbursement, employee: User) -> PayoutLedgerRow:
@@ -138,6 +198,88 @@ def reconcile_payouts(
     current_user: User = Depends(deps.get_current_hr_user),
 ):
     return reconcile(db, days)
+
+
+@router.get("/reconcile/history", response_model=ReconciliationHistoryOut)
+def reconcile_history(
+    runs: int = Query(default=14, ge=1, le=50),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    found = reconciliation_history(db, runs)
+    return ReconciliationHistoryOut(
+        latest=ReconciliationRunOut.model_validate(found.latest) if found.latest else None,
+        last_success_at=found.last_success_at,
+        runs=[ReconciliationRunOut.model_validate(run) for run in found.runs],
+        open_differences=[
+            ReconciliationDifferenceOut.model_validate(row) for row in found.open_differences
+        ],
+    )
+
+
+@router.post("/reconcile/run", response_model=ReconciliationRunOut)
+def reconcile_now(
+    days: int = Query(default=JOB_DAYS, ge=1, le=30),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    recorded = run_and_record(db, days=days, trigger="manual", triggered_by=current_user.user_id)
+    return ReconciliationRunOut.model_validate(recorded.run)
+
+
+@router.post("/reconcile/differences/{difference_id}/dismiss",
+             response_model=ReconciliationDifferenceOut)
+def dismiss_reconciliation_difference(
+    difference_id: str,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    try:
+        parsed_id = UUID(difference_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid difference_id")
+    row = dismiss_difference(db, parsed_id, current_user.user_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Difference not found")
+    return ReconciliationDifferenceOut.model_validate(row)
+
+
+# Also before GET /{reim_id}. Alert only: it never changes a claim or a payout.
+@router.get("/funding", response_model=FundingSummary)
+async def payout_funding(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    summary = await funding_summary(db)
+    try:
+        alert_hr(db, summary)
+    except Exception:
+        logger.exception("[FUNDING] Could not send the low-balance alert")
+        db.rollback()
+    return summary
+
+
+# Declared before GET /{reim_id}, which would otherwise capture "stuck" and "maintenance".
+@router.get("/stuck", response_model=StuckPayoutsOut)
+def get_stuck_payouts(
+    limit: int = Query(default=200, ge=1, le=500),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    return stuck_payouts(db, limit=limit)
+
+
+@router.post("/maintenance/run", response_model=MaintenanceReport)
+@limiter.limit(MAINTENANCE_RUN_LIMIT)
+async def run_payout_maintenance(
+    request: Request,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    report = await run_maintenance(db, payout_limit=_MANUAL_MAINTENANCE_BATCH)
+    if report.locked:
+        raise HTTPException(status_code=409, detail="Maintenance is already running")
+    return report
 
 
 @router.post("/", response_model=PayoutOut)

@@ -1,17 +1,22 @@
 "use client";
 
-import { Suspense, useRef, type KeyboardEvent } from "react";
+import { Suspense, useCallback, useRef, useState, type KeyboardEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FIXTURES_ON } from "@/lib/api/fixtures";
 import AgentLogTab from "./_components/AgentLogTab";
 import AuditQueueTab from "./_components/AuditQueueTab";
+import FundingCard from "./_components/FundingCard";
 import LedgerTab from "./_components/LedgerTab";
+import ReconciliationTab from "./_components/ReconciliationTab";
 import RecoveriesTab from "./_components/RecoveriesTab";
+import WebhooksTab from "./_components/WebhooksTab";
 
 const TABS = [
   { id: "ledger", label: "Ledger" },
+  { id: "reconciliation", label: "Reconciliation" },
   { id: "audit", label: "Audit queue" },
   { id: "recoveries", label: "Recoveries" },
+  { id: "webhooks", label: "Webhooks" },
   { id: "log", label: "Agent log" },
 ] as const;
 
@@ -23,6 +28,9 @@ function PayoutTabs() {
   const requested = params.get("tab");
   const tab: TabId = TABS.find((t) => t.id === requested)?.id ?? "ledger";
   const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
+  // Server actions run one at a time, so the funding check waits until the open tab has its data.
+  const [tabLoaded, setTabLoaded] = useState(false);
+  const onTabLoaded = useCallback(() => setTabLoaded(true), []);
 
   // The tab lives in the URL, so coming back from a claim lands on the same tab.
   const choose = (next: TabId) => router.replace(next === "ledger" ? "/hr/payouts" : `/hr/payouts?tab=${next}`, { scroll: false });
@@ -39,6 +47,7 @@ function PayoutTabs() {
 
   return (
     <>
+      <FundingCard start={tabLoaded} />
       <div role="tablist" aria-label="Payouts" className="flex gap-1 overflow-x-auto border-b border-line mb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
         {TABS.map(({ id, label }, i) => {
           const active = tab === id;
@@ -67,10 +76,12 @@ function PayoutTabs() {
       </div>
 
       <section id="payouts-panel" role="tabpanel" aria-labelledby={`payouts-tab-${tab}`}>
-        {tab === "ledger" && <LedgerTab />}
-        {tab === "audit" && <AuditQueueTab />}
-        {tab === "recoveries" && <RecoveriesTab onOpenAudit={() => choose("audit")} />}
-        {tab === "log" && <AgentLogTab />}
+        {tab === "ledger" && <LedgerTab onLoaded={onTabLoaded} />}
+        {tab === "reconciliation" && <ReconciliationTab onLoaded={onTabLoaded} />}
+        {tab === "audit" && <AuditQueueTab onLoaded={onTabLoaded} />}
+        {tab === "recoveries" && <RecoveriesTab onOpenAudit={() => choose("audit")} onLoaded={onTabLoaded} />}
+        {tab === "webhooks" && <WebhooksTab onLoaded={onTabLoaded} />}
+        {tab === "log" && <AgentLogTab onLoaded={onTabLoaded} />}
       </section>
     </>
   );
@@ -84,7 +95,7 @@ export default function HRPayoutsPage() {
           Payouts
         </h1>
         <p className="text-ink-muted text-base font-body mt-2">
-          Every PayPal payout, the auto-paid claims picked for audit, and any overpayments being recovered.
+          Every PayPal payout, the daily check against PayPal, the auto-paid claims picked for audit, and any overpayments being recovered.
         </p>
       </header>
 

@@ -32,6 +32,14 @@ class PayoutStatus(str, enum.Enum):
     REVERSED = "REVERSED"
 
 
+class WebhookEventStatus(str, enum.Enum):
+    RECEIVED = "RECEIVED"
+    PROCESSED = "PROCESSED"
+    IGNORED = "IGNORED"
+    FAILED = "FAILED"
+    DEAD_LETTER = "DEAD_LETTER"
+
+
 class RecoveryStatus(str, enum.Enum):
     NOTICE_SENT = "NOTICE_SENT"
     DISPUTED = "DISPUTED"
@@ -60,6 +68,8 @@ class AgentActionType(str, enum.Enum):
     POLICY_DEPRECATED = "POLICY_DEPRECATED"
     POLICY_DELETED = "POLICY_DELETED"
     POLICY_BUDGETS_CHANGED = "POLICY_BUDGETS_CHANGED"
+    WEBHOOK_DEAD_LETTER = "WEBHOOK_DEAD_LETTER"
+    WEBHOOK_RETRY = "WEBHOOK_RETRY"
 
 
 # Action types that record an HR settings change (D3 change history).

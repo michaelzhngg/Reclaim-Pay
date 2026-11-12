@@ -727,7 +727,8 @@ function CaptureReceiptContent() {
 
     if ("error" in result) {
       setStage("form");
-      setSubmitError(result.error);
+      // Back on the capture screen, which shows fileError (the submit error only shows on the verification step).
+      setFileError(result.error);
       return;
     }
 
@@ -924,6 +925,8 @@ function CaptureReceiptContent() {
 
     if ("error" in result) {
       setSubmitError(result.error);
+      // The submit error only shows on the verification step; the capture screen shows fileError.
+      if (stage === "form") setFileError(result.error);
       return false;
     }
     setDraftSaved(true);

@@ -33,7 +33,7 @@ MASS_PAYMENT_CODE = "T0001"
 _NON_PAYOUT_CODES = ("T01", "T02", "T04")
 _DENIED_STATUS = "D"
 # Seeded and mock rows were never sent to PayPal, so they can't appear in its ledger.
-_NEVER_AT_PAYPAL = ("DEMOSEED-", "MOCKB-")
+NEVER_AT_PAYPAL = ("DEMOSEED-", "MOCKB-")
 
 _NOTHING_PAID = "No paid payouts in this period."
 _NO_TRANSACTIONS = "PayPal returned no transactions for this period, so nothing was compared."
@@ -312,7 +312,7 @@ def reconcile(db: Session, days: int = 1, now: Optional[datetime] = None,
     if settings.PAYPAL_MOCK_MODE:
         return build_summary(payouts, mock_feed(payouts, now), since, now, days, mock=True)
 
-    payouts = [p for p in payouts if p.provider_batch_id and not p.provider_batch_id.startswith(_NEVER_AT_PAYPAL)]
+    payouts = [p for p in payouts if p.provider_batch_id and not p.provider_batch_id.startswith(NEVER_AT_PAYPAL)]
     total = sum(1 for p in payouts if p.settled and p.created_at >= since)
     if not total:
         return build_summary(payouts, TransactionFeed([]), since, now, days)
