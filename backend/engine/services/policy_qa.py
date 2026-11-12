@@ -27,6 +27,9 @@ DAILY_QUESTION_LIMIT = 20
 MIN_QUESTION_CHARS = 5
 MAX_QUESTION_CHARS = 500
 MIN_QUOTE_CHARS = 12
+# A quote may join up to this many in-order pieces of one section, e.g. a list heading and its third item.
+MAX_QUOTE_PIECES = 3
+MIN_PIECE_CHARS = 20
 MAX_SECTIONS = 6
 NOT_COVERED_ANSWER = "I couldn't find one part of the policy that answers this. Try asking one thing at a time, or ask HR before you spend."
 
@@ -78,11 +81,48 @@ def squash(s: str) -> str:
     return _plain(s).casefold()
 
 
-def quote_section(quote: str | None, sections: list) -> object | None:
-    q = squash(quote or "")
-    if len(q) < MIN_QUOTE_CHARS:
+_ELLIPSIS = re.compile(r"\s*(?:…|\.\.\.)\s*")
+
+
+def _quote_pieces(quote: str, content: str) -> list[str] | None:
+    """The quote as in-order pieces of the section text, each copied word for word, or None."""
+    hay = _plain(content).lower()
+    pieces, pos = [], 0
+    for part in _ELLIPSIS.split(quote):
+        rest = part.strip()
+        while rest:
+            low = rest.lower()
+            size = len(low)
+            while size >= MIN_PIECE_CHARS and low[:size] not in hay[pos:]:
+                size -= 1
+            if size < MIN_PIECE_CHARS or low[:size] not in hay[pos:]:
+                return None
+            pos = hay.index(low[:size], pos) + size
+            pieces.append(rest[:size].strip())
+            if len(pieces) > MAX_QUOTE_PIECES:
+                return None
+            rest = rest[size:].strip()
+    return pieces or None
+
+
+def match_quote(quote: str | None, sections: list) -> tuple[object, str] | None:
+    """(section, quote to show) when the quote is copied from one section. Skipped lines show as " … "."""
+    q = _plain(quote or "")
+    if len(q) < MIN_QUOTE_CHARS or len(q.lower()) != len(q):
         return None
-    return next((s for s in sections if q in squash(s.content)), None)
+    for s in sections:
+        if q.casefold() in squash(s.content):
+            return s, q
+    for s in sections:
+        pieces = _quote_pieces(q, s.content or "")
+        if pieces and len(pieces) <= MAX_QUOTE_PIECES and all(len(p) >= MIN_PIECE_CHARS for p in pieces):
+            return s, " … ".join(pieces)
+    return None
+
+
+def quote_section(quote: str | None, sections: list) -> object | None:
+    found = match_quote(quote, sections)
+    return found[0] if found else None
 
 
 def _amount(raw: str) -> float | None:
@@ -151,9 +191,10 @@ def _verified(raw: object, question: str, sections: list, limits: str, grade: in
         return None
     answer = str(raw.get("answer") or "").strip()[:600]
     quote = raw.get("quote") if isinstance(raw.get("quote"), str) else None
-    section = quote_section(quote, sections)
-    if not answer or section is None:
+    found = match_quote(quote, sections)
+    if not answer or found is None:
         return None
+    section, quote = found
     if not numbers_supported(answer, "\n".join([question, limits, quote, str(grade or "")])):
         return None
     return answer, quote.strip(), section

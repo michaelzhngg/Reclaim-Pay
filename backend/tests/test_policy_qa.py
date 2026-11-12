@@ -98,3 +98,40 @@ def test_prompt_answers_for_the_grade_on_file(monkeypatch):
     qa.run_qa_llm("I'm grade 6, what is my allowance?", [SECTION], grade=1, limits="")
     assert 'start the answer with\n  "For your grade on file (1),"' in seen["text"]
     assert "doesn't list an amount for grade 1" in seen["text"]
+
+
+LIST_SECTION = SimpleNamespace(
+    section_id="s9", section_title=None, section_order=8,
+    content=("A reasonable full reimbursement cover for Employee with grade 8 and above as\nfollows ** ** :\n\n"
+             "1. Breakfast, lunch and dinner.\n2. Internet expenses, telephone (business & private calls).\n"
+             "3. Laundry with minimum 3 (three) days trip and with maximum 2 (two) sets."),
+)
+
+
+def test_a_quote_may_join_a_list_heading_to_one_of_its_items():
+    quote = ("A reasonable full reimbursement cover for Employee with grade 8 and above as follows ** ** : "
+             "3. Laundry with minimum 3 (three) days trip and with maximum 2 (two) sets.")
+    section, shown = qa.match_quote(quote, [SECTION, LIST_SECTION])
+    assert section is LIST_SECTION
+    assert shown == ("A reasonable full reimbursement cover for Employee with grade 8 and above as follows : … "
+                     "3. Laundry with minimum 3 (three) days trip and with maximum 2 (two) sets.")
+
+
+def test_a_quote_joined_with_an_ellipsis_is_accepted():
+    quote = "full reimbursement cover for Employee with grade 8 … Laundry with minimum 3 (three) days trip"
+    assert qa.quote_section(quote, [LIST_SECTION]) is LIST_SECTION
+
+
+def test_joined_quotes_must_keep_the_policy_order_and_real_length():
+    backwards = "3. Laundry with minimum 3 (three) days trip … 1. Breakfast, lunch and dinner."
+    assert qa.quote_section(backwards, [LIST_SECTION]) is None
+    scraps = "Employee with grade 8 … maximum 2 (two) … Breakfast, lunch"
+    assert qa.quote_section(scraps, [LIST_SECTION]) is None
+    four = ("A reasonable full reimbursement cover … 1. Breakfast, lunch and dinner. … "
+            "2. Internet expenses, telephone … 3. Laundry with minimum 3 (three) days trip")
+    assert qa.quote_section(four, [LIST_SECTION]) is None
+
+
+def test_quotes_are_shown_without_markdown_marks():
+    _, shown = qa.match_quote("- **Auto-approval amount:** RM100 per meal.", [SECTION])
+    assert shown == "- Auto-approval amount: RM100 per meal."
