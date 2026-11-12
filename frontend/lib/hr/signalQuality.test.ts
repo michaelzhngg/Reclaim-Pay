@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RiskSignal, SignalQuality, SignalReview } from "@/lib/api/reclaim-pay-types";
-import { precisionLabel, reviewFor, reviewSaveError } from "./signalQuality";
+import { canRateSignals, precisionLabel, reviewFor, reviewSaveError } from "./signalQuality";
 
 const sig = (document_id: string | null): RiskSignal => ({
   code: "NO_CAMERA_METADATA", severity: "LOW", points: 5, message: "", evidence: {}, document_id,
@@ -36,4 +36,13 @@ describe("precisionLabel", () => {
 describe("reviewSaveError", () => {
   it("explains a self-review", () => expect(reviewSaveError("SELF_REVIEW")).toBe("You can't rate checks on your own claim."));
   it("falls back to a retry message", () => expect(reviewSaveError("500: Internal Server Error")).toBe("Couldn't save. Try again."));
+});
+
+describe("canRateSignals", () => {
+  it("hides the buttons on the viewer's own claim", () => expect(canRateSignals("hr-1", "hr-1")).toBe(false));
+  it("shows them on someone else's claim", () => expect(canRateSignals("emp-1", "hr-1")).toBe(true));
+  it("shows them when either side is unknown; the server still refuses a self-review", () => {
+    expect(canRateSignals(undefined, "hr-1")).toBe(true);
+    expect(canRateSignals("emp-1", null)).toBe(true);
+  });
 });

@@ -11,6 +11,11 @@ export function precisionLabel(q: SignalQuality): string {
   return q.precision === null ? "Not enough reviews" : `${Math.round(q.precision * 100)}% real`;
 }
 
+/** No buttons on your own claim. Unknown IDs still show them, because the server refuses a self-review anyway. */
+export function canRateSignals(claimantId: string | null | undefined, viewerId: string | null | undefined): boolean {
+  return !claimantId || !viewerId || claimantId !== viewerId;
+}
+
 /** The PUT answers SELF_REVIEW with a bare code; anything else is worth a retry. */
 export function reviewSaveError(error: string): string {
   return error === "SELF_REVIEW" ? "You can't rate checks on your own claim." : "Couldn't save. Try again.";

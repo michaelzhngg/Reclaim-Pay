@@ -16,6 +16,7 @@ import { verdictLabel } from "@/components/hr-grid/rows";
 import { FIXTURE_HR_USER_ID } from "@/src/mocks/triageFixtures";
 import { AutonomyPanel } from "./_components/AutonomyPanel";
 import { getSignalReviews } from "@/lib/actions/signalReviews";
+import { canRateSignals } from "@/lib/hr/signalQuality";
 import type { SignalReview } from "@/lib/api/reclaim-pay-types";
 
 
@@ -396,6 +397,7 @@ export default function ReviewPage() {
     </div>
   );
 
+  const viewerId = FIXTURES_ON ? FIXTURE_HR_USER_ID : user?.user_id;
   // Two-person claims: the first approver can't also be the second.
   const approveBlocked = approveBlockedReason(bundle.autonomy ?? null, FIXTURES_ON ? FIXTURE_HR_USER_ID : user?.user_id);
   // Editing an amount picks "approve adjusted", which a blocked approver can't send.
@@ -671,9 +673,9 @@ export default function ReviewPage() {
             autonomy={bundle.autonomy}
             aiSummary={bundle.summary}
             aiVerdict={verdictLabel(bundle.overall_judgment as ReimbursementRaw["judgment"])}
-            reimId={signalReviews ? bundle.id : undefined}
+            reimId={signalReviews && canRateSignals(bundle.claimant_id, viewerId) ? bundle.id : undefined}
             reviews={signalReviews ?? []}
-            viewerId={FIXTURES_ON ? FIXTURE_HR_USER_ID : user?.user_id}
+            viewerId={viewerId}
           />
 
           {/* Financial Totals */}
