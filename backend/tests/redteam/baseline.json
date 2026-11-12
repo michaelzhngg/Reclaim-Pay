@@ -1,0 +1,13 @@
+{
+  "_comment": "Lowest catch rate (caught / fakes) each family may fall to, and how many honest receipts may be flagged. Raise these when a gap is fixed; lowering one needs a reason in the PR.",
+  "min_catch_rate": {
+    "injection": 0.636,
+    "arithmetic": 0.666,
+    "duplicate": 0.636,
+    "gaming": 0.5,
+    "edits": 0.8,
+    "provenance": 0.5,
+    "forensics": 0.6
+  },
+  "max_false_positives": 2
+}

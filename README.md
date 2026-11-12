@@ -61,6 +61,8 @@ The Receipt Shield is six fixed checks, plus one optional price check. None of t
 | Image check | Looks for a pasted-in or typed-over area, such as a changed total, by finding blocks with far less camera noise than the rest of the photo, plus a strict JPEG error-level check. Runs once at upload, well under a second for a phone photo. Observe-only by default (`IMAGE_FORENSICS_MODE=observe`): HR sees the finding marked "not scored", and it adds no points and changes no lane. | Edited photos reach HR with the suspect area named, without a new check that can misfire moving any claim the night it ships. |
 | Channel3 price check | Optional, and off without an API key. Flags an equipment line priced over 1.5 times the median of at least 3 market offers. | Inflated equipment prices reach HR with a market comparison. |
 
+Red-team suite: every PR runs 66 fake receipts across 7 attack families, plus 28 honest ones, through the shield and the lane decision. The build fails if any of the 42 must-catch fakes gets through or a family's catch rate drops. The other 24 fakes are known gaps, and 2 honest receipts are wrongly flagged today. Both lists are in [`backend/tests/redteam/README.md`](backend/tests/redteam/README.md).
+
 ### HR stays in control
 
 | Feature | What it does | Why it matters |
