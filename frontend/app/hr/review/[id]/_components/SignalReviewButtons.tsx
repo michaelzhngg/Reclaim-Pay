@@ -68,7 +68,7 @@ export function SignalReviewButtons({ reimId, code, documentId, initial, viewerI
         })}
       </div>
       <p aria-live="polite" className={`text-sm empty:hidden mt-2 ${note?.error ? "text-danger" : "text-ink-muted"}`}>
-        {note?.text ?? (byOther ? "Marked by another reviewer. Your answer replaces theirs." : "")}
+        {busy ? "Saving" : note?.text ?? (byOther ? "Marked by another reviewer. Your answer replaces theirs." : "")}
       </p>
     </div>
   );
