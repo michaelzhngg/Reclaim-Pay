@@ -64,7 +64,7 @@ services:
       - key: RESEND_API_KEY
         sync: false
       - key: EMAIL_FROM
-        value: "Reclaim Pay <onboarding@resend.dev>"
+        value: "Reclaim Pay <reclaim@send.reclaimai.dev>"
       - key: LANGCHAIN_TRACING
         value: "true"
       - key: LANGCHAIN_ENDPOINT
