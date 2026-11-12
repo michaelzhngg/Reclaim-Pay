@@ -57,7 +57,7 @@ function Toggle<T extends string>({
           onClick={() => onChange(o.id)}
           className={`min-h-11 px-4 rounded-full font-body text-sm font-semibold border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
             value === o.id
-              ? "bg-ink text-on-accent border-ink"
+              ? "bg-ink text-on-ink border-ink"
               : "bg-surface text-ink border-line hover:bg-surface-muted"
           }`}
         >

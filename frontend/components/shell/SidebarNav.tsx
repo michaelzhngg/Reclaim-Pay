@@ -30,7 +30,7 @@ function Item({ link, active }: { link: NavLink; active: boolean }) {
       />
       <span className="min-w-0 flex-1 truncate">{link.label}</span>
       {!!link.badge && link.badge > 0 && (
-        <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-tangerine px-1.5 text-[11px] font-semibold text-white tabular-nums">
+        <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-tangerine px-1.5 text-[11px] font-semibold text-night tabular-nums">
           {link.badge > 9 ? "9+" : link.badge}
         </span>
       )}
@@ -53,7 +53,7 @@ export default function SidebarNav({
   return (
     <nav
       aria-label="Sidebar"
-      className="hidden h-screen w-[260px] shrink-0 flex-col border-r border-on-surface/[0.06] bg-white lg:flex"
+      className="hidden h-screen w-[260px] shrink-0 flex-col border-r border-on-surface/[0.06] bg-surface lg:flex"
     >
       <div className="flex h-16 items-center gap-2.5 px-5">
         <Image src="/images/logo.svg" alt="" width={26} height={26} className="h-[26px] w-[26px]" />
@@ -66,7 +66,7 @@ export default function SidebarNav({
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-4 pt-3">
-        <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant/70">
+        <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
           Workspace
         </p>
         <div className="flex flex-col gap-0.5">

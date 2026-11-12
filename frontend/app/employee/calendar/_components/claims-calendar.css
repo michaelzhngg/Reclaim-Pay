@@ -26,6 +26,8 @@
 
 .claims-calendar {
   --b-primary: var(--color-accent);
+  /* Bryntum's grey for the "+2 more" link misses 4.5:1 in both themes. */
+  --b-calendar-cell-overflow-color: var(--color-ink-muted);
 }
 
 /* Saturdays and Sundays are ordinary days here, and red already means an error in this app. */
@@ -87,4 +89,55 @@
 .b-cal-event-wrap.claim-event:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
+}
+
+/* Dark theme. Bryntum ships one theme file per scheme and both write to :root, so the
+   svalbard-dark variables are repeated here under data-theme, with the greys tinted to
+   the app's indigo neutrals and the background set to the card surface. */
+:root[data-theme="dark"]:not(.b-nothing) {
+  --b-mix: hsl(240 14% 12%);
+  --b-opposite: #fff;
+  --b-widget-color-scheme: dark;
+  --b-elevation-1: 0 1px 3px 0 rgb(0 0 0 / 0.22), 0 1px 1px 0 rgb(0 0 0 / 0.2), 0 2px 1px -1px rgb(0 0 0 / 0.18);
+  --b-elevation-2: 0 1px 5px 0 rgb(0 0 0 / 0.22), 0 2px 2px 0 rgb(0 0 0 / 0.2), 0 3px 1px -2px rgb(0 0 0 / 0.18);
+  --b-neutral-100: var(--color-surface);
+  --b-neutral-99: hsl(240 14% 10.9%);
+  --b-neutral-98: hsl(240 14% 11.8%);
+  --b-neutral-97: hsl(240 14% 12.7%);
+  --b-neutral-96: hsl(240 14% 13.6%);
+  --b-neutral-95: hsl(240 14% 14.5%);
+  --b-neutral-94: hsl(240 14% 15.4%);
+  --b-neutral-93: hsl(240 14% 16.3%);
+  --b-neutral-92: hsl(240 14% 17.2%);
+  --b-neutral-91: hsl(240 14% 18.1%);
+  --b-neutral-90: hsl(240 14% 19%);
+  --b-neutral-85: hsl(240 14% 23.5%);
+  --b-neutral-80: hsl(240 14% 28%);
+  --b-neutral-75: hsl(240 14% 32.5%);
+  --b-neutral-70: hsl(240 14% 37%);
+  --b-neutral-65: hsl(240 14% 41.5%);
+  --b-neutral-60: hsl(240 14% 46%);
+  --b-neutral-55: hsl(240 14% 50.5%);
+  --b-neutral-50: hsl(240 14% 55%);
+  --b-neutral-45: hsl(240 14% 59.5%);
+  --b-neutral-40: hsl(240 14% 64%);
+  --b-neutral-35: hsl(240 14% 68.5%);
+  --b-neutral-30: hsl(240 14% 73%);
+  --b-neutral-25: hsl(240 14% 77.5%);
+  --b-neutral-20: hsl(240 14% 82%);
+  --b-neutral-15: hsl(240 14% 86.5%);
+  --b-neutral-10: hsl(240 14% 91%);
+  --b-neutral-5: hsl(240 14% 95.5%);
+  --b-neutral-2: hsl(240 14% 97.3%);
+  --b-neutral-1: hsl(240 14% 98.2%);
+  --b-neutral-0: #fff;
+  --b-popup-background: var(--b-neutral-97);
+  --b-tooltip-rich-background: var(--b-neutral-96);
+  --b-tooltip-plain-background: var(--b-neutral-96);
+  --b-column-lines-tick-color: var(--b-neutral-93);
+}
+
+[data-theme="dark"] .b-bryntum:not(.b-nothing) {
+  --b-menu-background: var(--b-neutral-95);
+  --b-toast-background: var(--b-neutral-96);
 }

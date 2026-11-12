@@ -81,7 +81,7 @@ export default function BadgesDialog({ info, open, onClose }: { info: TrustInfo;
         <button
           type="button"
           onClick={onClose}
-          className={`${btnBase} w-full bg-ink text-white hover:bg-ink-3 sm:w-auto`}
+          className={`${btnBase} w-full bg-ink text-on-ink hover:bg-ink-3 sm:w-auto`}
         >
           Close
         </button>

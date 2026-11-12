@@ -60,7 +60,7 @@ export function ClaimDialog({ open, labelledBy, onCancel, fallbackFocus, classNa
         e.preventDefault();
         onCancel();
       }}
-      className={`m-auto w-[calc(100%-2rem)] max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-dialog border border-line bg-surface p-0 text-ink shadow-overlay backdrop:bg-ink/40 opacity-100 transition-opacity duration-150 ease-out starting:opacity-0 motion-reduce:transition-none ${className}`}
+      className={`m-auto w-[calc(100%-2rem)] max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-dialog border border-line bg-surface p-0 text-ink shadow-overlay backdrop:bg-scrim/40 opacity-100 transition-opacity duration-150 ease-out starting:opacity-0 motion-reduce:transition-none ${className}`}
     >
       {children}
     </dialog>

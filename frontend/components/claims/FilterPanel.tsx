@@ -135,7 +135,7 @@ export function FilterPanel({
                 className={`shrink-0 px-3 min-h-[44px] rounded-full text-xs font-semibold font-body
                             border transition-colors cursor-pointer ${
                               active
-                                ? "bg-ink text-on-accent border-ink"
+                                ? "bg-ink text-on-ink border-ink"
                                 : "bg-surface border-line text-ink hover:bg-surface-muted"
                             }`}
               >

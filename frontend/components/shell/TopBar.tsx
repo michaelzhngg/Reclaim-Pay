@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/ui/Avatar";
 import NotificationsMenu from "./NotificationsMenu";
+import AppearanceMenu from "@/components/theme/AppearanceMenu";
 import { isActivePath, type NavLink } from "./types";
 
 export default function TopBar({
@@ -16,12 +17,15 @@ export default function TopBar({
   helpHref,
   settingsHref,
   actions,
+  showDensity = false,
 }: {
   portal: string;
   links: NavLink[];
   helpHref: string;
   settingsHref: string;
   actions?: ReactNode;
+  /** HR screens also offer the table density switch in the appearance menu. */
+  showDensity?: boolean;
 }) {
   const { user } = useAuth();
   const pathname = usePathname();
@@ -32,7 +36,7 @@ export default function TopBar({
   return (
     <header
       aria-label="Top navigation"
-      className="sticky top-0 z-50 border-b border-on-surface/[0.06] bg-white/75 pt-safe-top backdrop-blur-xl backdrop-saturate-150"
+      className="sticky top-0 z-50 border-b border-on-surface/[0.06] bg-surface/75 pt-safe-top backdrop-blur-xl backdrop-saturate-150"
     >
       <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center gap-3 px-4 sm:px-6 md:h-16 lg:px-10">
         {/* Mobile brand */}
@@ -56,6 +60,7 @@ export default function TopBar({
 
         <div className="ml-auto flex items-center gap-1 md:gap-1.5">
           {actions}
+          <AppearanceMenu showDensity={showDensity} />
           <NotificationsMenu cacheKey={user?.user_id ?? "anon"} />
           <Link
             id="topnav-help-btn"

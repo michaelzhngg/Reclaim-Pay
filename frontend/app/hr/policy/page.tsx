@@ -1271,7 +1271,7 @@ function DeleteConfirmModal({
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6">
       <div
-        className="absolute inset-0 bg-ink/50 cursor-pointer"
+        className="absolute inset-0 bg-scrim/50 cursor-pointer"
         onClick={!isDeleting ? onClose : undefined}
       />
       <div role="dialog" aria-modal="true" aria-labelledby="delete-policy-title" className="relative w-full max-w-md bg-surface rounded-dialog border border-line shadow-overlay overflow-hidden">
@@ -1474,7 +1474,7 @@ function ConditionsModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-ink/40 cursor-pointer" onClick={onClose} />
+      <div className="absolute inset-0 bg-scrim/40 cursor-pointer" onClick={onClose} />
 
       <div role="dialog" aria-modal="true" aria-labelledby="conditions-title" className="relative w-full max-w-2xl max-h-[85vh] bg-surface rounded-dialog border border-line shadow-overlay flex flex-col overflow-hidden">
         <div className="px-5 sm:px-8 py-4 sm:py-6 border-b border-line flex items-center justify-between gap-3 shrink-0">
@@ -1700,7 +1700,7 @@ function ViewAllModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-      <div className="absolute inset-0 bg-ink/40 cursor-pointer" onClick={onClose} />
+      <div className="absolute inset-0 bg-scrim/40 cursor-pointer" onClick={onClose} />
 
       <div role="dialog" aria-modal="true" aria-labelledby="view-all-title" className="relative w-full max-w-4xl max-h-[85dvh] flex flex-col bg-surface rounded-dialog border border-line shadow-overlay overflow-hidden">
         <div className="flex items-center justify-between px-6 py-5 border-b border-line shrink-0">
