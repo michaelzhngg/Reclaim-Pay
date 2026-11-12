@@ -9,7 +9,7 @@ from starlette.requests import Request
 from sqlmodel import Session, select
 
 from api import deps
-from api.rate_limit import limiter
+from api.rate_limit import POLICY_UPLOAD_LIMIT, limiter
 from api.schemas import PolicyResponse, PolicyCategoryWithBudget, PolicyCategoriesUpdateRequest
 from core.models import User, Policy, PolicyReimbursableCategory, PolicySection
 from core.enums import PolicyStatus, UserRole
@@ -42,7 +42,7 @@ def list_policies(
 
 
 @router.post("/upload")
-@limiter.limit("3/minute")
+@limiter.limit(POLICY_UPLOAD_LIMIT)
 async def upload_policy(
     request: Request,
     alias: str = Form(...),
