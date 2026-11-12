@@ -71,3 +71,9 @@ Non-obvious choices, with the alternative rejected. Newest ticket last.
 **Chosen:** the change endpoint returns early when the derived payer identity equals the stored one, leaving `payout_destination_changed_at` untouched.
 
 **Rejected:** writing the link fields again. That would refresh `paypal_linked_at` and could restart the 72-hour pause, turning a harmless HR retry into a lockout.
+
+## 12. Vendor spend is a separate ledger field, not more auto-paid spend
+
+**Chosen:** add `vendor_paid_today` to `AgentLedger` and include it only in the company daily budget hard stop. Count vendor bookings that reached `DISBURSING` or `PAID` today, across all tiers. Leave the circuit breaker's hourly auto-pay velocity alone.
+
+**Rejected:** folding vendor payments into `auto_paid_today`. That would mislabel HR-approved spend as agent spend and could make the breaker trip on vendor payments, which are not autonomous agent velocity.

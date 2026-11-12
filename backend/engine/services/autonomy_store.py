@@ -78,15 +78,24 @@ def history_from_rows(rows: list[dict], issue_dates: list[datetime], now: dateti
     )
 
 
-def ledger_from_rows(rows: list[dict], now: datetime, breaker_until: datetime | None) -> AgentLedger:
-    """rows: company-wide claims with `status`, `tier`, `amount`, `updated_at`."""
+def ledger_from_rows(rows: list[dict], now: datetime, breaker_until: datetime | None,
+                     vendor_rows: list[dict] | None = None) -> AgentLedger:
+    """rows: company-wide claims with `status`, `tier`, `amount`, `updated_at`.
+    vendor_rows: vendor booking payments with `status`, `amount`, `updated_at`.
+    """
     now = _utc(now)
     today, hour_ago = _day_start(now), now - timedelta(hours=1)
     auto = [r for r in rows if _is_auto_paid(r)]
+    vendor_paid_today = sum(
+        Decimal(str(r["amount"])) for r in vendor_rows or []
+        if str(r.get("status")) in (ReimbursementStatus.DISBURSING.value, ReimbursementStatus.PAID.value)
+        and _utc(r["updated_at"]) >= today
+    )
     return AgentLedger(
         auto_paid_today=float(sum(Decimal(str(r["amount"])) for r in auto if _utc(r["updated_at"]) >= today)),
         auto_paid_last_hour=float(sum(Decimal(str(r["amount"])) for r in auto if _utc(r["updated_at"]) >= hour_ago)),
         breaker_active=breaker_until is not None and _utc(breaker_until) > now,
+        vendor_paid_today=float(vendor_paid_today),
     )
 
 
@@ -280,7 +289,19 @@ def ledger_snapshot(db: Session, now: datetime) -> AgentLedger:
             Reimbursement.updated_at >= _day_start(now),
         )
     ).all()
-    return ledger_from_rows([_claim_row(r) for r in claims], now, settings_row(db).breaker_until)
+    vendor_rows = [
+        _claim_row(r) for r in db.exec(
+            select(Reimbursement).where(
+                Reimbursement.kind == "VENDOR_BOOKING",
+                Reimbursement.status.in_([
+                    ReimbursementStatus.DISBURSING.value,
+                    ReimbursementStatus.PAID.value,
+                ]),
+                Reimbursement.updated_at >= _day_start(now),
+            )
+        ).all()
+    ]
+    return ledger_from_rows([_claim_row(r) for r in claims], now, settings_row(db).breaker_until, vendor_rows)
 
 
 def recent_decisions(db: Session, n: int) -> list:

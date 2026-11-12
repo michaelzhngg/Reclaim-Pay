@@ -415,6 +415,42 @@ def test_vendor_account_change_requires_hr(pg_db):
         app.dependency_overrides.clear()
 
 
+def test_vendor_payment_reduces_the_company_daily_budget(pg_db):
+    from engine.services.autonomy_store import ledger_snapshot
+
+    user = _user(pg_db)
+    _policy(pg_db, user)
+    _vendor(pg_db, "Verified Cab Co.")
+    reim, _booking_row, _vendor_row, _created = _booking(pg_db, user, "Verified Cab Co.", amount=40.0)
+    assert reim.status == ReimbursementStatus.APPROVED
+
+    # Approved but unpaid does not reserve budget.
+    assert ledger_snapshot(pg_db, NOW).vendor_paid_today == 0
+
+    assert asyncio.run(initiate_payout_async(reim.reim_id, pg_db)) is not None
+    assert ledger_snapshot(pg_db, NOW).vendor_paid_today == 40.0
+
+
+def test_vendor_payment_budget_forces_a_clean_booking_to_hr(pg_db, monkeypatch):
+    from engine.services import autonomy_store
+    from engine.risk.types import AutonomyConfig
+
+    user = _user(pg_db)
+    _policy(pg_db, user)
+    _vendor(pg_db, "Verified Cab Co.")
+    _vendor(pg_db, "Budget Cab Co.")
+
+    # Commit most of the company budget as a vendor payment today.
+    other, _booking_row, _vendor_row, _created = _booking(pg_db, user, "Budget Cab Co.", amount=40.0)
+    assert asyncio.run(initiate_payout_async(other.reim_id, pg_db)) is not None
+
+    monkeypatch.setattr(autonomy_store, "get_config", lambda db: AutonomyConfig(agent_daily_budget=50.0))
+    reim, _booking_row, _vendor_row, _created = _booking(pg_db, user, "Verified Cab Co.", amount=40.0)
+
+    assert reim.tier != "AUTO_PAY"
+    assert "AGENT_DAILY_BUDGET" in reim.autonomy["hard_stops"]
+
+
 def test_create_booking_api_returns_employee_view(pg_db):
     from main import app
 
