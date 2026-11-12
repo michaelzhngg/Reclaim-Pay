@@ -14,6 +14,7 @@ from engine.llm import get_chat_llm
 from engine.policy.limits import LimitRule, ZonePlace, same_category
 from engine.prompts.policy_prompts import POLICY_LIMITS_PROMPT
 from engine.services import policy_limits_store as store
+from engine.services.policy_qa import squash
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,8 @@ def _zone(value) -> str | None:
     return str(value).strip() or None
 
 
-def parse_extraction(raw, categories: list[str]) -> tuple[list[LimitRule], list[ZonePlace], int]:
+def parse_extraction(raw, categories: list[str], text: str | None = None) -> tuple[list[LimitRule], list[ZonePlace], int]:
+    """With the policy text, a quote it doesn't contain is dropped: HR reads it as the policy's own words."""
     if not isinstance(raw, dict):
         return [], [], 0
     items = raw.get("limits")
@@ -55,10 +57,13 @@ def parse_extraction(raw, categories: list[str]) -> tuple[list[LimitRule], list[
         if canonical is None:
             dropped += 1
             continue
+        quote = _clip(item.get("source_quote"), 400)
+        if quote and text is not None and squash(quote) not in squash(text):
+            quote = None
         fields = {
             **item, "category": canonical, "zone": _zone(item.get("zone")),
             "source_section": _clip(item.get("source_section"), 200),
-            "source_quote": _clip(item.get("source_quote"), 400),
+            "source_quote": quote,
         }
         try:
             rules.append(LimitRule.model_validate(fields))
@@ -96,7 +101,7 @@ def extract_limits(db: Session, policy_id: UUID) -> ExtractionResult:
     text = _policy_text(db, policy_id)
     if not categories or not text.strip():
         return ExtractionResult(proposed=0, zone_places=0, dropped=0)
-    rules, places, dropped = parse_extraction(run_extraction_llm(categories, text), categories)
+    rules, places, dropped = parse_extraction(run_extraction_llm(categories, text), categories, text)
     proposed = store.replace_proposed(db, policy_id, rules, places)
     db.commit()
     logger.info("[POLICY_LIMITS] policy=%s proposed=%d places=%d dropped=%d",
