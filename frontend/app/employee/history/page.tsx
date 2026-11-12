@@ -63,7 +63,7 @@ function mapToHistoryClaim(r: ReimbursementRaw): HistoryClaim {
     isVendorBooking: (r.kind ?? "CLAIM") === "VENDOR_BOOKING",
     vendorName: r.vendor_name ?? undefined,
     lineItems,
-    receiptCount: lineItems.length,
+    receiptCount: (r.kind ?? "CLAIM") === "VENDOR_BOOKING" ? 0 : lineItems.length,
     pdfDownloadUrl: `/api/v1/reimbursements/${r.reim_id}/pdf`,
     settlementId: r.settlement_id,
     settlementTemplateUrl: r.settlement_id
