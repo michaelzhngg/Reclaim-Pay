@@ -1,17 +1,30 @@
 "use client";
 
-import React, { JSX, useRef, useState, useEffect } from 'react';
-import { Plus, Search, ChevronUp, ChevronDown, ChevronRight, FileText, Shield, Archive, Pencil, Trash2, ArrowLeft, X, SlidersHorizontal, Upload, Settings, CheckCircle2, History, Clock, User, PlusCircle, AlertCircle, ShieldCheck, Users, Calendar, BarChart3 } from 'lucide-react';
-import { POLICY_STATUS_STYLE, type Policy, type PolicyStatus } from '../hr_components/mockData';
-import type { Policy as BackendPolicy } from '@/lib/api/types';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Plus, Search, ChevronRight, FileText, ArrowLeft, X, Upload, Settings, CheckCircle2, AlertCircle, Trash2, Archive } from 'lucide-react';
+import {
+  LEGACY_STORAGE_KEYS,
+  POLICY_STATUS_STYLE,
+  budgetInputs,
+  budgetsPayload,
+  matchesSearch,
+  policyMeta,
+  sourceFileName,
+  toPolicy,
+  type MandatoryConditions,
+  type Policy,
+  type PolicyStatus,
+} from './_lib/policy';
 import { uploadPolicy } from '@/lib/actions/hr';
-import { getPolicies, deletePolicy, updatePolicyCategories } from '@/lib/actions/policies';
+import { getPolicies, deletePolicy, deprecatePolicy, updatePolicyCategories } from '@/lib/actions/policies';
 
 const SAVE_STEPS = [
   { id: "upload", label: "Uploading documents...", subtitle: "Securely storing policy files." },
   { id: "analyze", label: "Analyzing policy...", subtitle: "Extracting summary and conditions." },
   { id: "save", label: "Saving changes...", subtitle: "Updating policy database." },
 ];
+
+const POLICY_MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 
 export function HrProcessingScreen({ currentStep, onBack }: { currentStep: number, onBack: () => void }) {
   return (
@@ -20,8 +33,8 @@ export function HrProcessingScreen({ currentStep, onBack }: { currentStep: numbe
         <div className="flex items-center gap-3 mb-8">
           <Settings className="w-5 h-5 text-ink-muted shrink-0 motion-safe:animate-spin [animation-duration:3s]" strokeWidth={2} aria-hidden="true" />
           <div>
-            <h2 className="font-display text-xl font-semibold text-ink leading-tight">Saving changes</h2>
-            <p className="text-ink-muted text-sm font-body mt-0.5">Please do not close this window.</p>
+            <h2 className="font-display text-xl font-semibold text-ink leading-tight">Uploading policy</h2>
+            <p className="text-ink-muted text-sm font-body mt-0.5">Reading a policy can take a minute.</p>
           </div>
         </div>
 
@@ -54,16 +67,26 @@ export function HrProcessingScreen({ currentStep, onBack }: { currentStep: numbe
           })}
         </ol>
 
-        <div className="mt-10 flex justify-center">
+        <div className="mt-10 flex flex-col items-center gap-2">
           <button
             type="button"
             onClick={onBack}
             className="min-h-[44px] px-5 border border-line-strong text-ink text-sm font-semibold rounded-control hover:bg-surface-muted transition-colors cursor-pointer"
           >
-            Abort and Go Back
+            Back to Policy Studio
           </button>
+          <p className="text-xs text-ink-muted font-body">The upload keeps going. The policy appears in the list when it&apos;s ready.</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <dt className="font-body text-xs font-medium text-ink-muted">{label}</dt>
+      <dd className="font-body text-sm text-ink break-words">{value}</dd>
     </div>
   );
 }
@@ -74,40 +97,32 @@ export default function PolicyStudio() {
   const [searchQuery, setSearchQuery] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
 
-  // File upload state
+  // New policy upload
   const [mainPolicyFile, setMainPolicyFile] = useState<File | null>(null);
   const [appendixFiles, setAppendixFiles] = useState<File[]>([]);
   const mainPolicyInputRef = useRef<HTMLInputElement>(null);
   const appendixInputRef = useRef<HTMLInputElement>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (mainPolicyFile && mainPolicyFile.type === "application/pdf") {
-      const url = URL.createObjectURL(mainPolicyFile);
-      setPreviewUrl(url);
-      return () => URL.revokeObjectURL(url);
-    } else {
-      setPreviewUrl(null);
-    }
-  }, [mainPolicyFile]);
-
-  // Form state
-  const [editName, setEditName] = useState("");
-  const [editDepartment, setEditDepartment] = useState("");
-  const [editVersion, setEditVersion] = useState("");
-  const [editDate, setEditDate] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
   const [savingStep, setSavingStep] = useState(0);
   const [policyFileError, setPolicyFileError] = useState<string | null>(null);
-  const POLICY_MAX_SIZE = 10 * 1024 * 1024; // 10 MB
-  const [conditionsModalOpen, setConditionsModalOpen] = useState(false);
-  const [editConditions, setEditConditions] = useState<Record<string, any> | null>(null);
+
+  const previewUrl = useMemo(
+    () => (mainPolicyFile?.type === "application/pdf" ? URL.createObjectURL(mainPolicyFile) : null),
+    [mainPolicyFile],
+  );
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+
+  // Existing policy: budgets are the only editable field
   const [categoryBudgets, setCategoryBudgets] = useState<Record<string, string>>({});
-  const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null);
-  const [editOverviewSummary, setEditOverviewSummary] = useState<string>("");
-  const [existingMainPolicyFilename, setExistingMainPolicyFilename] = useState<string>("");
-  const [editHistory, setEditHistory] = useState<{ user: string, action: string, date: string, details?: string }[]>([]);
+  const [isSavingBudgets, setIsSavingBudgets] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [conditionsModalOpen, setConditionsModalOpen] = useState(false);
+
+  // Retire (deprecate)
+  const [retireConfirm, setRetireConfirm] = useState(false);
+  const [isRetiring, setIsRetiring] = useState(false);
+  const [retireError, setRetireError] = useState<string | null>(null);
 
   // Delete confirmation state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -116,12 +131,55 @@ export default function PolicyStudio() {
   const [deletingPolicyId, setDeletingPolicyId] = useState<string | null>(null);
   const [deletingPolicyName, setDeletingPolicyName] = useState<string>("");
 
-  // Existing files state (for edit view)
-  const [existingMainPolicyDeleted, setExistingMainPolicyDeleted] = useState(false);
-  const [existingAppendix, setExistingAppendix] = useState<{ name: string, size: string }[]>([
-    { name: "W10_Requirements_Review.pdf", size: "1.2 MB" },
-    { name: "Ergonomic_Guidelines_2023.pdf", size: "845 KB" }
-  ]);
+  const [policies, setPolicies] = useState<Policy[]>([]);
+  const [policiesStatus, setPoliciesStatus] = useState<"loading" | "ready" | "error">("loading");
+
+  const reload = useCallback(
+    () =>
+      getPolicies()
+        .then((list) => {
+          setPolicies(list.map(toPolicy));
+          setPoliciesStatus("ready");
+        })
+        // Keep a list that already loaded; only a first load shows the error state.
+        .catch(() => setPoliciesStatus((prev) => (prev === "ready" ? "ready" : "error"))),
+    [],
+  );
+
+  useEffect(() => {
+    // An older version of this page kept fake edits and deletions in the browser.
+    try {
+      LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+    } catch { /* storage blocked: nothing to clear */ }
+    getPolicies()
+      .then((list) => {
+        setPolicies(list.map(toPolicy));
+        setPoliciesStatus("ready");
+      })
+      .catch(() => setPoliciesStatus("error"));
+  }, []);
+
+  const current = editingPolicy && editingPolicy !== "new"
+    ? policies.find((p) => p.policy_id === editingPolicy) ?? null
+    : null;
+
+  const openPolicy = (id: string) => {
+    const p = policies.find((x) => x.policy_id === id);
+    setCategoryBudgets(p ? budgetInputs(p) : {});
+    setSaveError(null);
+    setRetireConfirm(false);
+    setRetireError(null);
+    setEditingPolicy(id);
+  };
+
+  const startNewPolicy = () => {
+    setNewName("");
+    setMainPolicyFile(null);
+    setAppendixFiles([]);
+    setPolicyFileError(null);
+    setSaveError(null);
+    setEditingPolicy("new");
+  };
 
   // Sync scroll refs
   const editContainerRef = useRef<HTMLDivElement>(null);
@@ -141,23 +199,17 @@ export default function PolicyStudio() {
 
       const leftH = left.scrollHeight;
       const rightH = right.scrollHeight;
-      const containerH = container.clientHeight;
-      const scrollT = container.scrollTop;
-      const maxScroll = container.scrollHeight - containerH;
-
+      const maxScroll = container.scrollHeight - container.clientHeight;
       if (maxScroll <= 0) return;
 
-      const ratio = Math.min(Math.max(scrollT / maxScroll, 0), 1);
-
+      const ratio = Math.min(Math.max(container.scrollTop / maxScroll, 0), 1);
       if (leftH > rightH) {
         // Left is longer, move Right down so they finish together
-        const diff = leftH - rightH;
-        setRightOffset(diff * ratio);
+        setRightOffset((leftH - rightH) * ratio);
         setLeftOffset(0);
       } else if (rightH > leftH) {
         // Right is longer, move Left down
-        const diff = rightH - leftH;
-        setLeftOffset(diff * ratio);
+        setLeftOffset((rightH - leftH) * ratio);
         setRightOffset(0);
       } else {
         setLeftOffset(0);
@@ -173,77 +225,21 @@ export default function PolicyStudio() {
     if (leftColRef.current) observer.observe(leftColRef.current);
     if (rightColRef.current) observer.observe(rightColRef.current);
 
-    // Initial calculation
-    setTimeout(handleScroll, 100);
+    const timer = setTimeout(handleScroll, 100);
 
     return () => {
+      clearTimeout(timer);
       container.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleScroll);
       observer.disconnect();
     };
-  }, [editingPolicy, editConditions, appendixFiles, existingAppendix, existingMainPolicyDeleted, editName, editDepartment]);
-
-  useEffect(() => {
-    if (editingPolicy) {
-      setIsLoadingDetails(true);
-      const timer = setTimeout(() => setIsLoadingDetails(false), 600);
-      return () => clearTimeout(timer);
-    }
-  }, [editingPolicy]);
+  }, [editingPolicy, appendixFiles, mainPolicyFile, policies, retireConfirm]);
 
   function formatFileSize(bytes: number): string {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   }
-
-  function parseMandatoryConditions(raw: string | Record<string, any> | undefined | null): Record<string, any> | null {
-    if (!raw) return null;
-    if (typeof raw === 'object') return raw as Record<string, any>;
-    try {
-      const parsed = JSON.parse(raw);
-      if (typeof parsed === 'object' && parsed !== null) return parsed;
-    } catch {
-      // Not valid JSON, ignore
-    }
-    return null;
-  }
-
-  // Map the backend Policy (lib/api/types) to the shape this page renders.
-  function toLocalPolicy(p: BackendPolicy): Policy {
-    return {
-      policy_id: p.policy_id,
-      alias: p.alias,
-      title: p.title,
-      version: "",
-      department: "",
-      lastModified: p.effective_date
-        ? new Date(p.effective_date).toLocaleDateString("en-MY", { month: "short", day: "numeric", year: "numeric" })
-        : "",
-      status: (p.status === "ACTIVE" ? "Active" : p.status === "DEPRECATED" ? "Expired" : "Impending") as PolicyStatus,
-      icon: FileText,
-      overview_summary: p.overview_summary,
-      mandatory_conditions: parseMandatoryConditions(p.mandatory_conditions) ?? undefined,
-      reimbursable_categories_with_budgets: p.reimbursable_categories_with_budgets ?? [],
-      history: [],
-      source_file_url: p.source_file_url,
-      effective_date: p.effective_date,
-    };
-  }
-
-  const [policies, setPolicies] = useState<Policy[]>([]);
-  const [policiesStatus, setPoliciesStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  useEffect(() => {
-    getPolicies()
-      .then((backendPolicies) => {
-        setPolicies(backendPolicies.map(toLocalPolicy));
-        setPoliciesStatus("ready");
-      })
-      .catch(() => setPoliciesStatus("error"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const listMessage =
     policiesStatus === "loading"
@@ -254,239 +250,82 @@ export default function PolicyStudio() {
           ? "No policies yet. Create one to start checking claims."
           : "No policies found matching your search or filter.";
 
-  // Status dropdown & edit states
-  const [editStatus, setEditStatus] = useState<PolicyStatus>("Active");
-  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
-
-  useEffect(() => {
-    if (editingPolicy && editingPolicy !== "new") {
-      const p = policies.find(x => x.policy_id === editingPolicy);
-      if (p) {
-        setEditStatus(p.status);
-        setEditName(p.alias);
-        setEditDepartment(p.department || "");
-        setEditVersion(p.version || "");
-        setEditDate(p.effective_date ? new Date(p.effective_date).toISOString().slice(0, 10) : "");
-        setExistingMainPolicyDeleted(false);
-        setEditOverviewSummary(p.overview_summary || "");
-        setEditConditions(p.mandatory_conditions || null);
-        setEditingPolicyId(p.policy_id || null);
-        setExistingMainPolicyFilename(
-          p.source_file_url ? p.source_file_url.split(/[\\/]/).pop() ?? "" : ""
-        );
-
-        // Initialize budgets from policy data (or from categories)
-        const budgets: Record<string, string> = {};
-        if (p.reimbursable_categories_with_budgets) {
-          p.reimbursable_categories_with_budgets.forEach((cat: any) => {
-            budgets[cat.category] = cat.auto_approval_budget?.toString() ?? "";
-          });
-        } else if (p.mandatory_conditions) {
-          Object.keys(p.mandatory_conditions).forEach(cat => {
-            budgets[cat] = "";
-          });
-        }
-        setCategoryBudgets(budgets);
-
-        setEditHistory(p.history ?? []);
-        setExistingAppendix(p.existingAppendix ?? []);
-        setAppendixFiles(p.appendixFiles || []);
-        setMainPolicyFile(p.mainFile || null);
-      }
-    } else if (editingPolicy === "new") {
-      setEditStatus("Active");
-      setEditName("");
-      setEditDepartment("");
-      setEditVersion("");
-      setEditDate("");
-      setEditOverviewSummary("");
-      setEditConditions(null);
-      setEditingPolicyId(null);
-      setCategoryBudgets({});
-      setExistingMainPolicyFilename("");
-      setMainPolicyFile(null);
-      setAppendixFiles([]);
-    }
-    setStatusDropdownOpen(false);
-  }, [editingPolicy, policies]);
-
-  const StatusDropdown = () => (
-    <div className="relative">
-      <button
-        type="button"
-        aria-haspopup="listbox"
-        aria-expanded={statusDropdownOpen}
-        aria-label={`Policy status: ${editStatus}`}
-        onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
-        className={`flex items-center justify-between gap-2 min-h-[44px] rounded-control px-3 text-sm font-body font-medium transition-colors w-[140px] cursor-pointer border ${statusDropdownOpen ? 'bg-surface-muted border-line-strong' : 'bg-surface border-line-strong hover:bg-surface-muted'
-          }`}
-      >
-        <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${editStatus === 'Active' ? 'bg-success' : editStatus === 'Impending' ? 'bg-warning' : 'bg-line'}`} />
-          <span className="text-ink">{editStatus}</span>
-        </div>
-        <ChevronDown className={`text-ink-muted transition-transform ${statusDropdownOpen ? 'rotate-180' : ''}`} size={16} />
-      </button>
-
-      {statusDropdownOpen && (
-        <div className="absolute bottom-full mb-2 left-0 w-full bg-surface shadow-ambient rounded-card shadow-overlay py-1 z-50">
-          {(["Active", "Impending", "Expired"] as PolicyStatus[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => {
-                setEditStatus(s);
-                setStatusDropdownOpen(false);
-              }}
-              type="button"
-              className="w-full text-left min-h-[44px] px-4 text-sm font-body text-ink hover:bg-surface-muted transition-colors flex items-center gap-2 cursor-pointer"
-            >
-              <span className={`w-2 h-2 rounded-full ${s === 'Active' ? 'bg-success' : s === 'Impending' ? 'bg-warning' : 'bg-line'}`} />
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  const handleSave = async () => {
-    if (!editingPolicy) return;
+  async function handleUpload() {
     setSaveError(null);
-    setIsSaving(true);
-    setSavingStep(0);
+    if (!mainPolicyFile) {
+      setSaveError("Choose the policy PDF to upload.");
+      return;
+    }
+    const form = new FormData();
+    form.append("files", mainPolicyFile);
+    appendixFiles.forEach((f) => form.append("files", f));
+    form.append("alias", newName.trim() || mainPolicyFile.name.replace(/\.pdf$/i, ""));
 
-    // ── New policy: upload to backend ──────────────────────────────────────
-    if (editingPolicy === "new" && mainPolicyFile) {
-      const form = new FormData();
-      form.append("files", mainPolicyFile);
-      form.append("alias", editName || "New Policy");
-      // Append appendix files too
-      appendixFiles.forEach((f) => form.append("files", f));
+    setIsUploading(true);
+    setSavingStep(1);
+    const result = await uploadPolicy(form);
+    if (!result.ok) {
+      setSaveError(result.error ?? "Upload failed. Please try again.");
+      setIsUploading(false);
+      return;
+    }
+    setSavingStep(2);
+    await reload();
+    setIsUploading(false);
+    setEditingPolicy(null);
+  }
 
-      setSavingStep(1);
-      const result = await uploadPolicy(form);
-      setSavingStep(2);
-      await new Promise((r) => setTimeout(r, 800)); // brief delay for UI
-
-      if (!result.ok) {
-        setSaveError(result.error ?? "Upload failed. Please try again.");
-        setIsSaving(false);
-        return;
-      }
-
-      // Refresh policy list from backend
-      try {
-        const updated = await getPolicies();
-        setPolicies(updated.map(toLocalPolicy));
-      } catch { /* keep existing list */ }
-
-      setIsSaving(false);
+  async function handleSaveBudgets() {
+    if (!current) return;
+    setSaveError(null);
+    const payload = budgetsPayload(categoryBudgets);
+    if (!payload.ok) {
+      setSaveError(payload.error);
+      return;
+    }
+    if (payload.categories.length === 0) {
       setEditingPolicy(null);
       return;
     }
-
-    // ── Edit existing ────────────────────────────────────────────────────
-    setSavingStep(1);
-
-    // Save category budgets to backend
-    if (editingPolicyId && Object.keys(categoryBudgets).length > 0) {
-      const categoriesWithBudgets = Object.entries(categoryBudgets).map(([category, budget]) => ({
-        category,
-        auto_approval_budget: budget !== "" ? parseFloat(budget) : null,
-      }));
-      const budgetResult = await updatePolicyCategories(editingPolicyId, categoriesWithBudgets);
-      if (!budgetResult.ok) {
-        setSaveError(budgetResult.error ?? "Failed to update category budgets");
-        setIsSaving(false);
-        return;
-      }
+    setIsSavingBudgets(true);
+    const result = await updatePolicyCategories(current.policy_id, payload.categories);
+    setIsSavingBudgets(false);
+    if (!result.ok) {
+      setSaveError(result.error ?? "Couldn't save the budgets. Try again.");
+      return;
     }
-
-    setSavingStep(2);
-    await new Promise(r => setTimeout(r, 500));
-
-    // Record History
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
-      ' ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
-    const newHistoryEntry = {
-      user: "HR Admin",
-      action: editingPolicy === "new" ? "Policy Created" : "Policy Updated",
-      date: formattedDate,
-      details: editingPolicy === "new" ? `Initial policy creation: ${editName}` : `Modified policy: ${editName}`
-    };
-    const updatedHistory = [newHistoryEntry, ...editHistory];
-
-    if (editingPolicy === "new") {
-      const newPolicy: Policy = {
-        policy_id: "pol-" + Math.random().toString(36).substr(2, 9),
-        alias: editName || "New Policy",
-        title: editName || "New Policy",
-        version: editVersion || "V1.0",
-        department: editDepartment || "General",
-        lastModified: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        status: editStatus,
-        icon: FileText,
-        mainFile: mainPolicyFile,
-        appendixFiles: appendixFiles,
-        existingAppendix: existingAppendix,
-        mandatory_conditions: editConditions || undefined,
-        history: updatedHistory
-      };
-      setPolicies([newPolicy, ...policies]);
-    } else {
-      const updatedPolicyData = {
-        status: editStatus,
-        alias: editName,
-        title: editName,
-        department: editDepartment,
-        version: editVersion,
-        existingAppendix: existingAppendix,
-        mandatory_conditions: editConditions || undefined,
-        history: updatedHistory
-      };
-
-      // Persist edit to LocalStorage
-      const localEdits = JSON.parse(localStorage.getItem('local_policy_edits') || '{}');
-      localEdits[editingPolicy] = updatedPolicyData;
-      localStorage.setItem('local_policy_edits', JSON.stringify(localEdits));
-
-      setPolicies(policies.map(p => p.policy_id === editingPolicy ? {
-        ...p,
-        ...updatedPolicyData,
-        mainFile: mainPolicyFile,
-        appendixFiles: appendixFiles,
-      } : p));
-    }
-
-    setIsSaving(false);
+    await reload();
     setEditingPolicy(null);
-  };
+  }
+
+  async function handleRetire() {
+    if (!current) return;
+    setIsRetiring(true);
+    setRetireError(null);
+    const result = await deprecatePolicy(current.policy_id);
+    setIsRetiring(false);
+    if (!result.ok) {
+      setRetireError(result.error ?? "Couldn't retire the policy. Try again.");
+      return;
+    }
+    setRetireConfirm(false);
+    await reload();
+  }
 
   async function handleConfirmDelete() {
     if (!deletingPolicyId) return;
     setIsDeleting(true);
     setDeleteError(null);
-    
+
     const result = await deletePolicy(deletingPolicyId);
-    
+
     if (!result.ok) {
       setDeleteError(result.error ?? "Failed to delete policy");
       setIsDeleting(false);
       return;
     }
-    
-    // Remove from local state
+
     setPolicies(prev => prev.filter(p => p.policy_id !== deletingPolicyId));
-    
-    // Persist deletion in LocalStorage (like the edit-view delete does)
-    const deletedIds = JSON.parse(localStorage.getItem('deleted_policy_ids') || '[]');
-    if (!deletedIds.includes(deletingPolicyId)) {
-      deletedIds.push(deletingPolicyId);
-      localStorage.setItem('deleted_policy_ids', JSON.stringify(deletedIds));
-    }
-    
     setIsDeleting(false);
     setDeleteModalOpen(false);
     if (editingPolicy === deletingPolicyId) {
@@ -499,43 +338,28 @@ export default function PolicyStudio() {
   if (editingPolicy) {
     const isNew = editingPolicy === "new";
 
-    if (isSaving) {
+    if (isUploading) {
       return (
         <div className="flex-1 flex flex-col relative w-full h-full bg-paper text-ink overflow-hidden p-6 animate-in fade-in duration-500">
-          <style>{`
-             @keyframes pulse-scan {
-               0% { transform: translateY(-100%); opacity: 0; }
-               50% { opacity: 1; }
-               100% { transform: translateY(400px); opacity: 0; }
-             }
-             .animate-pulse-scan {
-               animation: pulse-scan 3s linear infinite;
-             }
-           `}</style>
-          <HrProcessingScreen currentStep={savingStep} onBack={() => setIsSaving(false)} />
+          <HrProcessingScreen currentStep={savingStep} onBack={() => setEditingPolicy(null)} />
         </div>
       );
     }
 
-    if (isLoadingDetails) {
+    if (!isNew && !current) {
       return (
-        <div className="flex-1 flex flex-col p-6 max-w-7xl mx-auto w-full h-full bg-paper">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="h-8 w-48 bg-surface-muted animate-pulse rounded-lg" />
-          </div>
-          <div className="grid grid-cols-12 gap-8 h-full">
-            <div className="col-span-7 flex flex-col gap-8">
-              <div className="h-64 bg-surface-muted animate-pulse rounded-card" />
-              <div className="h-96 bg-surface-muted animate-pulse rounded-card" />
-            </div>
-            <div className="col-span-5 flex flex-col gap-8">
-              <div className="h-48 bg-surface-muted animate-pulse rounded-card" />
-              <div className="h-64 bg-surface-muted animate-pulse rounded-card" />
-            </div>
-          </div>
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6 text-center">
+          <p className="font-body text-sm text-ink-muted">This policy is no longer available. It may have been deleted.</p>
+          <button type="button" onClick={() => setEditingPolicy(null)} className="min-h-[44px] px-5 border border-line-strong text-ink text-sm font-semibold rounded-control hover:bg-surface-muted transition-colors cursor-pointer">
+            Back to Policy Studio
+          </button>
         </div>
       );
     }
+
+    const conditions: MandatoryConditions | null = current?.mandatory_conditions ?? null;
+    const conditionEntries = conditions ? Object.entries(conditions) : [];
+    const fileName = sourceFileName(current?.source_file_url);
 
     return (
       <div className="flex-1 flex flex-col relative overflow-hidden w-full h-full bg-paper text-ink">
@@ -550,257 +374,244 @@ export default function PolicyStudio() {
             </button>
           </div>
 
-          <div className="flex items-center gap-4 mb-6">
+          <div className="flex flex-wrap items-center gap-3 mb-6">
             <h1 className="font-display text-2xl md:text-3xl leading-tight font-semibold text-ink break-words">
-              {isNew ? "Create New Policy" : `${editName || "Edit Policy"}`}
+              {isNew ? "Create New Policy" : current?.alias}
             </h1>
+            {current && (
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${POLICY_STATUS_STYLE[current.status]}`}>
+                {current.status}
+              </span>
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 min-h-0 items-start">
-            {/* Left Column: Policy Details (if edit), Main Policy & Appendix */}
+            {/* Left Column: details (edit) or the upload (new) */}
             <div
               ref={leftColRef}
               className="lg:col-span-7 flex flex-col gap-8 pr-2 pb-4 h-fit transition-transform duration-75 ease-out will-change-transform"
               style={{ transform: `translateY(${leftOffset}px)` }}
             >
 
-              {/* Form Details (Only shown here in Edit View) */}
-              {!isNew && (
+              {current && (
                 <div className="bg-surface rounded-card p-4 sm:p-6 shadow-ambient shrink-0">
                   <h3 className="font-display text-lg font-bold text-ink mb-5">Policy Details</h3>
-                  <div className="flex flex-col gap-5">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-body text-sm font-medium text-ink">Policy Name</label>
-                      <input
-                        type="text"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        placeholder="e.g. Remote Work Policy"
-                        className="bg-surface border border-line-strong rounded-control px-3 min-h-[44px] text-sm font-body text-ink placeholder:text-ink-muted focus:border-accent outline-none"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-body text-sm font-medium text-ink">Department</label>
-                      <input
-                        type="text"
-                        value={editDepartment}
-                        onChange={(e) => setEditDepartment(e.target.value)}
-                        placeholder="e.g. Human Resources"
-                        className="bg-surface border border-line-strong rounded-control px-3 min-h-[44px] text-sm font-body text-ink placeholder:text-ink-muted focus:border-accent outline-none"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-body text-sm font-medium text-ink">Version</label>
-                      <input
-                        type="text"
-                        value={editVersion}
-                        onChange={(e) => setEditVersion(e.target.value)}
-                        placeholder="e.g. v1.0"
-                        className="bg-surface border border-line-strong rounded-control px-3 min-h-[44px] text-sm font-body text-ink placeholder:text-ink-muted focus:border-accent outline-none"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-body text-sm font-medium text-ink">Effective Date</label>
-                      <input
-                        type="date"
-                        value={editDate}
-                        onChange={(e) => setEditDate(e.target.value)}
-                        className="bg-surface border border-line-strong rounded-control px-3 min-h-[44px] text-sm font-body text-ink focus:border-accent outline-none"
-                      />
-                    </div>
-                  </div>
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <ReadOnlyField label="Policy name" value={current.alias} />
+                    {current.title && current.title !== current.alias && (
+                      <ReadOnlyField label="Title in the document" value={current.title} />
+                    )}
+                    <ReadOnlyField label="Effective date" value={current.lastModified || "Not stated in the document"} />
+                    <ReadOnlyField
+                      label="Document"
+                      value={
+                        <span className="inline-flex items-center gap-2">
+                          <FileText size={16} className="text-ink-muted shrink-0" aria-hidden="true" />
+                          {fileName || "Policy document"}
+                        </span>
+                      }
+                    />
+                  </dl>
+                  <p className="mt-5 text-xs text-ink-muted font-body leading-relaxed">
+                    The name, dates and conditions come from the uploaded document. To change them, upload the new version as a new policy, then retire this one.
+                  </p>
                 </div>
               )}
 
-              {policyFileError && (
-                <div className="flex items-start gap-3 bg-danger/10 border border-danger/30 text-danger rounded-control px-4 py-3 text-sm font-body">
-                  <span className="shrink-0 font-bold">✕</span>
+              {isNew && policyFileError && (
+                <div role="alert" className="flex items-start gap-3 bg-danger/10 border border-danger/30 text-danger rounded-control px-4 py-3 text-sm font-body">
+                  <AlertCircle size={16} className="shrink-0 mt-0.5" aria-hidden="true" />
                   <span className="flex-1">{policyFileError}</span>
-                  <button onClick={() => setPolicyFileError(null)} className="shrink-0 font-bold hover:opacity-70">✕</button>
+                  <button type="button" aria-label="Dismiss" onClick={() => setPolicyFileError(null)} className="shrink-0 w-8 h-8 -m-1 inline-flex items-center justify-center rounded-control hover:bg-danger-soft cursor-pointer">
+                    <X size={16} aria-hidden="true" />
+                  </button>
                 </div>
               )}
 
-              {/* Main Policy */}
-              <div className="flex flex-col gap-4">
-                <h3 className="font-display text-xl font-semibold text-ink shrink-0">Main Policy</h3>
-                <input
-                  ref={mainPolicyInputRef}
-                  type="file"
-                  accept=".pdf"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      if (file.type !== "application/pdf") {
-                        setPolicyFileError("Invalid file type. Only PDF files are accepted for policy documents.");
+              {/* Main Policy (new only) */}
+              {isNew && (
+                <div className="flex flex-col gap-4">
+                  <h3 className="font-display text-xl font-semibold text-ink shrink-0">Main Policy</h3>
+                  <input
+                    ref={mainPolicyInputRef}
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (file.type !== "application/pdf") {
+                          setPolicyFileError("Invalid file type. Only PDF files are accepted for policy documents.");
+                          e.target.value = '';
+                          return;
+                        }
+                        if (file.size > POLICY_MAX_SIZE) {
+                          setPolicyFileError(`File too large. Maximum 10 MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)} MB.`);
+                          e.target.value = '';
+                          return;
+                        }
+                        setPolicyFileError(null);
+                        setSaveError(null);
+                        setMainPolicyFile(file);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+
+                  {mainPolicyFile ? (
+                    <div className="flex flex-col gap-4 shadow-ambient rounded-card overflow-hidden bg-surface">
+                      {previewUrl ? (
+                        <iframe
+                          src={previewUrl}
+                          title={`Preview of ${mainPolicyFile.name}`}
+                          className="w-full h-[400px] border-b border-line"
+                        />
+                      ) : (
+                        <div className="w-full h-[400px] border-b border-line bg-surface-muted flex flex-col items-center justify-center">
+                          <FileText className="text-ink-muted mb-3" size={48} aria-hidden="true" />
+                          <p className="font-body text-base font-medium text-ink">{mainPolicyFile.name}</p>
+                          <p className="font-body text-xs text-ink-muted">Preview not available</p>
+                        </div>
+                      )}
+                      <div className="p-4 flex items-center justify-between gap-3">
+                        <div className="flex flex-col min-w-0">
+                          <p className="font-body text-sm font-medium text-ink truncate">{mainPolicyFile.name}</p>
+                          <p className="font-body text-xs text-ink-muted">{formatFileSize(mainPolicyFile.size)}</p>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <button onClick={() => mainPolicyInputRef.current?.click()} type="button" className="min-h-[44px] px-4 border border-line-strong text-ink rounded-control font-body text-sm font-medium hover:bg-surface-muted transition-colors cursor-pointer">
+                            Replace
+                          </button>
+                          <button onClick={() => setMainPolicyFile(null)} type="button" className="min-h-[44px] px-4 text-danger font-body text-sm font-medium hover:bg-danger-soft rounded-control transition-colors cursor-pointer">
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => mainPolicyInputRef.current?.click()}
+                      className="bg-surface rounded-card p-8 flex flex-col items-center justify-center border-2 border-dashed border-line-strong hover:bg-surface-muted transition-colors cursor-pointer min-h-[240px]"
+                    >
+                      <Upload className="text-ink-muted mb-4" size={28} aria-hidden="true" />
+                      <span className="font-body text-base font-medium text-ink mb-1">Upload Policy Document</span>
+                      <span className="font-body text-xs text-ink-muted">Click to browse · PDF · Max 10 MB</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Appendix (new only: it is uploaded together with the main policy) */}
+              {isNew && (
+                <div className="flex flex-col gap-4">
+                  <h3 className="font-display text-xl font-semibold text-ink shrink-0">Appendix (Optional)</h3>
+                  <input
+                    ref={appendixInputRef}
+                    type="file"
+                    accept=".pdf"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      const invalid = files.find(f => f.type !== "application/pdf");
+                      if (invalid) {
+                        setPolicyFileError(`Invalid file type "${invalid.name}". Only PDF files are accepted.`);
                         e.target.value = '';
                         return;
                       }
-                      if (file.size > POLICY_MAX_SIZE) {
-                        setPolicyFileError(`File too large. Maximum 10 MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)} MB.`);
+                      const oversized = files.find(f => f.size > POLICY_MAX_SIZE);
+                      if (oversized) {
+                        setPolicyFileError(`File "${oversized.name}" exceeds the 10 MB limit.`);
                         e.target.value = '';
                         return;
                       }
                       setPolicyFileError(null);
-                      setMainPolicyFile(file);
-                    }
-                    e.target.value = '';
-                  }}
-                />
-
-                {mainPolicyFile ? (
-                  <div className="flex flex-col gap-4 shadow-ambient rounded-card overflow-hidden bg-surface">
-                    {mainPolicyFile.type === "application/pdf" && previewUrl ? (
-                      <iframe
-                        src={previewUrl}
-                        className="w-full h-[400px] border-b border-line"
-                      />
-                    ) : (
-                      <div className="w-full h-[400px] border-b border-line bg-surface-muted flex flex-col items-center justify-center">
-                        <FileText className="text-ink-muted mb-3" size={48} aria-hidden="true" />
-                        <p className="font-body text-base font-medium text-ink">{mainPolicyFile.name}</p>
-                        <p className="font-body text-xs text-ink-muted">Preview not available</p>
-                      </div>
-                    )}
-                    <div className="p-4 flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <p className="font-body text-sm font-medium text-ink truncate">{mainPolicyFile.name}</p>
-                        <p className="font-body text-xs text-ink-muted">{formatFileSize(mainPolicyFile.size)}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => mainPolicyInputRef.current?.click()} type="button" className="min-h-[44px] px-4 border border-line-strong text-ink rounded-control font-body text-sm font-medium hover:bg-surface-muted transition-colors cursor-pointer">
-                          Replace
-                        </button>
-                        <button onClick={() => setMainPolicyFile(null)} type="button" className="min-h-[44px] px-4 text-danger font-body text-sm font-medium hover:bg-danger-soft rounded-control transition-colors cursor-pointer">
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : !isNew && !existingMainPolicyDeleted ? (
-                  <div className="flex flex-col gap-4 shadow-ambient rounded-card overflow-hidden bg-surface">
-                    {/* PDF Viewer for existing file */}
-                    <div className="w-full h-[400px] border-b border-line bg-surface flex flex-col items-center justify-center p-8 text-center relative overflow-hidden group">
-                      <FileText className="text-ink-muted mb-4" size={56} strokeWidth={1} aria-hidden="true" />
-                      <p className="font-display text-lg font-medium text-ink mb-2">{existingMainPolicyFilename || "Policy Document"}</p>
-                      <p className="font-body text-sm text-ink-muted mb-6">Existing Document</p>
-                    </div>
-                    <div className="p-4 flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <p className="font-body text-sm font-medium text-ink truncate">{existingMainPolicyFilename || "Policy Document"}</p>
-                        <p className="font-body text-xs text-ink-muted">Saved on server</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => mainPolicyInputRef.current?.click()} type="button" className="min-h-[44px] px-4 border border-line-strong text-ink rounded-control font-body text-sm font-medium hover:bg-surface-muted transition-colors cursor-pointer">
-                          Replace
-                        </button>
-                        <button onClick={() => setExistingMainPolicyDeleted(true)} type="button" className="min-h-[44px] px-4 text-danger font-body text-sm font-medium hover:bg-danger-soft rounded-control transition-colors cursor-pointer">
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    onClick={() => mainPolicyInputRef.current?.click()}
-                    className="bg-surface rounded-card p-8 flex flex-col items-center justify-center border-2 border-dashed border-line-strong hover:bg-surface-muted transition-colors cursor-pointer min-h-[240px]"
-                  >
-                    <Upload className="text-ink-muted mb-4" size={28} aria-hidden="true" />
-                    <p className="font-body text-base font-medium text-ink mb-1">Upload Policy Document</p>
-                    <p className="font-body text-xs text-ink-muted mb-4">Drag and drop or click to browse</p>
-                    <p className="font-body text-xs text-ink-muted">Supports PDF · Max 10 MB</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Appendix */}
-              <div className="flex flex-col gap-4">
-                <h3 className="font-display text-xl font-semibold text-ink shrink-0">Appendix (Optional)</h3>
-                <input
-                  ref={appendixInputRef}
-                  type="file"
-                  accept=".pdf"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
-                    const invalid = files.find(f => f.type !== "application/pdf");
-                    if (invalid) {
-                      setPolicyFileError(`Invalid file type "${invalid.name}". Only PDF files are accepted.`);
+                      if (files.length) setAppendixFiles(prev => [...prev, ...files]);
                       e.target.value = '';
-                      return;
-                    }
-                    const oversized = files.find(f => f.size > POLICY_MAX_SIZE);
-                    if (oversized) {
-                      setPolicyFileError(`File "${oversized.name}" exceeds the 10 MB limit.`);
-                      e.target.value = '';
-                      return;
-                    }
-                    setPolicyFileError(null);
-                    if (files.length) setAppendixFiles(prev => [...prev, ...files]);
-                    e.target.value = '';
-                  }}
-                />
-                <div className="flex flex-col gap-3">
-                  {/* Upload button for Appendix */}
-                  <button
-                    type="button"
-                    onClick={() => appendixInputRef.current?.click()}
-                    className="w-full border-2 border-dashed border-line-strong bg-surface hover:bg-surface-muted rounded-card p-4 flex flex-col items-center justify-center transition-colors shrink-0 cursor-pointer"
-                  >
-                    <Plus className="text-ink-muted mb-2" size={20} aria-hidden="true" />
-                    <p className="font-body font-medium text-ink text-sm">Add Source</p>
-                    <p className="font-body text-xs text-ink-muted mt-1">Drag and drop or click to upload</p>
-                  </button>
+                    }}
+                  />
+                  <div className="flex flex-col gap-3">
+                    <button
+                      type="button"
+                      onClick={() => appendixInputRef.current?.click()}
+                      className="w-full border-2 border-dashed border-line-strong bg-surface hover:bg-surface-muted rounded-card p-4 flex flex-col items-center justify-center transition-colors shrink-0 cursor-pointer"
+                    >
+                      <Plus className="text-ink-muted mb-2" size={20} aria-hidden="true" />
+                      <span className="font-body font-medium text-ink text-sm">Add Source</span>
+                      <span className="font-body text-xs text-ink-muted mt-1">Click to upload a PDF</span>
+                    </button>
 
-                  {/* Existing Appendix Items */}
-                  {!isNew && existingAppendix.map((item, idx) => (
-                    <div key={`existing-${idx}`} className="bg-surface rounded-control p-3 border border-line flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <FileText className="text-ink-muted shrink-0" size={18} />
-                        <div className="min-w-0">
-                          <span className="font-body text-sm font-medium text-ink truncate block">{item.name}</span>
-                          <span className="font-body text-xs text-ink-muted">{item.size}</span>
+                    {appendixFiles.map((file, idx) => (
+                      <div key={`appendix-${file.name}-${idx}`} className="bg-surface rounded-control p-3 border border-line flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <FileText className="text-ink-muted shrink-0" size={18} aria-hidden="true" />
+                          <div className="min-w-0">
+                            <span className="font-body text-sm font-medium text-ink truncate block">{file.name}</span>
+                            <span className="font-body text-xs text-ink-muted">{formatFileSize(file.size)}</span>
+                          </div>
                         </div>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${file.name}`}
+                          onClick={() => setAppendixFiles(prev => prev.filter((_, i) => i !== idx))}
+                          className="w-11 h-11 shrink-0 inline-flex items-center justify-center rounded-control text-ink-muted hover:text-danger hover:bg-danger-soft transition-colors cursor-pointer"
+                        >
+                          <Trash2 size={16} aria-hidden="true" />
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        aria-label={`Remove ${item.name}`}
-                        onClick={() => setExistingAppendix(prev => prev.filter((_, i) => i !== idx))}
-                        className="w-11 h-11 shrink-0 inline-flex items-center justify-center rounded-control text-ink-muted hover:text-danger hover:bg-danger-soft transition-colors cursor-pointer"
-                      >
-                        <Trash2 size={16} aria-hidden="true" />
-                      </button>
-                    </div>
-                  ))}
-
-                  {/* Newly uploaded appendix files */}
-                  {appendixFiles.map((file, idx) => (
-                    <div key={`edit-${file.name}-${idx}`} className="bg-surface rounded-control p-3 border border-line flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <FileText className="text-ink-muted shrink-0" size={18} aria-hidden="true" />
-                        <div className="min-w-0">
-                          <span className="font-body text-sm font-medium text-ink truncate block">{file.name}</span>
-                          <span className="font-body text-xs text-ink-muted">{formatFileSize(file.size)}</span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        aria-label={`Remove ${file.name}`}
-                        onClick={() => setAppendixFiles(prev => prev.filter((_, i) => i !== idx))}
-                        className="w-11 h-11 shrink-0 inline-flex items-center justify-center rounded-control text-ink-muted hover:text-danger hover:bg-danger-soft transition-colors cursor-pointer"
-                      >
-                        <Trash2 size={16} aria-hidden="true" />
-                      </button>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Change History Panel (Moved to Bottom Left) */}
+              {/* Retire: only an active policy can be retired */}
+              {current?.status === "Active" && (
+                <div className="rounded-card border border-line bg-surface overflow-hidden shrink-0">
+                  <div className="px-4 sm:px-6 py-3 border-b border-line flex items-center gap-2">
+                    <Archive size={15} className="text-ink-muted" aria-hidden="true" />
+                    <h3 className="font-display text-base font-semibold text-ink">Retire policy</h3>
+                  </div>
+                  <div className="px-4 sm:px-6 py-4 flex flex-col gap-3">
+                    <p className="font-body text-sm text-ink-muted">
+                      New claims stop being checked against a retired policy. It moves to Expired and stays there.
+                    </p>
+                    {retireError && <p role="alert" className="font-body text-sm text-danger">{retireError}</p>}
+                    {retireConfirm ? (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="font-body text-sm font-semibold text-ink">Retire &ldquo;{current.alias}&rdquo;?</span>
+                        <button
+                          type="button"
+                          onClick={handleRetire}
+                          disabled={isRetiring}
+                          className="min-h-[44px] px-4 rounded-control bg-ink text-paper text-sm font-semibold hover:bg-ink/85 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isRetiring ? "Retiring…" : "Yes, retire it"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRetireConfirm(false)}
+                          disabled={isRetiring}
+                          className="min-h-[44px] px-4 rounded-control border border-line-strong text-ink text-sm font-medium hover:bg-surface-muted transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          Keep it active
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { setRetireError(null); setRetireConfirm(true); }}
+                        className="self-start min-h-[44px] px-4 rounded-control border border-line-strong text-ink text-sm font-semibold hover:bg-surface-muted transition-colors cursor-pointer"
+                      >
+                        Retire policy
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* ── Danger Zone ─────────────────────────────────────────────── */}
-              {!isNew && (
+              {current && (
                 <div className="rounded-card border border-danger/30 bg-surface overflow-hidden shrink-0">
                   <div className="px-4 sm:px-6 py-3 border-b border-danger/20 flex items-center gap-2">
                     <Trash2 size={15} className="text-danger" aria-hidden="true" />
@@ -812,7 +623,7 @@ export default function PolicyStudio() {
                       <p className="font-body text-xs text-ink-muted mt-0.5">This action is permanent and cannot be undone.</p>
                     </div>
                     <button
-                      onClick={() => { setDeleteError(null); setDeletingPolicyId(editingPolicy); setDeletingPolicyName(editName); setDeleteModalOpen(true); }}
+                      onClick={() => { setDeleteError(null); setDeletingPolicyId(current.policy_id); setDeletingPolicyName(current.alias); setDeleteModalOpen(true); }}
                       type="button"
                       className="shrink-0 flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-control border border-danger/40 text-danger text-sm font-semibold font-body hover:bg-danger-soft transition-colors cursor-pointer"
                     >
@@ -825,63 +636,34 @@ export default function PolicyStudio() {
 
             </div>
 
-            {/* Right Column: Policy Details (if new) & AI Overview (if edit) */}
+            {/* Right Column: name (new) or AI overview and budgets (edit) */}
             <div
               ref={rightColRef}
               className="lg:col-span-5 flex flex-col gap-6 pr-2 pb-4 h-fit transition-transform duration-75 ease-out will-change-transform"
               style={{ transform: `translateY(${rightOffset}px)` }}
             >
 
-              {/* Form Details (Only shown here in New/Upload View) */}
               {isNew && (
                 <div className="bg-surface rounded-card p-4 sm:p-6 shadow-ambient shrink-0">
                   <h3 className="font-display text-lg font-bold text-ink mb-5">Policy Details</h3>
-                  <div className="flex flex-col gap-5">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-body text-sm font-medium text-ink">Policy Name</label>
-                      <input
-                        type="text"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        placeholder="e.g. Remote Work Policy"
-                        className="bg-surface border border-line-strong rounded-control px-3 min-h-[44px] text-sm font-body text-ink placeholder:text-ink-muted focus:border-accent outline-none"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-body text-sm font-medium text-ink">Department</label>
-                      <input
-                        type="text"
-                        value={editDepartment}
-                        onChange={(e) => setEditDepartment(e.target.value)}
-                        placeholder="e.g. Human Resources"
-                        className="bg-surface border border-line-strong rounded-control px-3 min-h-[44px] text-sm font-body text-ink placeholder:text-ink-muted focus:border-accent outline-none"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-body text-sm font-medium text-ink">Version</label>
-                      <input
-                        type="text"
-                        value={editVersion}
-                        onChange={(e) => setEditVersion(e.target.value)}
-                        placeholder="e.g. v1.0"
-                        className="bg-surface border border-line-strong rounded-control px-3 min-h-[44px] text-sm font-body text-ink placeholder:text-ink-muted focus:border-accent outline-none"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-body text-sm font-medium text-ink">Effective Date</label>
-                      <input
-                        type="date"
-                        value={editDate}
-                        onChange={(e) => setEditDate(e.target.value)}
-                        className="bg-surface border border-line-strong rounded-control px-3 min-h-[44px] text-sm font-body text-ink focus:border-accent outline-none"
-                      />
-                    </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="new-policy-name" className="font-body text-sm font-medium text-ink">Policy name</label>
+                    <input
+                      id="new-policy-name"
+                      type="text"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      placeholder="e.g. Travel and Expenses Policy"
+                      maxLength={120}
+                      className="bg-surface border border-line-strong rounded-control px-3 min-h-[44px] text-sm font-body text-ink placeholder:text-ink-muted focus:border-accent outline-none"
+                    />
+                    <p className="text-xs text-ink-muted font-body">Left blank, the file name is used. Dates, categories and conditions are read from the document.</p>
                   </div>
                 </div>
               )}
 
-              {/* AI Overview Summary (Beautified) */}
-              {!isNew && (
+              {/* AI Overview Summary */}
+              {current && (
                 <div className="bg-surface rounded-card shadow-ambient overflow-hidden flex flex-col shrink-0">
                   <div className="px-5 py-4 border-b border-line">
                     <h3 className="font-display font-semibold text-base text-ink">AI Policy Insights</h3>
@@ -889,8 +671,8 @@ export default function PolicyStudio() {
                   </div>
 
                   <div className="p-5 sm:p-6 flex flex-col gap-6">
-                    {editOverviewSummary && (() => {
-                      const { intro, bullets } = parseBulletPoints(editOverviewSummary);
+                    {current.overview_summary && (() => {
+                      const { intro, bullets } = parseBulletPoints(current.overview_summary);
                       return (
                         <div className="flex flex-col gap-6">
                           {intro && (
@@ -908,78 +690,67 @@ export default function PolicyStudio() {
                       );
                     })()}
 
-                    <>
-                      <div className="h-px bg-line w-full" />
+                    <div className="h-px bg-line w-full" />
 
-                      <div>
-                        <div className="flex items-center justify-between mb-5">
-                          <h4 className="font-display text-base font-semibold text-ink">Mandatory Conditions</h4>
-                          <span className="px-2 py-0.5 bg-warning-soft rounded-full text-xs font-semibold text-warning">
-                            Review required
-                          </span>
-                        </div>
-
-                        <div className="flex flex-col gap-4">
-                          {editConditions && Object.entries(editConditions).length > 0 ? (
-                            <>
-                              {Object.entries(editConditions).slice(0, 3).map(([category, details]: [string, any]) => (
-                                <div key={category} className="rounded-card p-4 shadow-ambient">
-                                  <h5 className="font-body font-semibold text-sm text-ink mb-3">
-                                    {category}
-                                  </h5>
-                                  <PremiumBulletList items={details.condition ?? []} />
-                                </div>
-                              ))}
-                              {Object.entries(editConditions).length > 3 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setConditionsModalOpen(true)}
-                                  className="w-full mt-2 min-h-[44px] rounded-control text-sm text-ink font-semibold border border-line-strong hover:bg-surface-muted transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                                >
-                                  <span>View & Edit All {Object.entries(editConditions).length} Categories</span>
-                                  <ChevronRight size={18} aria-hidden="true" />
-                                </button>
-                              )}
-                            </>
-                          ) : (
-                            <p className="text-sm text-ink-muted font-body">
-                              No mandatory conditions have been extracted for this policy.
-                            </p>
-                          )}
-                        </div>
+                    <div>
+                      <h4 className="font-display text-base font-semibold text-ink mb-5">Mandatory Conditions</h4>
+                      <div className="flex flex-col gap-4">
+                        {conditionEntries.length > 0 ? (
+                          <>
+                            {conditionEntries.slice(0, 3).map(([category, details]) => (
+                              <div key={category} className="rounded-card p-4 shadow-ambient">
+                                <h5 className="font-body font-semibold text-sm text-ink mb-3">
+                                  {category}
+                                </h5>
+                                <PremiumBulletList items={details.condition} />
+                              </div>
+                            ))}
+                            {conditionEntries.length > 3 && (
+                              <button
+                                type="button"
+                                onClick={() => setConditionsModalOpen(true)}
+                                className="w-full mt-2 min-h-[44px] rounded-control text-sm text-ink font-semibold border border-line-strong hover:bg-surface-muted transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                              >
+                                <span>View All {conditionEntries.length} Categories</span>
+                                <ChevronRight size={18} aria-hidden="true" />
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-sm text-ink-muted font-body">
+                            No mandatory conditions have been extracted for this policy.
+                          </p>
+                        )}
                       </div>
-                    </>
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* Auto-Approval Budgets Card */}
-              {!isNew && Object.keys(categoryBudgets).length > 0 && (
+              {current && Object.keys(categoryBudgets).length > 0 && (
                 <div className="bg-surface rounded-card shadow-ambient overflow-hidden flex flex-col shrink-0">
                   <div className="px-5 py-4 border-b border-line">
-                    <div>
-                      <h3 className="font-display font-semibold text-base text-ink">Auto-Approval Budgets</h3>
-                      <p className="text-xs text-ink-muted">Max per category for auto-approval. Blank = unlimited.</p>
-                    </div>
+                    <h3 className="font-display font-semibold text-base text-ink">Auto-Approval Budgets</h3>
+                    <p className="text-xs text-ink-muted">Max per category for auto-approval. Blank = unlimited.</p>
                   </div>
                   <div className="p-5 flex flex-col gap-3">
                     {Object.keys(categoryBudgets).map((cat) => (
-                      <div key={cat} className="flex items-center gap-3">
-                        <div className="flex-1">
-                          <label htmlFor={`budget-${cat}`} className="text-sm font-medium text-ink mb-1 block truncate">{cat}</label>
-                          <div className="relative group">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted text-xs font-medium">MYR</span>
-                            <input
-                              id={`budget-${cat}`}
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={categoryBudgets[cat]}
-                              onChange={(e) => setCategoryBudgets(prev => ({ ...prev, [cat]: e.target.value }))}
-                              placeholder="Unlimited"
-                              className="w-full min-h-[44px] pl-12 pr-3 bg-surface border border-line-strong rounded-control text-sm text-ink font-mono focus:border-accent outline-none placeholder:text-ink-muted"
-                            />
-                          </div>
+                      <div key={cat} className="flex flex-col">
+                        <label htmlFor={`budget-${cat}`} className="text-sm font-medium text-ink mb-1 block truncate">{cat}</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted text-xs font-medium" aria-hidden="true">MYR</span>
+                          <input
+                            id={`budget-${cat}`}
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            step="0.01"
+                            value={categoryBudgets[cat]}
+                            onChange={(e) => setCategoryBudgets(prev => ({ ...prev, [cat]: e.target.value }))}
+                            placeholder="Unlimited"
+                            className="w-full min-h-[44px] pl-12 pr-3 bg-surface border border-line-strong rounded-control text-sm text-ink font-mono focus:border-accent outline-none placeholder:text-ink-muted"
+                          />
                         </div>
                       </div>
                     ))}
@@ -991,24 +762,17 @@ export default function PolicyStudio() {
           </div>
         </div>
 
-        {/* Mandatory Conditions Modal */}
-        {editConditions && (
+        {/* All mandatory conditions (read-only) */}
+        {conditions && (
           <ConditionsModal
             isOpen={conditionsModalOpen}
             onClose={() => setConditionsModalOpen(false)}
-            conditions={editConditions}
-            categoryBudgets={categoryBudgets}
-            policyId={editingPolicyId}
-            onSave={(newConditions, newBudgets) => {
-              setEditConditions(newConditions);
-              if (newBudgets) setCategoryBudgets(newBudgets);
-              setConditionsModalOpen(false);
-            }}
+            conditions={conditions}
           />
         )}
 
         {/* Delete Confirmation Modal */}
-        <DeleteConfirmModal
+        {deleteModalOpen && <DeleteConfirmModal
           isOpen={deleteModalOpen}
           onClose={() => {
             if (!isDeleting) {
@@ -1021,25 +785,32 @@ export default function PolicyStudio() {
           isDeleting={isDeleting}
           deleteError={deleteError}
           onConfirm={handleConfirmDelete}
-        />
-        
+        />}
+
         {/* Bottom Action Bar */}
         <div className="shrink-0 bg-paper border-t border-line p-4 z-40">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-6 px-4 sm:px-8">
             <button type="button" onClick={() => setEditingPolicy(null)} className="min-h-[44px] px-6 border border-line-strong text-ink rounded-control font-body font-medium hover:bg-surface-muted transition-colors cursor-pointer">
-              Cancel
+              {isNew || Object.keys(categoryBudgets).length > 0 ? "Cancel" : "Close"}
             </button>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-6">
               {saveError && (
                 <p role="alert" className="text-sm text-danger font-body max-w-xs text-center sm:text-right">{saveError}</p>
               )}
-              <div className="flex items-center justify-center sm:justify-start gap-3">
-                <span className="font-body text-sm text-ink-muted hidden sm:block">Policy Status:</span>
-                <StatusDropdown />
-              </div>
-              <button type="button" onClick={handleSave} className="bg-accent text-on-accent rounded-full min-h-[44px] px-6 sm:px-8 font-body font-semibold hover:bg-accent-hover transition-colors cursor-pointer">
-                {isNew ? "Create Policy" : "Save Changes"}
-              </button>
+              {isNew ? (
+                <button type="button" onClick={handleUpload} className="bg-accent text-on-accent rounded-full min-h-[44px] px-6 sm:px-8 font-body font-semibold hover:bg-accent-hover transition-colors cursor-pointer">
+                  Create Policy
+                </button>
+              ) : Object.keys(categoryBudgets).length > 0 ? (
+                <button
+                  type="button"
+                  onClick={handleSaveBudgets}
+                  disabled={isSavingBudgets}
+                  className="bg-accent text-on-accent rounded-full min-h-[44px] px-6 sm:px-8 font-body font-semibold hover:bg-accent-hover transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {isSavingBudgets ? "Saving…" : "Save Budgets"}
+                </button>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1047,12 +818,7 @@ export default function PolicyStudio() {
     );
   }
 
-  const filteredPolicies = policies.filter(p => {
-    const matchesStatus = p.status === activeFilter;
-    const matchesSearch = p.alias.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.department.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
-  });
+  const filteredPolicies = policies.filter(p => p.status === activeFilter && matchesSearch(p, searchQuery));
 
   return (
     <div className="min-h-full px-4 py-5 sm:px-6 md:px-8 md:py-8 font-body antialiased">
@@ -1070,7 +836,7 @@ export default function PolicyStudio() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setEditingPolicy("new")}
+                  onClick={startNewPolicy}
                   className="flex items-center justify-center gap-2 rounded-full min-h-[44px] px-5 bg-accent text-on-accent font-body text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
                 >
                   <Plus size={18} aria-hidden="true" />
@@ -1119,14 +885,8 @@ export default function PolicyStudio() {
                     <thead>
                       <tr className="border-b border-line">
                         <th className="py-3 px-6 text-xs font-semibold text-ink-muted">Name</th>
-                        <th className="py-3 px-6 text-xs font-semibold text-ink-muted cursor-pointer group">
-                          <div className="flex items-center gap-1">
-                            Last Modified
-                            <div className="flex flex-col -space-y-2 opacity-50 group-hover:opacity-100 transition-opacity">
-                              <ChevronUp size={14} className="mb-[-2px]" />
-                              <ChevronDown size={14} className="text-ink" />
-                            </div>
-                          </div>
+                        <th className="py-3 px-6 text-xs font-semibold text-ink-muted">
+                          Effective
                         </th>
                         <th className="py-3 px-6 text-xs font-semibold text-ink-muted">Status</th>
                         <th className="py-3 px-6 text-xs font-semibold text-ink-muted text-right">Action</th>
@@ -1137,14 +897,14 @@ export default function PolicyStudio() {
                         filteredPolicies.slice(0, 3).map((policy) => (
                           <tr
                             key={policy.policy_id}
-                            onClick={() => setEditingPolicy(policy.policy_id)}
+                            onClick={() => openPolicy(policy.policy_id)}
                             className="group transition-colors hover:bg-surface-muted cursor-pointer border-b border-line last:border-0"
                           >
                             <td className="py-5 px-6">
                               <div className="flex items-center gap-3">
                                 <div>
                                   <p className="font-semibold text-base">{policy.alias}</p>
-                                  <p className="text-sm text-ink-muted mt-0.5">{policy.version} • {policy.department}</p>
+                                  {policyMeta(policy) && <p className="text-sm text-ink-muted mt-0.5">{policyMeta(policy)}</p>}
                                 </div>
                               </div>
                             </td>
@@ -1156,7 +916,7 @@ export default function PolicyStudio() {
                             </td>
                             <td className="py-5 px-6 text-right">
                               <button
-                                onClick={(e) => { e.stopPropagation(); setEditingPolicy(policy.policy_id); }}
+                                onClick={(e) => { e.stopPropagation(); openPolicy(policy.policy_id); }}
                                 type="button"
                                 aria-label={`Edit ${policy.alias}`}
                                 className="inline-flex items-center min-h-[44px] px-3 rounded-control text-ink font-semibold text-sm underline-offset-2 hover:underline hover:bg-surface-muted cursor-pointer"
@@ -1184,13 +944,12 @@ export default function PolicyStudio() {
                       <button
                         key={policy.policy_id}
                         type="button"
-                        onClick={() => setEditingPolicy(policy.policy_id)}
+                        onClick={() => openPolicy(policy.policy_id)}
                         className="px-4 py-3 text-left hover:bg-surface-muted transition-colors flex items-center gap-3 cursor-pointer"
                       >
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-sm text-ink truncate">{policy.alias}</p>
-                          <p className="text-xs text-ink-muted mt-0.5">{policy.version} · {policy.department}</p>
-                          <p className="text-xs text-ink-muted mt-0.5">{policy.lastModified}</p>
+                          {policyMeta(policy) && <p className="text-xs text-ink-muted mt-0.5">{policyMeta(policy)}</p>}
                         </div>
                         <div className="flex flex-col items-end gap-1.5 shrink-0">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${POLICY_STATUS_STYLE[policy.status]}`}>
@@ -1232,7 +991,7 @@ export default function PolicyStudio() {
         title={`All ${activeFilter} Policies`}
         onEdit={(id) => {
           setModalOpen(false);
-          setEditingPolicy(id);
+          openPolicy(id);
         }}
       />
     </div>
@@ -1257,12 +1016,8 @@ function DeleteConfirmModal({
   deleteError: string | null;
   onConfirm: () => void;
 }) {
+  // The parent mounts this only while open, so the typed name starts empty each time.
   const [typedName, setTypedName] = React.useState("");
-
-  // Reset input each time modal opens
-  React.useEffect(() => {
-    if (isOpen) setTypedName("");
-  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -1359,118 +1114,25 @@ function DeleteConfirmModal({
   );
 }
 
-// ─── Mandatory Conditions Modal ──────────────────────────────────────────────────
+// ─── Mandatory Conditions Modal (read-only) ─────────────────────────────────────
 
 function ConditionsModal({
   isOpen,
   onClose,
   conditions,
-  categoryBudgets,
-  policyId,
-  onSave
 }: {
   isOpen: boolean;
   onClose: () => void;
-  conditions: Record<string, any>;
-  categoryBudgets: Record<string, string>;
-  policyId: string | null;
-  onSave: (newConditions: Record<string, any>, newBudgets?: Record<string, string>) => void;
+  conditions: MandatoryConditions;
 }) {
-  const [localConditions, setLocalConditions] = useState(conditions);
-  const [localBudgets, setLocalBudgets] = useState<Record<string, string>>(categoryBudgets);
-  const [isSaving, setIsSaving] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [isAddingCategory, setIsAddingCategory] = useState(false);
-
   useEffect(() => {
-    setLocalConditions(conditions);
-  }, [conditions]);
-
-  useEffect(() => {
-    setLocalBudgets(categoryBudgets);
-  }, [categoryBudgets]);
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
-
-  const handleUpdateCondition = (category: string, index: number, value: string) => {
-    setLocalConditions(prev => {
-      const next = { ...prev };
-      const nextCategory = { ...next[category] };
-      const nextConditions = [...nextCategory.condition];
-      nextConditions[index] = value;
-      nextCategory.condition = nextConditions;
-      next[category] = nextCategory;
-      return next;
-    });
-  };
-
-  const handleAddCondition = (category: string) => {
-    setLocalConditions(prev => {
-      const next = { ...prev };
-      const nextCategory = { ...next[category] };
-      nextCategory.condition = [...nextCategory.condition, ""];
-      next[category] = nextCategory;
-      return next;
-    });
-  };
-
-  const handleRemoveCondition = (category: string, index: number) => {
-    setLocalConditions(prev => {
-      const next = { ...prev };
-      const nextCategory = { ...next[category] };
-      nextCategory.condition = nextCategory.condition.filter((_: any, i: number) => i !== index);
-      next[category] = nextCategory;
-      return next;
-    });
-  };
-
-  const handleAddNewCategory = () => {
-    if (newCategoryName.trim()) {
-      setLocalConditions(prev => ({
-        ...prev,
-        [newCategoryName.trim()]: { condition: [""] }
-      }));
-      setNewCategoryName("");
-      setIsAddingCategory(false);
-    }
-  };
-
-  const handleUpdateBudget = (category: string, value: string) => {
-    setLocalBudgets(prev => ({
-      ...prev,
-      [category]: value,
-    }));
-  };
-
-  const handleSaveBudgets = async () => {
-    if (!policyId) {
-      onSave(localConditions, localBudgets);
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const categoriesWithBudgets = Object.keys(localConditions).map(category => ({
-        category,
-        auto_approval_budget: localBudgets[category] !== ""
-          ? parseFloat(localBudgets[category])
-          : null,
-      }));
-
-      const result = await updatePolicyCategories(policyId, categoriesWithBudgets);
-
-      if (result.ok) {
-        onSave(localConditions, localBudgets);
-      } else {
-        alert(result.error || "Failed to update policy budgets");
-      }
-    } catch (error) {
-      console.error("Error saving budgets:", error);
-      alert("Failed to save budgets");
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
@@ -1478,11 +1140,9 @@ function ConditionsModal({
 
       <div role="dialog" aria-modal="true" aria-labelledby="conditions-title" className="relative w-full max-w-2xl max-h-[85vh] bg-surface rounded-dialog border border-line shadow-overlay flex flex-col overflow-hidden">
         <div className="px-5 sm:px-8 py-4 sm:py-6 border-b border-line flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-4">
-            <div>
-              <h3 id="conditions-title" className="font-display font-semibold text-xl sm:text-2xl text-ink">Mandatory Conditions</h3>
-              <p className="text-sm text-ink-muted font-body">Review and edit AI extracted rules</p>
-            </div>
+          <div>
+            <h3 id="conditions-title" className="font-display font-semibold text-xl sm:text-2xl text-ink">Mandatory Conditions</h3>
+            <p className="text-sm text-ink-muted font-body">Extracted from the policy document by AI. Check before you rely on them.</p>
           </div>
           <button
             type="button"
@@ -1495,178 +1155,21 @@ function ConditionsModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 sm:p-8 flex flex-col gap-6">
-          {Object.entries(localConditions).map(([category, details]) => (
+          {Object.entries(conditions).map(([category, details]) => (
             <div key={category} className="rounded-card p-4 sm:p-5 shadow-ambient">
-              <div className="flex items-center justify-between gap-2 mb-4">
-                <h4 className="font-display font-semibold text-lg text-ink">
-                  {category}
-                </h4>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleAddCondition(category)}
-                    className="w-11 h-11 inline-flex items-center justify-center text-ink hover:bg-surface-muted rounded-control transition-colors cursor-pointer"
-                    title="Add condition"
-                    aria-label={`Add a condition to ${category}`}
-                  >
-                    <Plus size={18} aria-hidden="true" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (confirm(`Are you sure you want to remove the entire "${category}" category?`)) {
-                        setLocalConditions(prev => {
-                          const next = { ...prev };
-                          delete next[category];
-                          return next;
-                        });
-                      }
-                    }}
-                    type="button"
-                    className="w-11 h-11 inline-flex items-center justify-center text-ink-muted hover:text-danger hover:bg-danger-soft rounded-control transition-colors cursor-pointer"
-                    title="Delete category"
-                    aria-label={`Delete the ${category} category`}
-                  >
-                    <Trash2 size={16} aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-3">
-                {details.condition.map((cond: string, i: number) => (
-                  <div key={i} className="flex gap-2 group/item">
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={cond}
-                        onChange={(e) => handleUpdateCondition(category, i, e.target.value)}
-                        aria-label={`${category} condition ${i + 1}`}
-                        className="w-full min-h-[44px] bg-surface border border-line-strong rounded-control px-3 text-sm text-ink font-body focus:border-accent outline-none"
-                        placeholder="Enter condition..."
-                      />
-                    </div>
-                    <button
-                      onClick={() => handleRemoveCondition(category, i)}
-                      type="button"
-                      aria-label={`Remove ${category} condition ${i + 1}`}
-                      className="w-11 h-11 inline-flex items-center justify-center text-ink-muted hover:text-danger hover:bg-danger-soft rounded-control transition-colors cursor-pointer shrink-0"
-                    >
-                      <Trash2 size={16} aria-hidden="true" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <h4 className="font-display font-semibold text-lg text-ink mb-4">{category}</h4>
+              <PremiumBulletList items={details.condition} />
             </div>
           ))}
-
-          {/* Auto-Approval Budgets Section */}
-          <div className="rounded-card p-4 sm:p-5 shadow-ambient">
-            <div className="flex items-center gap-3 mb-4">
-              <div>
-                <h4 className="font-display font-semibold text-base text-ink">Auto-Approval Budgets</h4>
-                <p className="text-xs text-ink-muted">
-                  Set the maximum amount per category for auto-approval. Leave blank for unlimited.
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {Object.keys(localConditions).map((category) => {
-                const currentBudget = localBudgets[category] ?? "";
-
-                return (
-                  <div key={category} className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <label htmlFor={`modal-budget-${category}`} className="text-sm font-medium text-ink mb-1 block">
-                        {category}
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted text-xs font-medium">
-                          MYR
-                        </span>
-                        <input
-                          id={`modal-budget-${category}`}
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={currentBudget}
-                          onChange={(e) => handleUpdateBudget(category, e.target.value)}
-                          placeholder="Unlimited"
-                          className="w-full min-h-[44px] pl-12 pr-3 bg-surface border border-line-strong rounded-control text-sm text-ink font-mono focus:border-accent outline-none placeholder:text-ink-muted"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Add New Category UI */}
-          {isAddingCategory ? (
-            <div className="rounded-card p-4 sm:p-5 border-2 border-dashed border-line-strong">
-              <h4 className="text-sm font-semibold text-ink mb-3">New Mandatory Category</h4>
-              <div className="flex flex-wrap sm:flex-nowrap gap-2">
-                <input
-                  autoFocus
-                  type="text"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddNewCategory()}
-                  placeholder="e.g. Travel Limits, Eligibility..."
-                  aria-label="New category name"
-                  className="flex-1 min-w-0 min-h-[44px] bg-surface border border-line-strong rounded-control px-3 text-sm text-ink font-body focus:border-accent outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddNewCategory}
-                  className="min-h-[44px] px-5 bg-ink text-paper text-sm font-semibold rounded-full hover:bg-ink/85 transition-colors cursor-pointer"
-                >
-                  Add
-                </button>
-                <button
-                  type="button"
-                  aria-label="Cancel new category"
-                  onClick={() => { setIsAddingCategory(false); setNewCategoryName(""); }}
-                  className="w-11 h-11 inline-flex items-center justify-center text-ink-muted hover:bg-surface-muted rounded-control transition-colors cursor-pointer"
-                >
-                  <X size={20} aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setIsAddingCategory(true)}
-              className="w-full py-5 border-2 border-dashed border-line-strong rounded-card flex flex-col items-center justify-center gap-2 text-ink hover:bg-surface-muted transition-colors cursor-pointer"
-            >
-              <PlusCircle size={20} className="text-ink-muted" aria-hidden="true" />
-              <span className="text-sm font-semibold">Add New Mandatory Category</span>
-            </button>
-          )}
         </div>
 
-        <div className="px-5 sm:px-6 py-4 border-t border-line flex flex-col-reverse sm:flex-row justify-between sm:items-center gap-2 shrink-0">
+        <div className="px-5 sm:px-6 py-4 border-t border-line flex justify-end shrink-0">
           <button
             onClick={onClose}
-            disabled={isSaving}
             type="button"
-            className="min-h-[44px] px-6 text-ink font-body font-semibold border border-line-strong hover:bg-surface-muted rounded-control transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="min-h-[44px] px-6 bg-accent text-on-accent rounded-full font-body font-semibold hover:bg-accent-hover transition-colors cursor-pointer"
           >
-            Cancel
-          </button>
-          <button
-            onClick={handleSaveBudgets}
-            disabled={isSaving}
-            type="button"
-            className="min-h-[44px] px-6 bg-accent text-on-accent rounded-full font-body font-semibold hover:bg-accent-hover transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {isSaving ? (
-              <>
-                <Settings className="w-4 h-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              "Save Conditions & Budgets"
-            )}
+            Done
           </button>
         </div>
       </div>
@@ -1693,10 +1196,7 @@ function ViewAllModal({
 
   if (!isOpen) return null;
 
-  const filtered = policies.filter(p =>
-    p.alias.toLowerCase().includes(modalQuery.toLowerCase()) ||
-    p.department.toLowerCase().includes(modalQuery.toLowerCase())
-  );
+  const filtered = policies.filter(p => matchesSearch(p, modalQuery));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
@@ -1719,7 +1219,7 @@ function ViewAllModal({
             <input
               type="text"
               aria-label="Search policies"
-              placeholder="Search by name or department..."
+              placeholder="Search by name or category..."
               value={modalQuery}
               onChange={(e) => setModalQuery(e.target.value)}
               className="flex-1 min-h-[44px] bg-transparent text-sm text-ink placeholder:text-ink-muted outline-none font-body"
@@ -1732,7 +1232,7 @@ function ViewAllModal({
             <thead className="sticky top-0 z-10">
               <tr className="bg-surface-muted">
                 <th className="py-3 px-6 text-xs font-semibold text-ink-muted">Name</th>
-                <th className="py-3 px-6 text-xs font-semibold text-ink-muted">Modified</th>
+                <th className="py-3 px-6 text-xs font-semibold text-ink-muted">Effective</th>
                 <th className="py-3 px-6 text-xs font-semibold text-ink-muted">Status</th>
                 <th className="py-3 px-6 text-xs font-semibold text-ink-muted text-right">Action</th>
               </tr>
@@ -1744,7 +1244,7 @@ function ViewAllModal({
                     <div className="flex items-center gap-3">
                       <div>
                         <p className="font-semibold text-ink text-sm">{policy.alias}</p>
-                        <p className="text-xs text-ink-muted mt-0.5">{policy.version} • {policy.department}</p>
+                        {policyMeta(policy) && <p className="text-xs text-ink-muted mt-0.5">{policyMeta(policy)}</p>}
                       </div>
                     </div>
                   </td>

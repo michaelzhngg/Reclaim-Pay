@@ -5,10 +5,11 @@ import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, AlertTriangle, Clock, ShieldCheck, ShieldX, ChevronDown, ZoomIn, Pencil, FileText, ExternalLink, Download, X, Loader2, Send, CheckCircle2 } from "lucide-react";
 import type { ClaimBundle } from "@/lib/api/types";
 import { formatClaimRef, formatMoney } from "@/lib/format";
-import { MOCK_BUNDLES } from "../../hr_components/mockData";
 import { SuccessModal, isAwaitingSecondApproval } from "../../hr_components/SuccessModal";
 import { useAuth } from "@/context/AuthContext";
-import { getHRClaimBundle, updateReimbursementStatus } from "@/lib/actions/hr";
+import { updateReimbursementStatus } from "@/lib/actions/hr";
+import { useClaimBundle } from "@/lib/hooks/useClaimBundle";
+import { ClaimLoadFallback } from "../../hr_components/ClaimLoadFallback";
 import { FIXTURES_ON } from "@/lib/api/fixtures";
 import type { ReimbursementRaw } from "@/lib/api/types";
 import { approvalErrorMessage, approveBlockedReason } from "@/lib/hr/evidence";
@@ -329,7 +330,8 @@ export default function ReviewPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const [bundle, setBundle] = useState<ClaimBundle | undefined | null>(undefined); // undefined = loading
+  const { load, retry } = useClaimBundle(id);
+  const bundle = load.state === "ready" ? load.bundle : null;
   const [approvals, setApprovals] = useState<Record<string, string>>({});
   const [decision, setDecision] = useState<Decision>(null);
   const [note, setNote] = useState("");
@@ -348,17 +350,6 @@ export default function ReviewPage() {
   const didInitRef = useRef(false);
 
   useEffect(() => {
-    const fallback = MOCK_BUNDLES[id];
-    getHRClaimBundle(id)
-      .then((b) => {
-        setBundle(b ?? fallback ?? null);
-      })
-      .catch(() => {
-        setBundle(fallback ?? null);
-      });
-  }, [id]);
-
-  useEffect(() => {
     if (!bundle || didInitRef.current) return;
     didInitRef.current = true;
     setApprovals(Object.fromEntries(
@@ -374,18 +365,8 @@ export default function ReviewPage() {
     return () => document.removeEventListener("keydown", onKey);
   }, [lightbox]);
 
-  if (bundle === undefined) return (
-    <div className="flex items-center justify-center min-h-[60vh] gap-3 text-ink-muted">
-      <Loader2 className="w-5 h-5 animate-spin" />
-      <span className="text-sm">Loading claim...</span>
-    </div>
-  );
-
-  if (!bundle) return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-      <p className="text-ink-muted">No bundle found for <code className="font-mono">{id}</code></p>
-      <button type="button" onClick={() => router.push("/hr/dashboard")} className="min-h-[44px] px-5 rounded-full bg-accent text-on-accent text-sm font-semibold hover:bg-accent-hover transition-colors cursor-pointer">Back to Dashboard</button>
-    </div>
+  if (load.state !== "ready" || !bundle) return (
+    <ClaimLoadFallback load={load.state === "ready" ? { state: "missing" } : load} id={id} onRetry={retry} onBack={() => router.push("/hr/dashboard")} />
   );
 
   // Two-person claims: the first approver can't also be the second.
