@@ -30,6 +30,7 @@ TEMPLATE_LIMIT = "10/minute"
 AUTH_LIMIT = "10/minute"
 PAYPAL_CONNECT_LIMIT = "10/minute"
 PAYPAL_WEBHOOK_RETRY_LIMIT = "10/minute"
+MAINTENANCE_RUN_LIMIT = "2/minute"
 POLICY_UPLOAD_LIMIT = "3/minute"
 
 # First sentence of the 429 message; the handler adds when to try again.

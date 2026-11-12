@@ -10,8 +10,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
+from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
+from pydantic import BaseModel
 
 from core.config import settings
 from core.enums import AgentActionType, WebhookEventStatus
@@ -47,6 +49,14 @@ class IngestResult:
     event_id: str
     outcome: str
     status: WebhookEventStatus
+
+
+class WebhookSweepReport(BaseModel):
+    checked: int = 0
+    processed: int = 0
+    dead_lettered: int = 0
+    errors: int = 0
+    truncated: bool = False
 
 
 def _aware(value: Optional[datetime]) -> Optional[datetime]:
@@ -288,3 +298,46 @@ def retry_event(db: Session, event_id: str, actor: str, now: Optional[datetime] 
     row = db.get(PayPalWebhookEvent, event_id)
     _record_retry(db, row, actor, result)
     return result
+
+
+def sweep_events(db: Session, now: Optional[datetime] = None, limit: int = 100) -> WebhookSweepReport:
+    """Retry FAILED rows and RECEIVED rows whose lease expired. Dead letters wait for HR."""
+    now = now or datetime.now(timezone.utc)
+    cutoff = now - _lease()
+    rows = db.exec(
+        select(PayPalWebhookEvent)
+        .where(or_(
+            PayPalWebhookEvent.status == WebhookEventStatus.FAILED.value,
+            and_(
+                PayPalWebhookEvent.status == WebhookEventStatus.RECEIVED.value,
+                PayPalWebhookEvent.updated_at < cutoff,
+            ),
+        ))
+        .order_by(PayPalWebhookEvent.updated_at.asc())
+        .limit(limit + 1)
+    ).all()
+    report = WebhookSweepReport(checked=min(len(rows), limit), truncated=len(rows) > limit)
+    for candidate in rows[:limit]:
+        try:
+            row = db.exec(
+                select(PayPalWebhookEvent)
+                .where(PayPalWebhookEvent.event_id == candidate.event_id)
+                .with_for_update()
+            ).first()
+            if row is None:
+                continue
+            row, claimed = _claim_row(db, row, now)
+            if not claimed:
+                continue
+            result = process_event(db, row, now)
+            if result.status in _TERMINAL:
+                report.processed += 1
+            elif result.status == WebhookEventStatus.DEAD_LETTER:
+                report.dead_lettered += 1
+            else:
+                report.errors += 1
+        except Exception:
+            logger.exception("[PAYPAL_WEBHOOK] Sweep failed id=%s", candidate.event_id)
+            db.rollback()
+            report.errors += 1
+    return report

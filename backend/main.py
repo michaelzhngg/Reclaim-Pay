@@ -1,5 +1,7 @@
 import os
 import logging
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from dotenv import load_dotenv
 
 # Load .env into os.environ BEFORE LangChain imports so LangSmith tracing activates
@@ -40,8 +42,16 @@ async def lifespan(app: FastAPI):
     # Initialize VAPID keys for push notifications
     from core.push_service import init_vapid_keys
     init_vapid_keys()
+    maintenance_task = None
+    if settings.MAINTENANCE_JOB_ENABLED:
+        from engine.jobs.maintenance import maintenance_loop
+        maintenance_task = asyncio.create_task(maintenance_loop())
     yield
     # Clean up on shutdown
+    if maintenance_task:
+        maintenance_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await maintenance_task
     engine.dispose()
     
 # ─── Silencing Annoying Health Check Logs ──────────────────────────────────────

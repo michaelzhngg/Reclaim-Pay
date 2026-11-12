@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     # Webhook handling: attempts before PayPal retries stop and HR owns the dead letter.
     WEBHOOK_MAX_ATTEMPTS: int = 5
     WEBHOOK_LEASE_MINUTES: int = 15
+    # Maintenance job: refresh non-final payouts untouched for this long, on this interval.
+    PAYOUT_STUCK_HOURS: int = 24
+    MAINTENANCE_INTERVAL_SECONDS: int = 3600
+    MAINTENANCE_JOB_ENABLED: bool = True
     # The balance mock mode reports, in PAYPAL_CURRENCY.
     PAYPAL_MOCK_BALANCE: Decimal = Decimal("25000.00")
     BACKEND_PUBLIC_URL: str = "http://localhost:8000"
