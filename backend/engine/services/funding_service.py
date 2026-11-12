@@ -193,13 +193,19 @@ def _recent_payout_amounts(db: Session, currency: str, since: datetime, include_
 
 def _committed(db: Session) -> Decimal:
     # Same amount the payout service sends. Recovery offsets can lower it a little, so this errs high.
-    # No currency filter: the payout service pays every claim in PAYPAL_CURRENCY whatever the receipt's
-    # currency (which can be empty or "RM"), so every approved claim draws on this balance.
-    amounts = db.exec(
-        select(Reimbursement.total_approved_amount)
+    # Amounts are converted to company currency; a claim with no quote uses its raw amount.
+    rows = db.exec(
+        select(
+            Reimbursement.total_approved_amount,
+            Reimbursement.approved_company_amount,
+            Reimbursement.amount_company,
+        )
         .where(Reimbursement.status.in_([s.value for s in _OWED]))
     ).all()
-    return sum((_money(a) for a in amounts), _ZERO)
+    total = _ZERO
+    for approved, approved_company, claimed_company in rows:
+        total += _money(approved_company if approved_company is not None else claimed_company or approved)
+    return total
 
 
 async def _fetch_balance(currency: str) -> tuple[Balance | None, UnavailableReason | None]:

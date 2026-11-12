@@ -18,7 +18,7 @@ const STATUS_CHIP: Record<string, string> = {
   PENDING: "bg-surface-muted text-ink-muted",
 };
 const CAT: Record<string, string> = { meals: "Meals", transportation: "Transport", accommodation: "Stay", others: "Others" };
-const fmt = (n: number | undefined | null) => formatMoney("MYR", n ?? 0);
+const fmt = (currency: string, n: number | undefined | null) => formatMoney(currency || "Not set", n ?? 0);
 /** Label/value pairs with empty values dropped, so the page never shows a label with nothing under it. */
 function presentFields(pairs: Array<[string, string | null | undefined]>): Array<[string, string]> {
   return pairs.filter((p): p is [string, string] => typeof p[1] === "string" && p[1].trim() !== "");
@@ -85,6 +85,8 @@ function ClaimFormModal({
   const totalApproved = bundle?.totals?.net_approved || 0;
   const totalDeducted = bundle?.totals?.total_deduction || 0;
   const effectiveStatus = (bundle?.overall_judgment || "").replace("_", " ");
+  const claimCurrency = bundle?.currency || "MYR";
+  const companyCurrency = bundle?.company_currency || claimCurrency;
 
   const statusChip: Record<string, string> = {
     APPROVED:             "bg-success-soft text-success",
@@ -323,6 +325,8 @@ export default function ViewPage() {
 
   const { load, retry } = useClaimBundle(id);
   const bundle = load.state === "ready" ? load.bundle : null;
+  const claimCurrency = bundle?.currency || "MYR";
+  const companyCurrency = bundle?.company_currency || claimCurrency;
   const [hrDecision, setHrDecision] = useState<"confirm" | "flag" | null>(null);
   const [note, setNote] = useState("");
   const [auditOpen, setAuditOpen] = useState(false);
@@ -452,7 +456,7 @@ export default function ViewPage() {
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
                   <tr className="bg-surface-muted">
-                    {["#", "Date", "Category", "Description", "Amount (MYR)", "Status"].map(h => (
+                    {["#", "Date", "Category", "Description", `Amount (${claimCurrency})`, "Status"].map(h => (
                       <th key={h} className="py-3 px-4 text-xs font-semibold text-ink-muted whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -468,7 +472,7 @@ export default function ViewPage() {
                       <td className="py-3 px-4 text-ink-muted whitespace-nowrap text-xs">{li.date}</td>
                       <td className="py-3 px-4 text-xs text-ink-muted">{CAT[li.category]}</td>
                       <td className="py-3 px-4 text-ink">{li.description}</td>
-                      <td className="py-3 px-4 font-mono font-medium text-ink whitespace-nowrap">{fmt(li.approved_amount)}</td>
+                      <td className="py-3 px-4 font-mono font-medium text-ink whitespace-nowrap">{fmt(claimCurrency, li.approved_amount)}</td>
                       <td className="py-3 px-4">
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${STATUS_CHIP[li.status]}`}>{li.status.replace("_", " ")}</span>
                       </td>
@@ -498,7 +502,7 @@ export default function ViewPage() {
                   <p className="text-sm text-ink font-medium mt-1">{li.description}</p>
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-xs text-ink-muted">{li.date}</span>
-                    <span className="text-sm font-mono font-medium text-ink">{fmt(li.approved_amount)}</span>
+                    <span className="text-sm font-mono font-medium text-ink">{fmt(claimCurrency, li.approved_amount)}</span>
                   </div>
                 </div>
               ))}
@@ -551,7 +555,7 @@ export default function ViewPage() {
               </div>
               <div className="border-t border-line pt-4">
                 <p className="text-xs text-ink-muted mb-1">AI suggested total</p>
-                <p className="text-2xl font-headline tabular-nums tracking-[-0.02em] font-medium text-success">{fmt(bundle.totals.net_approved)}</p>
+                <p className="text-2xl font-headline tabular-nums tracking-[-0.02em] font-medium text-success">{fmt(claimCurrency, bundle.totals.net_approved)}</p>
               </div>
             </div>
           </div>
@@ -582,7 +586,7 @@ export default function ViewPage() {
                   <ShieldCheck className="w-5 h-5 shrink-0" strokeWidth={2} aria-hidden="true" />
                   <div>
                     <p>Confirm & Finalise Approval</p>
-                    <p className="text-xs font-normal mt-0.5 text-ink-muted">Approve <span className="font-mono">{fmt(bundle.totals.net_approved)}</span> and notify employee</p>
+                    <p className="text-xs font-normal mt-0.5 text-ink-muted">Approve <span className="font-mono">{fmt(claimCurrency, bundle.totals.net_approved)}</span> and notify employee</p>
                   </div>
                 </button>
                 <button id="decision-flag" type="button" aria-pressed={hrDecision === "flag"} onClick={() => setHrDecision("flag")}

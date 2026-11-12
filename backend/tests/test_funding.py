@@ -253,7 +253,7 @@ async def test_funding_summary_counts_only_payouts_that_drew_on_this_balance(mon
     monkeypatch.setattr(fs.settings, "PAYPAL_CLIENT_ID", "cid")
     monkeypatch.setattr(fs.settings, "PAYPAL_CLIENT_SECRET", "secret")
     monkeypatch.setattr(fs, "get_paypal_client", lambda: _Client(Balance("MYR", D("5000.00"), NOW)))
-    db = _AlertDB(PAYOUT_ROWS, [D("120.00"), None, D("30.50")])
+    db = _AlertDB(PAYOUT_ROWS, [(D("120.00"), None, None), (None, None, None), (D("30.50"), None, None)])
     s = await fs.funding_summary(db, now=NOW)
     # Live: seeded and mock payouts never left the real balance. Mock: the balance is fake too, so all count.
     assert s.expected_daily == daily and s.committed == D("150.50") and s.mock is mock
@@ -261,7 +261,7 @@ async def test_funding_summary_counts_only_payouts_that_drew_on_this_balance(mon
     assert "'SUCCEEDED'" in payout_sql and "'FAILED'" not in payout_sql and "'REVERSED'" not in payout_sql
     claim_sql = str(db.queries[1].compile(compile_kwargs={"literal_binds": True}))
     assert "'APPROVED'" in claim_sql and "'DISBURSEMENT_FAILED'" in claim_sql and "'PAID'" not in claim_sql
-    # Payouts always go out in PAYPAL_CURRENCY, so a claim with "SGD", "RM" or no currency is still owed from it.
+    # Payouts are still sent in PAYPAL_CURRENCY in this stage, and claims are committed in company currency.
     assert "reimbursements.currency" not in claim_sql
 
 

@@ -161,17 +161,19 @@ function HRHistory() {
 
   // ── KPI Summary ──
   const kpis = useMemo(() => {
-    const fmt = (v: number) => formatMoney("MYR", v);
+    const companyCurrency = data[0]?.companyCurrency ?? "MYR";
+    const fmt = (v: number) => formatMoney(companyCurrency, v);
     const approved = data.filter((c) => c.status === "Approved" || c.status === "Paid");
     const rejected = data.filter((c) => c.status === "Rejected");
     const totalPaid = data
       .filter((c) => c.status === "Paid")
-      .reduce((s, c) => s + c.amount, 0);
+      .reduce((s, c) => s + c.companyAmount, 0);
     return {
       total: data.length,
       approved: approved.length,
       rejected: rejected.length,
       totalPaid: fmt(totalPaid),
+      companyCurrency,
     };
   }, [data]);
 
@@ -189,7 +191,7 @@ function HRHistory() {
             { label: "Total resolved", value: kpis.total.toString(), color: "text-ink" },
             { label: "Approved or paid", value: kpis.approved.toString(), color: "text-ink" },
             { label: "Rejected", value: kpis.rejected.toString(), color: "text-danger" },
-            { label: "Total disbursed", value: kpis.totalPaid, color: "text-success" },
+            { label: `Total disbursed (${kpis.companyCurrency})`, value: kpis.totalPaid, color: "text-success" },
           ].map((stat) => (
             <div key={stat.label} className="bg-surface px-4 py-3 min-w-0">
               <dt className="text-xs text-ink-muted">{stat.label}</dt>

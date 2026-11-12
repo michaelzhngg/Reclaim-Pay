@@ -398,6 +398,7 @@ function CaptureReceiptContent() {
 
   // ── Verification state ─────────────────────────────────────────────────────
   const [ocrReceipts, setOcrReceipts] = useState<OcrReceiptData[]>([]);
+  const [claimCurrency, setClaimCurrency] = useState("MYR");
   const [claimContext, setClaimContext] = useState<ClaimContext>({
     travelDestination: "",
     travelPurpose: "",
@@ -587,6 +588,7 @@ function CaptureReceiptContent() {
   // ── Real OCR via backend upload (with SSE live progress) ───────────────────
   function handleProcessResult(result: any, fileNames: string[]) {
     setSettlementId(result.settlement_id);
+    setClaimCurrency(result.totals?.currency || "MYR");
     setCompletedNames(fileNames);
     setProcessingIndex(fileNames.length - 1);
     setProcessingStep(3);
@@ -857,6 +859,7 @@ function CaptureReceiptContent() {
     setFiles([]);
     setActiveDocId(null);
     setOcrReceipts([]);
+    setClaimCurrency("MYR");
     setSettlementId(null);
     setDocumentIds([]);
     setEmployeeData(null);
@@ -898,7 +901,7 @@ function CaptureReceiptContent() {
 
     const fileNames = files.map(f => f.name);
     const draftData: Record<string, unknown> = {
-      ocrReceipts, claimContext, settlementId,
+      ocrReceipts, claimContext, claimCurrency, settlementId,
       documentIds, employeeData, stage, fileNames,
     };
     const failedCount = ocrReceipts.filter(r => !r.success).length;
@@ -971,6 +974,7 @@ function CaptureReceiptContent() {
     if (result.settlement_id) setSettlementId(result.settlement_id);
     if (data.documentIds) setDocumentIds(data.documentIds as string[]);
     if (data.claimContext) setClaimContext(data.claimContext as ClaimContext);
+    if (data.claimCurrency) setClaimCurrency(data.claimCurrency as string);
     if (data.employeeData) setEmployeeData(data.employeeData as DbEmployee);
 
     console.log('[Draft] Loaded draft ID:', result.draft_id, '— loadedDraftIdRef:', loadedDraftIdRef.current);
@@ -1084,6 +1088,7 @@ function CaptureReceiptContent() {
         {stage === "verification" && (
           <>
             <VerificationScreen
+              currency={claimCurrency}
               dbData={employeeData ?? {
                 entityName: "Reclaim",
                 employeeName: "Unknown",
@@ -1259,7 +1264,7 @@ function CaptureReceiptContent() {
       <SubmitDialog
         phase={submitPhase}
         claimTitle={claimSummary(ocrReceipts.map(r => r.merchant))}
-        amount={formatMoney("MYR", ocrReceipts.reduce((sum, r) => sum + r.transport + r.accommodation + r.meals + r.others, 0))}
+        amount={formatMoney(claimCurrency, ocrReceipts.reduce((sum, r) => sum + r.transport + r.accommodation + r.meals + r.others, 0))}
         steps={compliance.steps}
         error={submitError}
         showLeaveNotice={showLeaveNotice}

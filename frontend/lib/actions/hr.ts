@@ -67,6 +67,8 @@ function mapToBundle(r: TriageSource): ClaimBundle {
     status: (li.judgment ?? "PENDING") as "APPROVED" | "REJECTED" | "PARTIAL_APPROVE" | "PENDING",
     requested_amount: li.claimed_amount ?? 0,
     approved_amount: li.approved_amount ?? 0,
+    requested_company_amount: li.claimed_company_amount ?? null,
+    approved_company_amount: li.approved_company_amount ?? null,
     deduction_amount: (li.claimed_amount ?? 0) - (li.approved_amount ?? 0),
     audit_notes: li.rejection_reason
       ? [{ tag: "", message: li.rejection_reason }]
@@ -88,6 +90,14 @@ function mapToBundle(r: TriageSource): ClaimBundle {
       email: "",
     },
     submitted_at: r.created_at ?? new Date().toISOString(),
+    currency: r.currency ?? "MYR",
+    company_currency: r.company_currency ?? "MYR",
+    amount_company: r.amount_company ?? null,
+    approved_company_amount: r.approved_company_amount ?? null,
+    fx_rate_to_company: r.fx_rate_to_company ?? null,
+    fx_rate_at: r.fx_rate_at ?? null,
+    fx_source: r.fx_source ?? null,
+    fx_unavailable: r.fx_unavailable ?? false,
     travel_destination: r.destination ?? "",
     // The settlement's stated purpose. r.summary is the AI's risk summary and belongs in the AI panel only.
     travel_purpose: r.purpose ?? "",
@@ -165,6 +175,9 @@ export interface HistoryClaim {
   category: string | null;
   /** ISO time the claim was resolved (reviewed, else last updated), for the date filter. */
   resolvedAt: string | null;
+  /** Company-currency equivalent for totals. */
+  companyAmount: number;
+  companyCurrency: string;
   dateSubmitted: string;
   dateResolved: string;
   status: "Approved" | "Rejected" | "Paid";
@@ -254,6 +267,8 @@ function toHistoryClaim(r: ReimbursementRaw, amount?: number): HistoryClaim {
     currency: r.currency ?? "MYR",
     category: r.main_category ?? null,
     resolvedAt: resolvedDate ?? null,
+    companyAmount: r.amount_company ?? r.total_claimed_amount ?? 0,
+    companyCurrency: r.company_currency ?? "MYR",
     dateSubmitted: formatShortDate(r.created_at),
     dateResolved: formatShortDate(resolvedDate ?? null),
     status: HISTORY_STATUS[r.status] ?? "Approved",

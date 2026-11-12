@@ -33,6 +33,7 @@ from engine.risk.types import (
     TrustTier,
 )
 from engine.services import autonomy_store as store
+from engine.services import fx
 
 logger = logging.getLogger(__name__)
 
@@ -198,10 +199,11 @@ def _case(r: Reimbursement, rows: list[tuple[datetime, dict]], issues: list[date
     )
     judgment = r.judgment.value if hasattr(r.judgment, "value") else str(r.judgment)
     claim = ClaimFacts(
-        reim_id=str(r.reim_id), user_id=str(r.user_id), amount=float(r.total_claimed_amount or 0),
-        currency=r.currency or "MYR", judgment=judgment, confidence=r.confidence or 0.0,
+        reim_id=str(r.reim_id), user_id=str(r.user_id), amount=float(fx.stored_company_amount(r)),
+        currency=fx.company_currency(), judgment=judgment, confidence=r.confidence or 0.0,
         over_category_budget=HardStop.OVER_CATEGORY_BUDGET.value in stops,
         claimant_is_hr=HardStop.HR_SELF_CLAIM.value in stops,
+        fx_unavailable=HardStop.FX_RATE_UNAVAILABLE.value in stops or fx.is_unquoted(r),
     )
     signals = [RiskSignal.model_validate(s) for s in stored.get("signals") or []]
     demo = isinstance(r.ai_reasoning, dict) and bool(r.ai_reasoning.get("demo_seed"))

@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from uuid import UUID
 
@@ -36,6 +36,7 @@ from engine.agents.compliance_agent import run_compliance_workflow, timeline_emi
 from engine.progress import ProgressTracker
 from engine.services.action_log import record_action
 from engine.services import autonomy_store
+from engine.services import fx
 from engine.services.approvals import DUAL_TIER, register_approval, required_approvals, split_batch
 from engine.services.payee_link import cooldown_until
 from engine.risk.timeline import make_step
@@ -86,7 +87,24 @@ def _employee_reasoning(reasoning: Optional[dict]) -> Optional[dict]:
     return None
 
 
-def _line_item_dict(li: LineItem, viewer_is_hr: bool) -> dict:
+def _line_item_dict(
+    li: LineItem,
+    viewer_is_hr: bool,
+    claim_currency: Optional[str] = None,
+    fx_rate_to_company: Optional[float] = None,
+) -> dict:
+    company_currency = fx.company_currency()
+    rate = float(fx_rate_to_company) if fx_rate_to_company else None
+    line_currency = fx.normalise(li.currency)
+    if line_currency == company_currency:
+        claimed_company = float(li.claimed_amount) if li.claimed_amount else None
+        approved_company = float(li.approved_amount) if li.approved_amount else None
+    elif rate and line_currency == fx.normalise(claim_currency):
+        claimed_company = round(float(li.claimed_amount or 0) * rate, 2)
+        approved_company = round(float(li.approved_amount) * rate, 2) if li.approved_amount else None
+    else:
+        claimed_company = None
+        approved_company = None
     return {
         "line_item_id": str(li.line_item_id),
         "reim_id": str(li.reim_id),
@@ -97,6 +115,8 @@ def _line_item_dict(li: LineItem, viewer_is_hr: bool) -> dict:
         "unit_price": float(li.unit_price) if li.unit_price else None,
         "claimed_amount": float(li.claimed_amount) if li.claimed_amount else None,
         "approved_amount": float(li.approved_amount) if li.approved_amount else None,
+        "claimed_company_amount": claimed_company,
+        "approved_company_amount": approved_company,
         "currency": li.currency,
         "expense_date": li.expense_date.isoformat() if li.expense_date else None,
         "judgment": _enum_val(li.judgment),
@@ -176,9 +196,17 @@ def _build_reimbursement_response(
         "settlement_id": str(r.settlement_id) if r.settlement_id else None,
         "main_category": r.main_category,
         "currency": r.currency,
+        "company_currency": fx.company_currency(),
         "total_claimed_amount": float(r.total_claimed_amount) if r.total_claimed_amount else None,
         "total_approved_amount": float(r.total_approved_amount) if r.total_approved_amount else None,
         "total_rejected_amount": float(r.total_rejected_amount) if r.total_rejected_amount else None,
+        "amount_company": float(r.amount_company) if r.amount_company is not None else None,
+        "approved_company_amount": (float(r.approved_company_amount)
+                                    if r.approved_company_amount is not None else None),
+        "fx_rate_to_company": float(r.fx_rate_to_company) if r.fx_rate_to_company else None,
+        "fx_rate_at": r.fx_rate_at.isoformat() if r.fx_rate_at else None,
+        "fx_source": r.fx_source,
+        "fx_unavailable": fx.is_unquoted(r),
         "confidence": r.confidence,
         "judgment": _enum_val(r.judgment),
         "status": _enum_val(r.status),
@@ -266,7 +294,9 @@ def _build_reimbursement_response(
                 result["arrival_date"] = settlement.arrival_date.isoformat() if settlement.arrival_date else None
 
     if include_line_items:
-        result["line_items"] = [_line_item_dict(li, viewer_is_hr) for li in line_items]
+        result["line_items"] = [
+            _line_item_dict(li, viewer_is_hr, r.currency, r.fx_rate_to_company) for li in line_items
+        ]
 
     # Include payout info if one exists
     if prefetched is not None:
@@ -422,6 +452,10 @@ def get_reimbursement(
     if current_user.role != UserRole.HR and r.user_id != current_user.user_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
+    # The reviewer should see the rate approval will lock, so a stale quote is refreshed here.
+    if current_user.role == UserRole.HR:
+        _refresh_stale_quote(db, r, datetime.now(timezone.utc))
+
     return _build_reimbursement_response(
         r, db, include_line_items=True, viewer_is_hr=current_user.role == UserRole.HR
     )
@@ -455,13 +489,108 @@ def _check_overrides(line_items: list, overrides: Optional[list]) -> None:
 
 
 def _has_amount_to_pay(db: Session, r: Reimbursement, overrides: Optional[list] = None) -> bool:
-    """False when approving would leave MYR 0 approved, as on a claim with no line items."""
+    """False when approving would leave 0 approved, as on a claim with no line items."""
     override_map = {li.line_item_id: li.approved_amount for li in overrides or []}
     line_items = db.exec(select(LineItem).where(LineItem.reim_id == r.reim_id)).all()
     _check_overrides(line_items, overrides)
     return any(
         float(_decided_line_item(li, override_map.get(li.line_item_id), True)[0] or 0) > 0 for li in line_items
     )
+
+
+QUOTE_MAX_AGE = timedelta(hours=24)
+
+
+def _is_company(currency: Optional[str]) -> bool:
+    return fx.normalise(currency) == fx.company_currency()
+
+
+def _stored_quote_is_fresh(r: Reimbursement, now: datetime) -> bool:
+    if not r.fx_rate_to_company or not r.fx_rate_at:
+        return False
+    if (r.fx_source or "").upper() == "UNQUOTED":
+        return False
+    at = r.fx_rate_at if r.fx_rate_at.tzinfo else r.fx_rate_at.replace(tzinfo=timezone.utc)
+    return now - at < QUOTE_MAX_AGE
+
+
+def _lock_quote(db: Session, r: Reimbursement, now: datetime) -> Optional[float]:
+    """The rate approval locks: the fresh stored quote, or a new one. None fails closed."""
+    if _is_company(r.currency):
+        return 1.0
+    if _stored_quote_is_fresh(r, now):
+        return float(r.fx_rate_to_company)
+    q = fx.quote_or_none(r.total_claimed_amount or 0, r.currency, fx.company_currency(), now)
+    if q is None:
+        r.fx_rate_to_company = None
+        r.fx_rate_at = None
+        r.fx_source = "UNQUOTED"
+        return None
+    r.fx_rate_to_company = float(q.rate)
+    r.fx_rate_at = q.as_of
+    r.fx_source = q.source
+    r.amount_company = float(q.converted)
+    return float(q.rate)
+
+
+def _refresh_stale_quote(db: Session, r: Reimbursement, now: datetime) -> None:
+    """Keep the quote HR is about to see no older than a day. Never guesses a rate."""
+    if _is_company(r.currency):
+        if r.amount_company is None:
+            r.amount_company = float(r.total_claimed_amount or 0)
+        if not r.fx_rate_to_company:
+            r.fx_rate_to_company = 1
+            r.fx_rate_at = r.created_at or now
+            r.fx_source = "IDENTITY"
+        db.add(r)
+        db.commit()
+        db.refresh(r)
+        return
+    if _stored_quote_is_fresh(r, now):
+        return
+    q = fx.quote_or_none(r.total_claimed_amount or 0, r.currency, fx.company_currency(), now)
+    if q is None:
+        r.fx_source = "UNQUOTED"
+        r.fx_rate_to_company = None
+        r.fx_rate_at = None
+    else:
+        r.fx_rate_to_company = float(q.rate)
+        r.fx_rate_at = q.as_of
+        r.fx_source = q.source
+        r.amount_company = float(q.converted)
+    db.add(r)
+    db.commit()
+    db.refresh(r)
+
+
+def _apply_company_amounts(db: Session, r: Reimbursement, approved_claimed: float, now: datetime) -> None:
+    """Store the approved side in company currency, locking the approval quote."""
+    rate = _lock_quote(db, r, now)
+    if rate is None:
+        # No quote: keep the raw figure, but mark it so reports do not treat it as converted.
+        r.approved_company_amount = approved_claimed
+        if r.amount_company is None:
+            r.amount_company = float(r.total_claimed_amount or 0)
+        return
+    r.approved_company_amount = round(approved_claimed * rate, 2)
+    if _is_company(r.currency):
+        r.amount_company = float(r.total_claimed_amount or 0)
+        r.fx_rate_at = r.fx_rate_at or now
+        r.fx_source = "IDENTITY"
+
+
+def _company_fields(currency: Optional[str], claimed, approved=None) -> dict:
+    """Snapshot fields for a claim created outside the compliance workflow."""
+    amount_company, quote = fx.company_amount(claimed, currency)
+    approved_company, approved_quote = fx.company_amount(approved or 0, currency)
+    return {
+        "amount_company": float(amount_company),
+        "approved_company_amount": float(approved_company) if approved else None,
+        "fx_rate_to_company": float(quote.rate) if quote else None,
+        "fx_rate_at": quote.as_of if quote else None,
+        "fx_source": quote.source if quote else "UNQUOTED",
+        "_fx_unavailable": quote is None or (approved is not None and approved_quote is None),
+    }
 
 
 def _apply_status(
@@ -492,6 +621,10 @@ def _apply_status(
     if new_status in (ReimbursementStatus.APPROVED, ReimbursementStatus.REJECTED):
         r.total_approved_amount = approved_sum
         r.total_rejected_amount = float(r.total_claimed_amount or 0) - approved_sum
+        if new_status == ReimbursementStatus.APPROVED:
+            _apply_company_amounts(db, r, approved_sum, datetime.now(timezone.utc))
+        else:
+            r.approved_company_amount = 0.0
 
     now = datetime.now(timezone.utc)
     r.status = new_status
@@ -510,11 +643,20 @@ def _apply_status(
     label = "Booking" if is_booking else "Claim"
     if new_status == ReimbursementStatus.APPROVED:
         title = f"{label} RC-{reim_short} approved"
+        claim_currency = r.currency or fx.company_currency()
+        approved_claim = float(r.total_approved_amount or 0)
+        approved_company = float(fx.stored_company_amount(r))
+        company_note = (
+            ""
+            if fx.normalise(claim_currency) == fx.company_currency()
+            else f" (about {fx.company_currency()} {approved_company:,.2f})"
+        )
         if is_booking:
-            message = (f"Your vendor booking for MYR {float(r.total_approved_amount or 0):,.2f} has been approved "
+            message = (f"Your vendor booking for {claim_currency} {approved_claim:,.2f}{company_note} has been approved "
                        "and the vendor is being paid.")
         else:
-            message = f"Your claim for MYR {float(r.total_approved_amount or 0):,.2f} has been approved and is ready for payout."
+            message = (f"Your claim for {claim_currency} {approved_claim:,.2f}{company_note} has been approved "
+                       "and is ready for payout.")
     elif new_status == ReimbursementStatus.REJECTED:
         title = f"{label} RC-{reim_short} rejected"
         message = f"Your {label.lower()} was rejected. Reason: {(hr_note or 'No reason provided')[:200]}"
@@ -701,7 +843,10 @@ def get_reimbursement_line_items(
         select(LineItem).where(LineItem.reim_id == r.reim_id)
     ).all()
 
-    return [_line_item_dict(li, current_user.role == UserRole.HR) for li in line_items]
+    return [
+        _line_item_dict(li, current_user.role == UserRole.HR, r.currency, r.fx_rate_to_company)
+        for li in line_items
+    ]
 
 
 def _auto_payout(db: Session, reim: Reimbursement, loop, emit) -> bool:
@@ -733,6 +878,8 @@ def _auto_payout(db: Session, reim: Reimbursement, loop, emit) -> bool:
 
 def _undecided_claim(**fields) -> Reimbursement:
     """A claim decide() never saw: no policy or Shield check passed, so it fails closed to two approvers."""
+    fields.update(_company_fields(fields.get("currency"), fields.get("total_claimed_amount") or 0))
+    fields.pop("_fx_unavailable", None)
     return Reimbursement(judgment=JudgmentResult.NEEDS_INFO, status=ReimbursementStatus.REVIEW, tier=DUAL_TIER, **fields)
 
 

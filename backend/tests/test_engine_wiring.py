@@ -84,7 +84,7 @@ def store(monkeypatch):
     monkeypatch.setattr(s, "recent_decisions", lambda db, n: state.recent[:n])
     monkeypatch.setattr(s, "trip_breaker", lambda db, reason, now: state.trips.append(reason))
     monkeypatch.setattr(ca, "record_action", lambda db, t, actor, rid, payload: state.actions.append((t, rid, payload)))
-    monkeypatch.setattr(ca, "_check_category_budgets", lambda pid, totals, db: state.budget_violations)
+    monkeypatch.setattr(ca, "_check_category_budgets", lambda pid, totals, db, currency=None: state.budget_violations)
     monkeypatch.setattr(ca.queries, "recent_claims", lambda db, uid, now: [])
     monkeypatch.setattr(ca.queries, "fingerprint_candidates", lambda db, exclude, now: [])
     return state

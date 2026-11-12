@@ -44,3 +44,32 @@ plan in `PLAN.md` stays the reference; this file says where the build departs fr
 - **Contract limits show the company currency.** `contract_dict` returns
   `company_currency` from `PAYPAL_CURRENCY`, so the UI never hardcodes MYR.
 
+## 03: FX quotes and company-currency claim amounts
+
+- **No quote is a hard stop, not just a review verdict.** `ClaimFacts.fx_unavailable`
+  feeds `HardStop.FX_RATE_UNAVAILABLE`, so `decide()` is still the only thing that can
+  allow AUTO_PAY and an unknown pair cannot slip through a lane rule. The stored
+  `amount_company` falls back to the raw amount, and `fx_source = "UNQUOTED"` marks it.
+- **The quote is stored at save and locked at approval.** `save_reimbursement` writes
+  `amount_company`, the rate, its UTC timestamp and source. HR approval reuses a stored
+  quote younger than 24 hours; a stale or missing one is re-quoted before approving. The
+  HR detail read refreshes the quote for the same reason, so the reviewer sees the rate
+  that approval will lock. Movement after approval is not re-priced.
+- **Payouts pay the company amount in this stage.** The payout service sends
+  `approved_company_amount` (or a quote of the net amount) in `PAYPAL_CURRENCY`, and a
+  claim with no quote returns `SKIP_NO_FX_QUOTE` rather than paying the raw foreign
+  amount as MYR. Ticket 06 replaces this with the contract payout currency.
+- **Legacy rows are backfilled only when the currency is MYR.** The migration writes an
+  identity quote for MYR and marks foreign rows `UNQUOTED` without inventing a rate.
+  `fx.stored_company_amount` falls back to the raw amount for those rows.
+- **The FX table is deterministic and company-currency based.** `MYR_PER_UNIT` is the
+  built-in table; `FX_RATES` is a JSON override of company-currency units per foreign
+  unit, and `FX_RATES_AS_OF` pins the demo timestamp. Unknown currencies are absent from
+  the table, not guessed.
+- **Shield and budgets see company amounts.** Receipt Shield's recent-claim and
+  current-claim amounts, policy category budgets, trust history, daily and monthly caps,
+  the funding committed total and the backtest all read the company-currency snapshot.
+  The documented false-positive risk on foreign receipts remains, because the thresholds
+  themselves are still tuned to one currency.
+
+

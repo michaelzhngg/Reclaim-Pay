@@ -72,6 +72,12 @@ class Settings(BaseSettings):
     CHANNEL3_CATEGORIES: str = "Equipment,Office Supplies,IT Equipment"
     FX_TO_USD: float = 0.0
 
+    # Deterministic FX table override for demos and tests: JSON object of company-currency
+    # units per one unit of the foreign currency, for example {"USD": 4.75}.
+    FX_RATES: str = ""
+    # Optional ISO timestamp for the rate table's as_of, so a demo can show a fixed quote.
+    FX_RATES_AS_OF: str = ""
+
     # Image forensics on uploaded receipts (pasted-in numbers). off: not run. observe: stored and shown to HR
     # as information, 0 points, never feeds decide(). score: a MEDIUM signal like any other (never HIGH).
     IMAGE_FORENSICS_MODE: Literal["off", "observe", "score"] = "observe"

@@ -47,6 +47,8 @@ def test_enum_values_match_spec():
         "AUTONOMY_PAUSED", "CIRCUIT_BREAKER", "AI_NOT_APPROVED", "PAYEE_NOT_VERIFIED", "PAYEE_COOLDOWN",
         "HR_SELF_CLAIM", "OVER_CATEGORY_BUDGET", "OVER_AUTO_LIMIT", "EMPLOYEE_DAILY_CAP",
         "EMPLOYEE_MONTHLY_CAP", "AGENT_DAILY_BUDGET", "HIGH_RISK_SIGNAL", "EXPECTED_LOSS",
+        # F5 additions: a claim with no company-currency quote cannot be compared to limits.
+        "FX_RATE_UNAVAILABLE",
     ]
     assert [t.value for t in AutonomyTier] == [
         "AUTO_PAY", "HR_QUICK", "HR_REVIEW", "DUAL_REVIEW",

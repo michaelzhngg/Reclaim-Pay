@@ -118,6 +118,7 @@ def _hard_stops(
         HardStop.AGENT_DAILY_BUDGET: ledger.auto_paid_today + ledger.vendor_paid_today + claim.amount > config.agent_daily_budget,
         HardStop.HIGH_RISK_SIGNAL: any(s.severity == Severity.HIGH for s in signals),
         HardStop.EXPECTED_LOSS: loss >= config.review_cost,
+        HardStop.FX_RATE_UNAVAILABLE: claim.fx_unavailable,
     }
     return [stop for stop in HardStop if conditions[stop]]
 

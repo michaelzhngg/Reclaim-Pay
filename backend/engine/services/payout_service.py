@@ -28,6 +28,7 @@ from core.email_service import fire_and_forget_email
 from core.enums import AgentActionType, ReimbursementStatus, PayoutStatus, UserRole, is_vendor_booking
 from core.push_service import fire_and_forget_push
 from engine.services.action_log import record_action
+from engine.services import fx
 from engine.services.paypal_client import (
     PayoutCreated,
     get_paypal_client,
@@ -116,6 +117,21 @@ def _existing_payouts(db: Session, reim_id: UUID) -> list[Payout]:
     return list(db.exec(select(Payout).where(Payout.reim_id == reim_id).order_by(Payout.attempt)).all())
 
 
+def payout_company_amount(db: Session, reim: Reimbursement, net_claim: Decimal) -> Decimal | None:
+    """The amount PayPal receives in company currency, or None when no quote exists.
+
+    A foreign claim is paid its converted company amount in this stage. Ticket 06 replaces
+    this with the contract's payout currency and snapshot fields.
+    """
+    if fx.normalise(reim.currency) == fx.company_currency():
+        return net_claim
+    if (reim.approved_company_amount is not None
+            and Decimal(str(reim.total_approved_amount or 0)) == net_claim):
+        return Decimal(str(reim.approved_company_amount))
+    quoted = fx.quote_or_none(net_claim, reim.currency, fx.company_currency())
+    return quoted.converted if quoted else None
+
+
 def _plan(reim_id: UUID, db: Session):
     reim = db.get(Reimbursement, reim_id)
     if not reim:
@@ -123,7 +139,10 @@ def _plan(reim_id: UUID, db: Session):
     existing = _existing_payouts(db, reim_id)
     payee = payee_for_reim(db, reim)
     net_amount, _applied = offset_for_reim(db, reim)
-    plan = payout_plan(reim.status, net_amount, [p.status for p in existing], payee is not None)
+    company_amount = payout_company_amount(db, reim, net_amount)
+    if company_amount is None:
+        return reim, payee, ("SKIP_NO_FX_QUOTE", None, 0), existing
+    plan = payout_plan(reim.status, company_amount, [p.status for p in existing], payee is not None)
     return reim, payee, plan, existing
 
 
@@ -155,6 +174,8 @@ def _handle_skip(db: Session, reim: Reimbursement | None, action: str, existing:
             logger.warning("[AUTO_PAYOUT] Nothing approved on reim=%s, not marking it paid", reim.reim_id)
     elif action == "SKIP_NO_PAYEE" and reim is not None:
         logger.info("[AUTO_PAYOUT] Skipping reim=%s: the payee has no verified PayPal account", reim.reim_id)
+    elif action == "SKIP_NO_FX_QUOTE" and reim is not None:
+        logger.warning("[AUTO_PAYOUT] Skipping reim=%s: no FX quote for %s", reim.reim_id, reim.currency)
     return None
 
 

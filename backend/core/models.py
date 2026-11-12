@@ -443,6 +443,30 @@ class Reimbursement(SQLModel, table=True):
         default=None,
         sa_column=Column(Numeric(12, 2))
     )
+    # Company-currency snapshots. `amount_company` is claimed at save time;
+    # `approved_company_amount` is locked at HR approval. Both fall back to the claim
+    # amount for legacy rows, which `fx_source = "UNQUOTED"` marks as unconverted.
+    amount_company: Optional[float] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 2))
+    )
+    approved_company_amount: Optional[float] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 2))
+    )
+    fx_rate_to_company: Optional[float] = Field(
+        default=None,
+        sa_column=Column(Numeric(18, 8))
+    )
+    fx_rate_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True))
+    )
+    # "TABLE", "ENV", "IDENTITY" or "UNQUOTED".
+    fx_source: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String)
+    )
     judgment: JudgmentResult = Field(
         sa_column=Column(String, nullable=False)
     )

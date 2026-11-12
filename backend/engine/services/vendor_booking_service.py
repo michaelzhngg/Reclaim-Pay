@@ -148,6 +148,11 @@ def create_booking(
         currency=settings.PAYPAL_CURRENCY,
         total_claimed_amount=amount,
         total_approved_amount=amount if auto_pay else None,
+        amount_company=amount,
+        approved_company_amount=amount if auto_pay else None,
+        fx_rate_to_company=1,
+        fx_rate_at=now,
+        fx_source="IDENTITY",
         judgment=policy.judgment,
         confidence=1.0,
         ai_reasoning={

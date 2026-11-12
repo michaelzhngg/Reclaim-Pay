@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from core.models import LineItem, Reimbursement, SettlementReceipt, SupportingDocument
 from engine.risk.shield.fingerprint import amount_and_date
 from engine.risk.types import ClaimLite, DocFingerprint
+from engine.services import fx
 
 
 def fingerprint_candidates(
@@ -78,7 +79,7 @@ def recent_claims(db: Session, user_id: str | UUID, now: datetime, days: int = 3
                 user_id=str(r.user_id),
                 merchant=(receipt.merchant_name if receipt else None) or "",
                 expense_date=receipt.receipt_date if receipt else None,
-                amount=float(r.total_claimed_amount or 0),
+                amount=float(fx.stored_company_amount(r)),
                 created_at=created,
                 status=getattr(r.status, "value", r.status),
             )

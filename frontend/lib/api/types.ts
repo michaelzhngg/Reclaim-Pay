@@ -84,6 +84,9 @@ export interface LineItem {
   unit_price?: number;
   claimed_amount: number;
   approved_amount?: number | null;
+  /** Company-currency equivalents, when the backend has a quote. */
+  claimed_company_amount?: number | null;
+  approved_company_amount?: number | null;
   currency: string;
   expense_date?: string | null;
   judgment?: "APPROVED" | "REJECTED" | "PARTIAL" | "NEEDS_INFO" | null;
@@ -123,9 +126,17 @@ export interface ReimbursementRaw {
   settlement_id: string | null;
   main_category: string;
   currency: string;
+  company_currency?: string;
   total_claimed_amount: number;
   total_approved_amount: number | null;
   total_rejected_amount: number | null;
+  /** Company-currency snapshots, and the quote behind them. */
+  amount_company?: number | null;
+  approved_company_amount?: number | null;
+  fx_rate_to_company?: number | null;
+  fx_rate_at?: string | null;
+  fx_source?: string | null;
+  fx_unavailable?: boolean;
   line_items?: LineItem[];
   judgment: "APPROVED" | "REJECTED" | "PARTIAL" | "NEEDS_INFO";
   confidence: number | null;
@@ -270,6 +281,9 @@ export interface BundleLineItem {
   status: LineItemStatus;
   requested_amount: number;
   approved_amount: number;
+  /** Company-currency equivalents for the receipt row, when a quote exists. */
+  requested_company_amount?: number | null;
+  approved_company_amount?: number | null;
   deduction_amount: number;
   audit_notes: AuditNote[];
   /** True if the employee manually edited the AI-extracted amount — Fraud Trap. */
@@ -294,6 +308,15 @@ export interface ClaimBundle {
     email: string;
   };
   submitted_at: string;
+  /** Claim currency and the company currency its limits and reports use. */
+  currency: string;
+  company_currency: string;
+  amount_company: number | null;
+  approved_company_amount: number | null;
+  fx_rate_to_company: number | null;
+  fx_rate_at: string | null;
+  fx_source: string | null;
+  fx_unavailable: boolean;
   travel_destination: string;
   travel_purpose: string;
   departure_date: string;

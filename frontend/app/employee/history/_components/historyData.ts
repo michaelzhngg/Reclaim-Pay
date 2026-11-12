@@ -49,6 +49,14 @@ export interface HistoryClaim {
   amount: string;           // pre-formatted, e.g. "MYR 1,200.00"
   amountNumeric: number;
   approvedAmount: number;
+  /** Claim currency and the company-currency equivalent behind it. */
+  currency: string;
+  companyCurrency: string;
+  amountCompany?: number | null;
+  approvedCompanyAmount?: number | null;
+  fxRate?: number | null;
+  fxRateAt?: string | null;
+  fxSource?: string | null;
   status: ClaimStatus;
   hrNote?: string;
   /** True for a company-paid vendor booking, so the list can label it. */

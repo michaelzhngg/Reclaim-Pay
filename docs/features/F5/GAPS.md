@@ -20,3 +20,16 @@ Known limits of the contractor slice, beyond the explicit gaps in `PLAN.md`.
   change and a deploy.
 - Contract dates are inclusive and checked against the UTC date. There is no timezone per
   contractor.
+
+## Money and FX
+
+- The rate table is fixed and environment-overridable. There is no provider, spread,
+  rate history or treasury policy.
+- Rate movement between approval and payout is borne by the company; payouts are not
+  re-priced.
+- Minor units assume two decimals. Zero-decimal currencies (IDR, JPY and similar) are not
+  handled for a live payout yet.
+- A legacy foreign claim with no rate is shown unquoted and cannot pay until HR fixes its
+  currency or a quote exists.
+- Payouts still send the company currency in this stage. The payout snapshot fields and
+  the contract payout currency land in ticket 06.

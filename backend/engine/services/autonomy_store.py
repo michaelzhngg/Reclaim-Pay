@@ -18,6 +18,7 @@ from core.enums import AgentActionType, RecoveryStatus, ReimbursementStatus, Use
 from core.models import AutonomySettings, Recovery, Reimbursement, User
 from engine.risk.autonomy import NEW_ISSUE_DAYS, TRUSTED_ISSUE_DAYS
 from engine.services.action_log import record_action
+from engine.services import fx
 from engine.services.risk_contract import (
     AUTONOMY_TIERS,
     AgentLedger,
@@ -121,11 +122,12 @@ def payee_from_vendor(vendor) -> PayeeStatus:
 
 
 def _claim_row(r: Reimbursement) -> dict:
-    amount = r.total_approved_amount if r.total_approved_amount is not None else r.total_claimed_amount
+    # Caps and history compare company-currency amounts. Legacy rows fall back to the raw
+    # amount when they have no snapshot.
     return {
         "status": _status_str(r.status),
         "tier": r.tier,
-        "amount": amount or 0,
+        "amount": fx.stored_company_amount(r),
         "updated_at": r.updated_at or r.created_at,
     }
 

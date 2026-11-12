@@ -1,5 +1,6 @@
 import logging
 from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
@@ -15,7 +16,12 @@ from core.enums import ReimbursementStatus, UserRole, PayoutStatus, is_vendor_bo
 from engine.jobs.maintenance import MaintenanceReport, StuckPayoutsOut, run_maintenance, stuck_payouts
 from engine.services.approvals import approvals_complete
 from engine.services.funding_service import FundingSummary, alert_hr, funding_summary
-from engine.services.payout_service import initiate_payout_async, payee_for_reim, payout_plan
+from engine.services.payout_service import (
+    initiate_payout_async,
+    payee_for_reim,
+    payout_company_amount,
+    payout_plan,
+)
 from engine.services.payout_status import FINAL_STATUSES, refresh_payout
 from engine.services.paypal_client import PayPalError
 from engine.services.reconcile_history import (
@@ -153,6 +159,7 @@ _SKIP_DETAIL = {
     "SKIP_NOT_APPROVED": "Claim must be APPROVED (or DISBURSEMENT_FAILED for a retry) before it can be paid.",
     "SKIP_EXISTING": "A payout for this claim is already in progress or has succeeded.",
     "SKIP_NO_PAYEE": "The payee has not connected a verified PayPal account.",
+    "SKIP_NO_FX_QUOTE": "No company-currency quote exists for this claim's currency. HR must fix the rate before it can be paid.",
 }
 
 
@@ -306,10 +313,14 @@ async def create_payout(
     existing = db.exec(select(Payout).where(Payout.reim_id == body.reim_id)).all()
     _require_genuine_approval(reim, current_user, existing)
     net_amount, applied_offsets = offset_for_reim(db, reim)
-    action, _, _ = payout_plan(
-        reim.status, net_amount, [p.status for p in existing],
-        payee_for_reim(db, reim) is not None,
-    )
+    company_amount = payout_company_amount(db, reim, net_amount)
+    if company_amount is None:
+        action = "SKIP_NO_FX_QUOTE"
+    else:
+        action, _, _ = payout_plan(
+            reim.status, company_amount, [p.status for p in existing],
+            payee_for_reim(db, reim) is not None,
+        )
     if action in _SKIP_DETAIL:
         raise HTTPException(status_code=400, detail=_SKIP_DETAIL[action])
     if action == "SKIP_ZERO":
