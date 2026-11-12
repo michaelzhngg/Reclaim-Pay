@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import time
 
-import pymupdf4llm
+from engine.tools.pdf_text import pdf_to_markdown
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_text_splitters import MarkdownTextSplitter
@@ -49,7 +49,7 @@ def process_pdfs(state: PolicyWorkflowState) -> dict:
     markdown_docs = []
     for path in state["file_paths"]:
         try:
-            md_text = pymupdf4llm.to_markdown(path)
+            md_text = pdf_to_markdown(path)
             md_text = re.sub(r'!\[.*?\]\(.*?\)', '[IMAGE - OCR not available]', md_text)
             markdown_docs.append({"file": path, "text": md_text})
         except Exception as e:

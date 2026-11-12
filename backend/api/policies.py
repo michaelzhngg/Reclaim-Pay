@@ -93,8 +93,9 @@ async def upload_policy(
         saved_paths.append(str(dest))
 
     try:
-        policy_id = run_policy_workflow(
-            saved_paths, alias, db, user_id=str(current_user.user_id)
+        # Off the event loop, so health checks and other requests are answered during the upload.
+        policy_id = await run_in_threadpool(
+            run_policy_workflow, saved_paths, alias, db, user_id=str(current_user.user_id)
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Policy workflow failed: {e}")
