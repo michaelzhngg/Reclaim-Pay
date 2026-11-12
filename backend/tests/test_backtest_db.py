@@ -36,7 +36,7 @@ def test_default_config_reproduces_the_stored_tiers(seeded):
     assert [p.auto_limit_standard for p in r.curve] == list(CURVE_LIMITS)
     assert r.assumptions[0] == "ignores daily budget and circuit breaker"
     assert r.demo_claims == 120
-    assert r.assumptions[-1] == "all 120 claims are demo data, so don't tune limits on these results"
+    assert r.assumptions[-1] == "all 120 claims are demo data, so don't change limits based on these results"
 
 
 def test_raising_the_limits_automates_more(seeded):

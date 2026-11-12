@@ -47,7 +47,7 @@ def test_demo_claims_are_counted_and_flagged():
     cases = [case(40, False).model_copy(update={"demo": True}), case(80, False)]
     r = run_backtest(cases, AutonomyConfig(), NOW)
     assert r.demo_claims == 1
-    assert r.assumptions[-1] == "1 of 2 claims are demo data, so don't tune limits on these results"
+    assert r.assumptions[-1] == "1 of 2 claims is demo data, so don't change limits based on these results"
 
 
 def test_real_data_adds_no_warning():
@@ -58,7 +58,10 @@ def test_real_data_adds_no_warning():
 
 def test_demo_assumption_wording():
     assert demo_assumption(0, 10) is None
-    assert demo_assumption(10, 10) == "all 10 claims are demo data, so don't tune limits on these results"
+    assert demo_assumption(10, 10) == "all 10 claims are demo data, so don't change limits based on these results"
+    assert demo_assumption(2, 5) == "2 of 5 claims are demo data, so don't change limits based on these results"
+    assert demo_assumption(1, 5) == "1 of 5 claims is demo data, so don't change limits based on these results"
+    assert demo_assumption(1, 1) == "the only claim is demo data, so don't change limits based on this result"
 
 
 def _stored_claim(ai_reasoning):

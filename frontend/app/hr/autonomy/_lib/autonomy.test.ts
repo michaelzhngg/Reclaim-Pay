@@ -133,12 +133,23 @@ describe("status wording", () => {
 });
 
 describe("demoNotice", () => {
-  it("warns when the replay used demo claims", () =>
-    expect(demoNotice({ demo_claims: 120 })).toBe("These numbers come from demo claims. Don't change limits based on them."));
+  it("warns when every replayed claim is a demo claim", () =>
+    expect(demoNotice({ demo_claims: 120, total_claims: 120 })).toBe(
+      "These numbers come from demo claims. Don't change limits based on them.",
+    ));
+
+  it("counts the demo claims when only some are", () => {
+    expect(demoNotice({ demo_claims: 2, total_claims: 5 })).toBe(
+      "2 of 5 replayed claims are demo claims. Don't change limits based on these numbers.",
+    );
+    expect(demoNotice({ demo_claims: 1, total_claims: 5 })).toBe(
+      "1 of 5 replayed claims is a demo claim. Don't change limits based on these numbers.",
+    );
+  });
 
   it("says nothing for real claims or an older backend", () => {
-    expect(demoNotice({ demo_claims: 0 })).toBeNull();
-    expect(demoNotice({})).toBeNull();
+    expect(demoNotice({ demo_claims: 0, total_claims: 5 })).toBeNull();
+    expect(demoNotice({ total_claims: 5 })).toBeNull();
     expect(demoNotice(null)).toBeNull();
   });
 });

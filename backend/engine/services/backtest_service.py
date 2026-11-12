@@ -99,8 +99,13 @@ def demo_assumption(demo: int, total: int) -> str | None:
     """Seeded claims were decided by decide() with the default config, so tuning on them is circular."""
     if demo == 0:
         return None
-    share = f"all {total}" if demo == total else f"{demo} of {total}"
-    return f"{share} claims are demo data, so don't tune limits on these results"
+    if total == 1:
+        return "the only claim is demo data, so don't change limits based on this result"
+    if demo == total:
+        share = f"all {total} claims are"
+    else:
+        share = f"{demo} of {total} claims {'is' if demo == 1 else 'are'}"
+    return f"{share} demo data, so don't change limits based on these results"
 
 
 def run_backtest(cases: list[BacktestCase], config: AutonomyConfig, now: datetime) -> BacktestResult:

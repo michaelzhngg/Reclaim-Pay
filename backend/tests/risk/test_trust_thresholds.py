@@ -37,3 +37,12 @@ def test_history_windows_follow_the_constants():
     too_old = now - timedelta(days=autonomy.TRUSTED_ISSUE_DAYS + 1)
     h = autonomy_store.history_from_rows([], [just_inside, between, too_old], now)
     assert (h.confirmed_issues_90d, h.confirmed_issues_180d) == (1, 2)
+
+
+def test_an_issue_exactly_at_the_window_edge_still_counts():
+    now = datetime(2026, 11, 12, tzinfo=timezone.utc)
+    at_new_edge = now - timedelta(days=autonomy.NEW_ISSUE_DAYS)
+    at_trusted_edge = now - timedelta(days=autonomy.TRUSTED_ISSUE_DAYS)
+    assert autonomy_store.history_from_rows([], [at_new_edge], now).confirmed_issues_90d == 1
+    h = autonomy_store.history_from_rows([], [at_trusted_edge], now)
+    assert (h.confirmed_issues_90d, h.confirmed_issues_180d) == (0, 1)

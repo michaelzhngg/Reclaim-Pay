@@ -32,7 +32,7 @@ TIER_LABEL = {
 # Spec D2: the breaker trips when more than half the daily budget went out in the last hour.
 BREAKER_HOURLY_BUDGET_SHARE = 0.5
 
-# Trust level thresholds. trust_tier, autonomy_store's issue windows and the trust card all read these.
+# Trust level thresholds, read by the whole backend. The HR limits form (LimitsForm.tsx) still hard-codes 3 and 10.
 STANDARD_MIN_PAID = 3
 TRUSTED_MIN_PAID = 10
 NEW_ISSUE_DAYS = 90  # a confirmed issue holds the employee at NEW for this long
