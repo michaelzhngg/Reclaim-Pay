@@ -372,3 +372,40 @@ export interface AgentActionsResult {
 export function formatMoney(currency: string, amount: number): string {
   return `${currency} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+// ─── Policy limits (E1) ──────────────────────────────────────────────────────
+
+export type LimitKind = "CAP" | "PRE_APPROVAL";
+export type LimitUnit = "PER_DAY" | "PER_NIGHT" | "PER_MEAL" | "PER_ITEM" | "ACTUAL";
+export type TravelScope = "ANY" | "DOMESTIC" | "OVERSEAS";
+export type LimitStatus = "PROPOSED" | "CONFIRMED";
+
+export interface LimitRule {
+  category: string;
+  kind: LimitKind;
+  unit: LimitUnit;
+  /** null when the unit is ACTUAL. */
+  amount: number | null;
+  currency: string;
+  grade_min: number | null;
+  grade_max: number | null;
+  scope: TravelScope;
+  zone: string | null;
+  source_section: string | null;
+  source_quote: string | null;
+}
+
+export interface ZonePlace {
+  zone: string;
+  /** "*" means every place not listed. */
+  place: string;
+}
+
+/** GET /policies/{id}/limits (HR only). Employees never receive PROPOSED rows. */
+export interface PolicyLimits {
+  policy_id: string;
+  categories: string[];
+  limits: (LimitRule & { limit_id: string; status: LimitStatus })[];
+  zones: (ZonePlace & { status: LimitStatus })[];
+  has_suggestions: boolean;
+}
