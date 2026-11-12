@@ -135,3 +135,21 @@ def test_joined_quotes_must_keep_the_policy_order_and_real_length():
 def test_quotes_are_shown_without_markdown_marks():
     _, shown = qa.match_quote("- **Auto-approval amount:** RM100 per meal.", [SECTION])
     assert shown == "- Auto-approval amount: RM100 per meal."
+
+
+TABLE_SECTION = SimpleNamespace(
+    section_id="s10", section_title=None, section_order=0,
+    content=("| Daily Trip Allowance | Accomodations | Flight | Grade |\n|---|---|---|---|\n"
+             "| MYR 200 | 3-star | Economy Class | Grade 3 |\n| MYR 240 | MYR 240 | MYR 240 | Grade 6 |"),
+)
+
+
+def test_short_cells_from_one_table_row_are_a_real_quote():
+    section, shown = qa.match_quote("MYR 240 … Grade 6", [LIST_SECTION, TABLE_SECTION])
+    assert section is TABLE_SECTION and shown == "MYR 240 … Grade 6"
+
+
+def test_cells_from_different_rows_are_not_a_quote():
+    assert qa.quote_section("MYR 200 … Grade 6", [TABLE_SECTION]) is None
+    assert qa.quote_section("Grade 6 … MYR 240", [TABLE_SECTION]) is TABLE_SECTION  # any order within the row
+    assert qa.quote_section("MYR 240 … Grade 3", [TABLE_SECTION]) is None

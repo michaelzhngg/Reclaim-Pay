@@ -30,6 +30,9 @@ MIN_QUOTE_CHARS = 12
 # A quote may join up to this many in-order pieces of one section, e.g. a list heading and its third item.
 MAX_QUOTE_PIECES = 3
 MIN_PIECE_CHARS = 20
+# Short cells joined with " … " are real evidence when they all sit in one table row ("MYR 240 … Grade 6").
+MAX_ROW_PIECES = 6
+MIN_CELL_CHARS = 2
 MAX_SECTIONS = 6
 NOT_COVERED_ANSWER = "I couldn't find one part of the policy that answers this. Try asking one thing at a time, or ask HR before you spend."
 
@@ -115,8 +118,16 @@ def match_quote(quote: str | None, sections: list) -> tuple[object, str] | None:
             return s, q
     for s in sections:
         pieces = _quote_pieces(q, s.content or "")
-        if pieces and len(pieces) <= MAX_QUOTE_PIECES and all(len(p) >= MIN_PIECE_CHARS for p in pieces):
+        if pieces and all(len(p) >= MIN_PIECE_CHARS for p in pieces):
             return s, " … ".join(pieces)
+    cells = [c.strip() for c in _ELLIPSIS.split(q) if c.strip()]
+    if not 2 <= len(cells) <= MAX_ROW_PIECES or any(len(c) < MIN_CELL_CHARS for c in cells):
+        return None
+    for s in sections:
+        for row in (line for line in (s.content or "").splitlines() if line.count("|") >= 2):
+            plain_row = _plain(row).lower()
+            if all(c.lower() in plain_row for c in cells):
+                return s, " … ".join(cells)
     return None
 
 
