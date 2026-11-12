@@ -330,7 +330,7 @@ export default function ReviewPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const { load, retry } = useClaimBundle(id);
+  const { load, retry, refresh } = useClaimBundle(id);
   const bundle = load.state === "ready" ? load.bundle : null;
   const [approvals, setApprovals] = useState<Record<string, string>>({});
   const [decision, setDecision] = useState<Decision>(null);
@@ -419,6 +419,8 @@ export default function ReviewPage() {
       setDecision(null);
     }
     setShowSuccessModal(true);
+    // Reload the claim so approvals and amounts shown on the page match the action just taken.
+    refresh();
     // Stay on the page so the approver reads that a second approval is still needed.
     if (!awaiting) router.push("/hr/dashboard");
   }
@@ -448,8 +450,7 @@ export default function ReviewPage() {
       setVendorError(approvalErrorMessage(res.error ?? "Could not verify the vendor account."));
       return;
     }
-    const updated = await getHRClaimBundle(bundle.id);
-    if (updated) setBundle(updated);
+    refresh();
   }
 
   async function handleChangeVendorAccount() {
@@ -465,8 +466,7 @@ export default function ReviewPage() {
     }
     setShowAccountChange(false);
     setVendorEmail("");
-    const updated = await getHRClaimBundle(bundle.id);
-    if (updated) setBundle(updated);
+    refresh();
   }
 
   return (
