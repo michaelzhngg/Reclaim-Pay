@@ -6,7 +6,8 @@
 `python -m jobs.daily_reconcile`. Verify that the Blueprint's tracked branch includes this file:
 it may still track `deploy/render` rather than `main`. If the cron does not deploy, the
 Reconciliation tab's 36-hour stale warning is the only signal. Record the deployed cron state here
-after checking the dashboard.
+after checking the dashboard. The cron reuses the API service's `SECRET_KEY` through
+`fromService`; renaming `reclaim-pay-api` means updating that reference.
 
 ## Sandbox Transaction Search needs the reporting scope
 

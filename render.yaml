@@ -107,7 +107,10 @@ services:
           name: reclaim-pay-db
           property: connectionString
       - key: SECRET_KEY
-        generateValue: true
+        fromService:
+          type: web
+          name: reclaim-pay-api
+          envVarKey: SECRET_KEY
       - key: PAYPAL_MOCK_MODE
         value: "false"
       - key: PAYPAL_BASE_URL

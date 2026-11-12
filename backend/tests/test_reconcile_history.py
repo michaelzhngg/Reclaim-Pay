@@ -120,6 +120,19 @@ def test_repeat_run_updates_one_open_row(db):
     assert row.first_run_id == first.run.run_id and row.last_run_id == second.run.run_id
 
 
+def test_finished_at_is_the_completion_time(db):
+    employee, _, payout = _claim_and_payout(db)
+    started = NOW - timedelta(minutes=5)
+    recorded = rh.record_run(
+        db, _summary(mismatches=[_mismatch(payout, employee, payout.created_at)], total=1),
+        trigger="schedule", started_at=started,
+    )
+
+    assert recorded.run.started_at == started
+    assert recorded.run.finished_at is not None
+    assert recorded.run.finished_at > recorded.run.started_at
+
+
 def test_a_later_match_closes_the_difference(db):
     employee, _, payout = _claim_and_payout(db)
     mismatch = _mismatch(payout, employee, payout.created_at)

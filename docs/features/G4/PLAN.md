@@ -155,7 +155,7 @@ The schedule is a Render cron service in `render.yaml`, using the same backend i
 
 - daily at `02:00 UTC` (10:00 MYT);
 - `dockerCommand: python -m jobs.daily_reconcile`;
-- `DATABASE_URL` from the Render database, `PAYPAL_*` and `PAYPAL_MOCK_MODE`, `SECRET_KEY`, and the existing `reclaim-pay-secrets` group.
+- `DATABASE_URL` from the Render database, `PAYPAL_*` and `PAYPAL_MOCK_MODE`, `SECRET_KEY` reused from the API service, and the existing `reclaim-pay-secrets` group.
 
 No in-process scheduler. Render restarts the web service on every deploy, can run more than one instance, and a PayPal call inside the API process would couple a background job to request latency. A cron service is stateless and observable.
 

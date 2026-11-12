@@ -113,3 +113,11 @@ One entry per non-obvious choice. Each names the alternative that was rejected a
 **Rejected:** run the seed through the normal path with a synthetic one-difference summary.
 
 **Why:** a synthetic summary that omits every other subject would look like a complete comparison and close real open differences inside the window. A demo must not rewrite the ledger history. The `demo` trigger also makes the reset surgical.
+
+## D15: Demo runs never update a row they did not open
+
+**Chosen:** `record_run(resolve=False)` creates a demo difference when the payout has none, but never updates an existing open row. `clear_demo` also nulls a legacy `last_run_id` that points at a demo run before deleting it.
+
+**Rejected:** let the demo refresh `last_seen_at` and `last_run_id` on any matching open row.
+
+**Why:** a demo must not rewrite a real difference, and moving a real row's `last_run_id` onto a run that `--clear` deletes caused a foreign-key failure. The demo can still show an existing real difference; it just must not touch it.

@@ -12,9 +12,11 @@ import argparse
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from core.database import engine, init_db
+from core.enums import PayoutStatus
 from core.models import Payout, ReconciliationDifference, ReconciliationRun, Reimbursement, User
 from engine.services.reconcile_history import (
     RecordedRun,
@@ -33,6 +35,7 @@ def _latest_payout(db: Session):
         .join(Reimbursement, Reimbursement.reim_id == Payout.reim_id)
         .join(User, User.user_id == Payout.user_id)
         .where(Payout.provider == "PAYPAL")
+        .where(Payout.status.in_([PayoutStatus.SUCCEEDED.value, PayoutStatus.REVERSED.value]))
         .order_by(Payout.created_at.desc())
         .limit(1)
     ).first()
@@ -81,14 +84,25 @@ def clear_demo(db: Session) -> tuple[int, int]:
     run_ids = [run.run_id for run in runs]
     differences = list(db.exec(
         select(ReconciliationDifference)
-        .where(ReconciliationDifference.first_run_id.in_(run_ids))
+        .where(or_(
+            ReconciliationDifference.first_run_id.in_(run_ids),
+            ReconciliationDifference.last_run_id.in_(run_ids),
+        ))
     ).all())
+    removed = 0
     for difference in differences:
-        db.delete(difference)
+        if difference.first_run_id in run_ids:
+            db.delete(difference)
+            removed += 1
+        else:
+            # A real row that an older demo run once touched. Keep the row, release the FK.
+            difference.last_run_id = None
+            db.add(difference)
+    db.flush()
     for run in runs:
         db.delete(run)
     db.commit()
-    return len(differences), len(runs)
+    return removed, len(runs)
 
 
 def main(argv: Optional[list[str]] = None) -> int:

@@ -196,6 +196,7 @@ def record_run(db: Session, summary: ReconcileSummary, *, trigger: str,
     `resolve=False` is for the demo seed: a synthetic summary must not close a real open difference.
     """
     now = _utc(summary.checked_at)
+    finished_at = max(datetime.now(timezone.utc), _utc(started_at), now)
     days = summary.days
     window_start = now - timedelta(days=days)
     db.exec(text(f"SELECT pg_advisory_xact_lock({ADVISORY_LOCK_KEY})"))
@@ -203,7 +204,7 @@ def record_run(db: Session, summary: ReconcileSummary, *, trigger: str,
     run = ReconciliationRun(
         trigger=trigger,
         started_at=_utc(started_at),
-        finished_at=now,
+        finished_at=finished_at,
         days=days,
         window_start=window_start,
         window_end=now,
@@ -242,13 +243,16 @@ def record_run(db: Session, summary: ReconcileSummary, *, trigger: str,
         for key, observed_row in observed.items():
             existing = by_key.get(key)
             if existing is not None:
-                existing.last_seen_at = now
-                existing.last_run_id = run.run_id
-                existing.amount = observed_row.amount
-                existing.currency = observed_row.currency
-                if observed_row.employee_name:
-                    existing.employee_name = observed_row.employee_name
-                db.add(existing)
+                # A demo run must not rewrite a row it did not open. It also must not move a real
+                # row's last_run_id onto a run that --clear will delete.
+                if resolve:
+                    existing.last_seen_at = now
+                    existing.last_run_id = run.run_id
+                    existing.amount = observed_row.amount
+                    existing.currency = observed_row.currency
+                    if observed_row.employee_name:
+                        existing.employee_name = observed_row.employee_name
+                    db.add(existing)
                 continue
             row = ReconciliationDifference(
                 kind=observed_row.kind,
