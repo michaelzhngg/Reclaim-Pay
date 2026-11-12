@@ -8,6 +8,13 @@ class UserRole(str, enum.Enum):
     Contractor = "Contractor"
 
 
+class ContractRateUnit(str, enum.Enum):
+    HOUR = "HOUR"
+    DAY = "DAY"
+    MONTH = "MONTH"
+    PROJECT = "PROJECT"
+
+
 class PrivilegeLevel(str, enum.Enum):
     Standard = "Standard"
     Manager = "Manager"

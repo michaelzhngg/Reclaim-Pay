@@ -109,3 +109,14 @@ def get_current_non_contractor_user(
             detail="Contractors can only read their own records",
         )
     return current_user
+
+
+def get_current_contractor_user(
+    current_user = Depends(get_current_user),
+) -> schemas.UserInDB:
+    if current_user.role != UserRole.Contractor:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This section is only for contractors",
+        )
+    return current_user

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { User, Bell, Wallet, LifeBuoy, AlertTriangle, Loader2, SunMoon } from "lucide-react";
+import { User, Bell, Wallet, LifeBuoy, AlertTriangle, Loader2, SunMoon, Coins } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { getBankingDetails } from "@/lib/actions/settings";
@@ -12,12 +12,14 @@ import { useToast } from "@/components/toast/ToastProvider";
 import PushSettingToggle from "@/app/_components/PushSettingToggle";
 import ProfileCard from "@/app/employee/settings/_components/ProfileCard";
 import { DensityOptions, ThemeOptions } from "@/components/theme/AppearanceControls";
+import PayoutSetupCard from "./_components/PayoutSetupCard";
 
 const TABS = [
   { id: "profile", label: "Profile Information", icon: User },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "appearance", label: "Appearance", icon: SunMoon },
   { id: "banking", label: "Banking & Payouts", icon: Wallet },
+  { id: "currencies", label: "Currencies and payouts", icon: Coins },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -219,6 +221,8 @@ export default function SettingsLegacyContent() {
             )}
 
             {activeTab === "profile" && <ProfileCard key={user?.user_id ?? "anon"} />}
+
+            {activeTab === "currencies" && <PayoutSetupCard />}
 
             {activeTab === "notifications" && (
               <Section title="Notifications" desc="Choose how you are notified.">

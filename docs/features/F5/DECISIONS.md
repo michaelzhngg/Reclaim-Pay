@@ -21,3 +21,26 @@ plan in `PLAN.md` stays the reference; this file says where the build departs fr
 - **PayPal sign-in admits contractors.** The rejection check now allows `Employee` and
   `Contractor`; HR still gets `not_employee`. This is the existing link/unlink flow, not a
   second identity path.
+
+## 02: Contractor contracts and company payout setup
+
+- **The country and currency lists are fixed tables.** `engine/services/currency.py` holds
+  the payout currencies and payee countries this slice accepts. A country outside the
+  table is refused at setup, and only the MYR guard special-cases `MY`; PayPal remains
+  responsible for other country eligibility. A dynamic PayPal country lookup would make
+  contract creation depend on a network call, so it is a gap, not a default.
+- **One contract per contractor is a database rule.** `contractor_contracts.user_id` has a
+  unique index and the service raises `CONTRACT_EXISTS` before insert. The UI and tests
+  both rely on the same guarantee; editing is `PATCH /contracts/{id}`.
+- **Contract categories are validated against the chosen active policy only.** With no
+  policy, the labels are stored as entered. The service category is an invoice label and
+  is deliberately not checked against the policy, matching the ticket.
+- **Amounts and rate units are validated in the service.** The request schema keeps
+  `rate_unit` as a string so an unknown unit returns a stable `RATE_UNIT_INVALID` code
+  rather than Pydantic's generic enum error. Amounts must be greater than zero.
+- **Payout setup is one HR-owned row with an audit entry.** `payout_settings` is created
+  from defaults (`MY`, `["MYR"]`) on first read, like `autonomy_settings`, and every
+  change writes a `CONFIG_CHANGED` action with the old and new values.
+- **Contract limits show the company currency.** `contract_dict` returns
+  `company_currency` from `PAYPAL_CURRENCY`, so the UI never hardcodes MYR.
+

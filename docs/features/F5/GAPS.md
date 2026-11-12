@@ -16,3 +16,7 @@ Known limits of the contractor slice, beyond the explicit gaps in `PLAN.md`.
   history.
 - There is no contractor invite or contract acceptance flow; HR creates the user and the
   contract.
+- The supported country and currency tables are static. Adding a destination is a code
+  change and a deploy.
+- Contract dates are inclusive and checked against the UTC date. There is no timezone per
+  contractor.

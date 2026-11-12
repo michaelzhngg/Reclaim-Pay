@@ -20,6 +20,7 @@ from core.enums import (
     AgentActionType,
     LimitStatus,
     WebhookEventStatus,
+    ContractRateUnit,
 )
 from core.enums import SignalVerdict
 
@@ -1366,3 +1367,102 @@ class MonthlyReport(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False)
     )
     generated_by: Optional[UUID] = Field(default=None, foreign_key="employees.user_id")
+
+
+# ---------------------------------------------------------------------------
+# 24. contractor_contracts
+# ---------------------------------------------------------------------------
+
+class ContractorContract(SQLModel, table=True):
+    """One active contract per contractor. Edits overwrite; there is no amendment history."""
+
+    __tablename__ = "contractor_contracts"
+
+    contract_id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(
+        foreign_key="employees.user_id",
+        unique=True,
+        index=True,
+    )
+    # Authoritative payee country. The MYR guard reads this, never the request.
+    country_code: str = Field(sa_column=Column(String(2), nullable=False))
+    # The payout currency, not the claim currency.
+    currency: str = Field(sa_column=Column(String(3), nullable=False))
+    rate_amount: float = Field(sa_column=Column(Numeric(12, 2), nullable=False))
+    rate_unit: str = Field(sa_column=Column(String, nullable=False))
+    # Invoice label. It does not have to be one of the policy's expense categories.
+    service_category: str = Field(sa_column=Column(String, nullable=False))
+    policy_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="policies.policy_id",
+    )
+    # A contract ceiling in company currency, on top of the autonomy limits.
+    max_company_amount_per_claim: float = Field(sa_column=Column(Numeric(12, 2), nullable=False))
+    is_active: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    effective_from: date = Field(sa_column=Column(Date, nullable=False))
+    effective_to: Optional[date] = Field(default=None, sa_column=Column(Date))
+    created_by: UUID = Field(foreign_key="employees.user_id")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True)),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True)),
+    )
+
+
+# ---------------------------------------------------------------------------
+# 25. contractor_contract_categories
+# ---------------------------------------------------------------------------
+
+class ContractorContractCategory(SQLModel, table=True):
+    """Expense categories the contract covers. Invoices use the service category instead."""
+
+    __tablename__ = "contractor_contract_categories"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    contract_id: UUID = Field(
+        foreign_key="contractor_contracts.contract_id",
+        index=True,
+    )
+    category: str = Field(sa_column=Column(String, nullable=False))
+
+    __table_args__ = (
+        UniqueConstraint("contract_id", "category", name="uq_contract_category"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# 26. payout_settings
+# ---------------------------------------------------------------------------
+
+class PayoutSettings(SQLModel, table=True):
+    """Single HR-owned row (id = 1): the PayPal account country and the currencies it holds."""
+
+    __tablename__ = "payout_settings"
+
+    id: int = Field(default=1, primary_key=True)
+    paypal_account_country: str = Field(
+        default="MY",
+        sa_column=Column(String(2), nullable=False, server_default="MY"),
+    )
+    held_currencies: list = Field(
+        default_factory=lambda: ["MYR"],
+        sa_column=Column(
+            JSONB,
+            nullable=False,
+            server_default=text("'[\"MYR\"]'::jsonb"),
+        ),
+    )
+    updated_by: Optional[UUID] = Field(
+        default=None,
+        foreign_key="employees.user_id",
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True)),
+    )
