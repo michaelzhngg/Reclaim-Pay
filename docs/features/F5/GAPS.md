@@ -31,8 +31,13 @@ Known limits of the contractor slice, beyond the explicit gaps in `PLAN.md`.
   handled for a live payout yet.
 - A legacy foreign claim with no rate is shown unquoted and cannot pay until HR fixes its
   currency or a quote exists.
-- Payouts still send the company currency in this stage. The payout snapshot fields and
-  the contract payout currency land in ticket 06.
+- Payouts now use the contract currency and the approval snapshot. A refused payout is
+  recorded for HR but hidden from the claimant, who sees an approved, unpaid claim.
+- The MYR guard can only be as right as the country on record. Vendors are created with
+  MY and there is no vendor country edit screen yet; a non-Malaysian vendor would need a
+  data change before a MYR payout to it is refused correctly.
+- Balances are read before a live payout, but HR still has no per-currency funding
+  runway alert. The funding card remains company-currency only.
 
 ## Contractor claims
 
@@ -40,6 +45,8 @@ Known limits of the contractor slice, beyond the explicit gaps in `PLAN.md`.
   renames a category can leave a contract pointing at a label the policy no longer lists.
 - Receipts outside the contract categories are grouped into one review claim per
   submission, not one claim per receipt.
+- Contractor claims never take recovery offsets and contractor recoveries are refused.
+  A contractor overpayment needs its own cross-currency design.
 - There is no per-contract approval route or contract-specific batch rule yet. Contract
   claims sit in the normal HR queue. A blocked receipt claim is `DUAL_REVIEW` and cannot
   enter batch approval; an allowed contractor claim in `HR_QUICK` can. Per-currency

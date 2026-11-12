@@ -6,6 +6,7 @@ ID for 30 days, so a 5xx or timeout is retried once with the same ID.
 """
 import base64
 import hashlib
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -344,7 +345,15 @@ class MockPayPalClient:
         return "CANCELED"
 
     async def get_balance(self, currency: str) -> Balance | None:
-        return Balance(currency.upper(), Decimal(str(settings.PAYPAL_MOCK_BALANCE)), datetime.now(timezone.utc))
+        configured = _mock_balances()
+        if configured is None:
+            return Balance(currency.upper(), Decimal(str(settings.PAYPAL_MOCK_BALANCE)), datetime.now(timezone.utc))
+        # A configured map means only the listed currencies are held, so the guard can be
+        # demonstrated without keys: {"MYR": "25000"} refuses every non-MYR payout.
+        amount = configured.get(currency.upper())
+        if amount is None:
+            return None
+        return Balance(currency.upper(), amount, datetime.now(timezone.utc))
 
     async def verify_webhook(self, headers: Mapping[str, str], event: dict, webhook_id: str) -> bool:
         return True
@@ -364,6 +373,19 @@ def _json_or_empty(resp: httpx.Response) -> dict:
     except ValueError:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _mock_balances() -> dict[str, Decimal] | None:
+    """Per-currency mock balances. None keeps the single-balance default."""
+    raw = (settings.PAYPAL_MOCK_BALANCES or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+        return {str(code).upper(): Decimal(str(amount)) for code, amount in parsed.items()}
+    except (ValueError, TypeError, AttributeError):
+        logger.error("[PAYPAL] PAYPAL_MOCK_BALANCES is not a JSON object of amounts; using the default balance")
+        return None
 
 
 _client: "PayPalClient | MockPayPalClient | None" = None

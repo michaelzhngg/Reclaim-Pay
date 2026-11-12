@@ -17,7 +17,7 @@ import pytest
 
 from core.config import settings
 from core.enums import PayoutStatus, ReimbursementStatus
-from engine.services import payout_service, payout_status
+from engine.services import payout_guard, payout_service, payout_status
 from engine.services.paypal_client import (
     PayPalClient,
     PayPalError,
@@ -92,7 +92,18 @@ async def test_rejected_payout_leaves_the_claim_for_hr_retry(monkeypatch):
     client, _ = paypal({("POST", "/v1/payments/payouts"): httpx.Response(422, json=INSUFFICIENT_FUNDS)})
     reim = SimpleNamespace(reim_id=RID, user_id=UID, status=ReimbursementStatus.APPROVED)
     employee = SimpleNamespace(paypal_payer_id="PAYERID123")
-    monkeypatch.setattr(payout_service, "_plan", lambda reim_id, db: (reim, employee, ("CREATE", Decimal("48"), 1), []))
+    destination = SimpleNamespace(
+        payee=employee, currency="MYR", amount=Decimal("48"), payee_country="MY", contract_id=None,
+    )
+    monkeypatch.setattr(
+        payout_service, "_plan",
+        lambda reim_id, db: (reim, destination, ("CREATE", Decimal("48"), 1), []),
+    )
+    monkeypatch.setattr(payout_service, "payout_settings_values", lambda db: ("MY", ["MYR"]))
+
+    async def funding(*_a, **_k):
+        return payout_guard.Funding("MYR", Decimal("1000"))
+    monkeypatch.setattr(payout_service, "read_funding", funding)
     monkeypatch.setattr(payout_service, "_mark_disbursing", lambda db, r: None)
     monkeypatch.setattr(payout_service, "get_paypal_client", lambda: client)
     saved = []

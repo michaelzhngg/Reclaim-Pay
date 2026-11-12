@@ -25,6 +25,8 @@ class UserBase(BaseModel):
     email: EmailStr
     name: str
     role: UserRole = UserRole.Employee
+    # Payee country for the MYR guard. Omitted means MY.
+    country_code: Optional[str] = None
     department_id: Optional[UUID] = None
     privilege_level: PrivilegeLevel = PrivilegeLevel.Standard
     rank: Optional[int] = Field(default=1, ge=1)

@@ -41,7 +41,13 @@ from engine.services import fx
 from engine.services.approvals import DUAL_TIER, register_approval, required_approvals, split_batch
 from engine.services.payee_link import cooldown_until
 from engine.risk.timeline import make_step
-from engine.services.payout_service import initiate_payout_sync
+from engine.services.payout_service import (
+    PayoutRefused,
+    initiate_payout_sync,
+    lock_payout_snapshot,
+    payout_preview,
+)
+from engine.services import payout_guard
 from engine.services.paypal_client import mask_email
 from engine.services.recovery_service import OFFSET_APPLIED_STATUSES, release_offsets
 from core.push_service import fire_and_forget_push
@@ -195,6 +201,8 @@ def _build_reimbursement_response(
         else:
             contract = db.get(ContractorContract, r.contract_id)
 
+    preview = payout_preview(db, r) if viewer_is_hr else None
+
     result = {
         "reim_id": str(r.reim_id),
         "user_id": str(r.user_id),
@@ -224,6 +232,22 @@ def _build_reimbursement_response(
         "fx_rate_at": r.fx_rate_at.isoformat() if r.fx_rate_at else None,
         "fx_source": r.fx_source,
         "fx_unavailable": fx.is_unquoted(r),
+        # What approval locked: the amount and currency PayPal will send.
+        "payout_amount": float(r.payout_amount) if r.payout_amount is not None else None,
+        "payout_currency": r.payout_currency,
+        "payout_fx_rate": float(r.payout_fx_rate) if r.payout_fx_rate else None,
+        "payout_fx_at": r.payout_fx_at.isoformat() if r.payout_fx_at else None,
+        "payout_preview": (
+            {
+                "amount": float(preview.amount),
+                "currency": preview.currency,
+                "rate": float(preview.rate) if preview.rate is not None else None,
+                "as_of": preview.as_of.isoformat() if preview.as_of else None,
+                "source": preview.source,
+                "company_amount": (float(preview.company_amount)
+                                   if preview.company_amount is not None else None),
+            } if preview else None
+        ),
         "confidence": r.confidence,
         "judgment": _enum_val(r.judgment),
         "status": _enum_val(r.status),
@@ -327,17 +351,20 @@ def _build_reimbursement_response(
             select(Payout).where(Payout.reim_id == r.reim_id).order_by(Payout.created_at.desc())
         ).first()
     if payout:
-        result["payout"] = {
-            "payout_id": str(payout.payout_id),
-            "amount": float(payout.amount),
-            "currency": payout.currency,
-            "status": _enum_val(payout.status),
-            "xendit_id": payout.xendit_id,
-            "channel_code": payout.channel_code,
-            "failure_code": payout.failure_code,
-            "created_at": payout.created_at.isoformat() if payout.created_at else None,
-            "updated_at": payout.updated_at.isoformat() if payout.updated_at else None,
-        }
+        # A guard refusal is HR's problem: the claimant sees an approved claim, not a
+        # payment error that they cannot act on.
+        if viewer_is_hr or not payout_guard.is_refusal(payout.failure_code):
+            result["payout"] = {
+                "payout_id": str(payout.payout_id),
+                "amount": float(payout.amount),
+                "currency": payout.currency,
+                "status": _enum_val(payout.status),
+                "xendit_id": payout.xendit_id,
+                "channel_code": payout.channel_code,
+                "failure_code": payout.failure_code,
+                "created_at": payout.created_at.isoformat() if payout.created_at else None,
+                "updated_at": payout.updated_at.isoformat() if payout.updated_at else None,
+            }
 
     return result
 
@@ -653,8 +680,13 @@ def _apply_status(
         r.total_rejected_amount = float(r.total_claimed_amount or 0) - approved_sum
         if new_status == ReimbursementStatus.APPROVED:
             _apply_company_amounts(db, r, approved_sum, datetime.now(timezone.utc))
+            lock_payout_snapshot(db, r, approved_sum, datetime.now(timezone.utc))
         else:
             r.approved_company_amount = 0.0
+            r.payout_amount = None
+            r.payout_currency = None
+            r.payout_fx_rate = None
+            r.payout_fx_at = None
 
     now = datetime.now(timezone.utc)
     r.status = new_status
@@ -893,6 +925,15 @@ def _auto_payout(db: Session, reim: Reimbursement, loop, emit) -> bool:
     try:
         payout = initiate_payout_sync(reim.reim_id, db, loop=loop)
         db.refresh(reim)
+    except PayoutRefused as refused:
+        logger.warning("[API_ANALYZE_BG] Payout refused for reim=%s: %s", reim.reim_id, refused.code)
+        db.rollback()
+        payout = None
+        emit(make_step(
+            "payout.create", "fail",
+            "This payment is on hold while HR fixes the payout setup. Your claim stays approved.",
+        ))
+        return True
     except Exception:
         logger.exception("[API_ANALYZE_BG] Auto-payout failed for reim=%s, claim stays APPROVED", reim.reim_id)
         db.rollback()

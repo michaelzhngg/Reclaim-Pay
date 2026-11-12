@@ -53,6 +53,11 @@ class User(SQLModel, table=True):
         default=UserRole.Employee,
         sa_column=Column(String, nullable=False)
     )
+    # Payee country for the MYR guard. Existing staff were backfilled to MY.
+    country_code: str = Field(
+        default="MY",
+        sa_column=Column(String(2), nullable=False, server_default="MY")
+    )
     department_id: Optional[UUID] = Field(
         default=None,
         foreign_key="departments.department_id"
@@ -123,6 +128,11 @@ class Vendor(SQLModel, table=True):
     name: str = Field(sa_column=Column(String, nullable=False))
     # Case-folded, whitespace-collapsed name. Unique so a booking cannot fork the same vendor.
     name_key: str = Field(sa_column=Column(String, unique=True, index=True, nullable=False))
+    # Payee country for the MYR guard. A new vendor is Malaysian until HR says otherwise.
+    country_code: str = Field(
+        default="MY",
+        sa_column=Column(String(2), nullable=False, server_default="MY")
+    )
     default_category: Optional[str] = Field(default=None, sa_column=Column(String))
     paypal_email: Optional[str] = Field(default=None, sa_column=Column(String))
     paypal_payer_id: Optional[str] = Field(default=None, sa_column=Column(String, index=True))
@@ -481,6 +491,24 @@ class Reimbursement(SQLModel, table=True):
     fx_source: Optional[str] = Field(
         default=None,
         sa_column=Column(String)
+    )
+    # Expected payout locked at approval: what PayPal will send, in which currency, at the
+    # claim-to-payout rate behind it. Recovery offsets can lower the amount actually sent.
+    payout_amount: Optional[float] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 2))
+    )
+    payout_currency: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(3))
+    )
+    payout_fx_rate: Optional[float] = Field(
+        default=None,
+        sa_column=Column(Numeric(18, 8))
+    )
+    payout_fx_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True))
     )
     judgment: JudgmentResult = Field(
         sa_column=Column(String, nullable=False)

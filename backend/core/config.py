@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     MAINTENANCE_JOB_ENABLED: bool = True
     # The balance mock mode reports, in PAYPAL_CURRENCY.
     PAYPAL_MOCK_BALANCE: Decimal = Decimal("25000.00")
+    # Per-currency mock balances as JSON, e.g. {"MYR": "25000", "USD": "4000"}.
+    # Empty keeps the old behaviour: every currency reports PAYPAL_MOCK_BALANCE.
+    PAYPAL_MOCK_BALANCES: str = ""
     BACKEND_PUBLIC_URL: str = "http://localhost:8000"
     FRONTEND_PUBLIC_URL: str = "http://localhost:3000"
 

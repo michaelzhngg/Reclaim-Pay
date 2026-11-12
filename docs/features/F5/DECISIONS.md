@@ -133,23 +133,60 @@ plan in `PLAN.md` stays the reference; this file says where the build departs fr
   snapshot and the service category, so it appears in the existing contractor history and
   HR triage without new list endpoints.
 
-## Seams for 06
+## 06: Payouts in the payee currency and the MYR guard
 
-- **05 invoices, landed:** `reimbursements.contract_id` plus the period columns from
-  `b3e5f7a9c1d2`. `engine.services.contractor_invoices.create_invoice` is the intake:
-  contract checks, quantity by unit price, FX snapshot and the one call to `decide()`.
-  `contract_dict` still returns the rate and `POST /contractor-invoices` is the route.
-- **06 payout currency:** `engine.services.payout_service.payout_company_amount` is the
-  single place that decides what PayPal receives today. Replace its company-currency
-  conversion with the contract payout currency, add the payout snapshot fields
-  (`payout_amount`, `payout_currency`, `payout_fx_rate`, `payout_fx_at`) in a migration
-  chained after 05's (`b3e5f7a9c1d2`), and run the MYR guard before `create_payout`.
-  `Payout.amount` and `Payout.currency` are already written as the actual amount sent to
-  PayPal. The invoice route's AUTO_PAY call goes through the same service, so it inherits
-  the change without edits.
-- **07 batching:** `payee_for_reim` and `payout_company_amount` are the destination and
-  amount seams. Group by the resolved payout currency before building one PayPal batch,
-  and keep `provider_batch_id` as the only grouping key.
+- **The contract is the only source of the payout currency.** `payout_currency_for`
+  returns the contract currency for a contractor claim and the company currency otherwise.
+  `resolve_payout` returns the payee, currency, amount and payee country in one place, so
+  the route, the retry path and ticket 07's grouping read the same destination.
+  `payout_company_amount` is gone.
+- **The approval snapshot is the payout amount.** `lock_payout_snapshot` writes
+  `payout_amount`, `payout_currency`, `payout_fx_rate` and `payout_fx_at` in the same
+  commit as `_apply_company_amounts`, and AUTO_PAY claims lock it in `save_reimbursement`.
+  A full payout uses the snapshot; a recovery offset nets the claim currency first and
+  converts at the locked rate. A missing quote leaves the fields empty and the payout
+  service skips with `SKIP_NO_FX_QUOTE`.
+- **The guard is pure and always runs before DISBURSING.** `engine/services/payout_guard.py`
+  takes the payout currency, both countries, the held currencies and one balance read. It
+  never reads the request body. Static country and funding rules run first; the balance is
+  read only when those pass. Both the sync and async payout entry points call it, so a
+  retry cannot skip it.
+- **Refusals are Failed payouts, not PayPal failures.** A refusal writes a `FAILED` row
+  with the reason in `failure_code`, the amount and currency, no `provider_batch_id`, and
+  notifies every active HR user. The claim stays approved. The claimant's claim response
+  omits a refusal payout entirely, so a contractor sees approved and unpaid rather than a
+  payment error.
+- **Mock balances are per-currency and configurable.** `PAYPAL_MOCK_BALANCES` is a JSON
+  map, for example `{"MYR": "25000", "USD": "4000"}`. Empty keeps the old single balance.
+  Live mode reads PayPal and fails closed on an unreachable, unreadable or missing balance.
+  A non-MYR payout is read from the payout currency first, then any other non-MYR held
+  currency, which keeps the "hold USD, pay IDR" case working.
+- **Payee country is data, not request input.** `employees.country_code` and
+  `vendors.country_code` were added and backfilled to MY; registration accepts a country.
+  A contractor claim uses `contractor_contracts.country_code` and ignores the user row.
+  The contract's country stays editable through `PATCH /contracts/{id}`.
+- **Contractor claims never take offsets and contractor recoveries are refused.**
+  `find_offset_claim` skips claims with a contract, `offset_for_reim` returns the full
+  approved amount for them, and `create_recovery` returns
+  `CONTRACTOR_RECOVERY_UNSUPPORTED`. Employee recovery behaviour is unchanged.
+- **HR sees the payout quote before approving.** The claim read returns
+  `payout_preview` for HR when no snapshot exists yet: amount and currency, the
+  claim-to-payout rate, the quote time and the company equivalent. The review page shows
+  it in the Financial Summary card.
+- **The funding summary stays company-currency.** The committed total already uses
+  `approved_company_amount`, and the recent-payout rate filters `Payout.currency` to the
+  company currency, so a foreign payout is never added raw to the MYR figure.
+- **Invoice AUTO_PAY inherits the change.** The invoice submit route calls the same payout
+  service as an analyzed claim, so it gets the contract payout currency, the approval
+  snapshot and the guard with no invoice-specific branch.
+
+### Seam for 07
+
+- `resolve_payout(db, reim, net_claim)` is the single preflight for payee, currency and
+  amount. Group the approved set by `destination.currency` before building one PayPal
+  batch per group. A refusal happens per claim before its group is built; keep the
+  refusal row out of any group (`provider_batch_id` is None), and keep `provider_batch_id`
+  as the only grouping key.
 
 
 

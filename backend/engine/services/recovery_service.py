@@ -98,6 +98,9 @@ def offset_for_reim(db: Session, reim: Reimbursement) -> tuple[Decimal, list[UUI
     db.exec(select(Reimbursement.reim_id).where(Reimbursement.reim_id == reim.reim_id).with_for_update())
     if is_vendor_booking(reim):
         return _money(reim.total_approved_amount), []
+    if reim.contract_id:
+        # Contractor recoveries are not built in this slice, so no offset can exist.
+        return _money(reim.total_approved_amount), []
     offsets = _offsets_on(db, reim.reim_id)
     net = apply_offsets(_money(reim.total_approved_amount), [_money(r.amount) for r in offsets])
     return net, [r.recovery_id for r in offsets]
@@ -110,6 +113,8 @@ def find_offset_claim(db: Session, rec: Recovery) -> tuple[Reimbursement, Decima
         .where(
             Reimbursement.user_id == rec.user_id,
             Reimbursement.kind == "CLAIM",
+            # Offset stays employee-claim-only until cross-currency recovery exists.
+            Reimbursement.contract_id.is_(None),
             Reimbursement.reim_id != rec.reim_id,
             Reimbursement.status.in_(OFFSET_TARGET_STATUSES),
         )
@@ -224,6 +229,9 @@ def create_recovery(db: Session, reim: Reimbursement, amount: Decimal, reason: s
     _reject_self(reim.user_id, hr)
     if is_vendor_booking(reim):
         raise RecoveryError(409, "NOT_A_CLAIM")
+    if reim.contract_id:
+        # Recovery remains employee-claim-only; a contractor recovery needs its own design.
+        raise RecoveryError(409, "CONTRACTOR_RECOVERY_UNSUPPORTED")
     if reim.status != ReimbursementStatus.PAID.value:
         raise RecoveryError(409, "NOT_PAID")
     db.exec(select(Reimbursement.reim_id).where(Reimbursement.reim_id == reim.reim_id).with_for_update())

@@ -25,7 +25,7 @@ from engine.risk.types import (
 from engine.services import autonomy_store, fx
 from engine.services.backtest_service import load_backtest_cases
 from engine.services.funding_service import _committed
-from engine.services.payout_service import payout_company_amount
+from engine.services.payout_service import payout_amount_for
 
 NOW = datetime(2026, 11, 12, 9, 0, tzinfo=timezone.utc)
 
@@ -285,10 +285,11 @@ def test_payouts_use_the_company_amount_or_fail_closed(pg_db):
     pg_db.add_all([foreign, unquoted])
     pg_db.commit()
 
-    assert payout_company_amount(pg_db, foreign, Decimal("120")) == Decimal("564.00")
+    # An employee payout is in the company currency: the locked quote converts the claim.
+    assert payout_amount_for(foreign, Decimal("120"), "MYR") == Decimal("564.00")
     # A recovery offset nets the claim currency, then converts at the locked approval quote.
-    assert payout_company_amount(pg_db, foreign, Decimal("60")) == Decimal("282.00")
-    assert payout_company_amount(pg_db, unquoted, Decimal("50")) is None
+    assert payout_amount_for(foreign, Decimal("60"), "MYR") == Decimal("282.00")
+    assert payout_amount_for(unquoted, Decimal("50"), "MYR") is None
 
 
 def test_hr_review_refreshes_a_stale_quote(pg_db):

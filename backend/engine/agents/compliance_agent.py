@@ -887,6 +887,10 @@ def save_reimbursement(
         autonomy=autonomy_record,
         audit_selected=decision.audit_selected,
     )
+    if total_approved > 0:
+        # AUTO_PAY is an approval too: lock the payout at the same quote the limits used.
+        from engine.services.payout_service import lock_payout_snapshot
+        lock_payout_snapshot(session, reimbursement, total_approved, now)
 
     try:
         session.add(reimbursement)
