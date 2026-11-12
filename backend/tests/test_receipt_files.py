@@ -91,3 +91,27 @@ def test_path_guard_without_a_database(tmp_path, monkeypatch):
     assert receipt_file_path(None) is None
     assert receipt_url("abc") == "/api/v1/documents/abc/file"
     assert receipt_url("abc", is_pdf=True) == "/api/v1/documents/abc/file?kind=pdf"
+
+
+def test_only_images_and_pdfs_are_served_inline(env, tmp_path, monkeypatch):  # noqa: F811
+    monkeypatch.setattr("api.receipt_files.STORAGE_DOCUMENTS_DIR", tmp_path)
+    c, db, users, act_as = env
+    html = _doc(db, users["emp"], tmp_path, name="evil.html", type_="pdf")
+    jpg = _doc(db, users["emp"], tmp_path, name="ok.jpg")
+
+    act_as("hr1")
+    res = c.get(f"/api/v1/documents/{html.document_id}/file")
+    assert res.headers["content-type"] == "application/octet-stream"
+    assert res.headers["content-disposition"].startswith("attachment")
+    assert c.get(f"/api/v1/documents/{jpg.document_id}/file").headers["content-type"] == "image/jpeg"
+
+
+def test_media_type_allowlist_without_a_database():
+    from pathlib import Path
+
+    from api.receipt_files import receipt_media_type
+
+    assert receipt_media_type(Path("a.JPG")) == "image/jpeg"
+    assert receipt_media_type(Path("a.pdf")) == "application/pdf"
+    for bad in ("a.html", "a.svg", "a.htm", "a.xml", "a.js", "noext"):
+        assert receipt_media_type(Path(bad)) is None

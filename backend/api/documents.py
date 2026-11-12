@@ -23,7 +23,7 @@ from api.rate_limit import (
     UPLOAD_MESSAGE,
     limiter,
 )
-from api.receipt_files import STORAGE_DOCUMENTS_DIR, receipt_file_path
+from api.receipt_files import STORAGE_DOCUMENTS_DIR, receipt_file_path, receipt_media_type
 from api.schemas import DocumentChangeLogResponse, DocumentFieldEditRequest, SupportingDocumentListItem
 from core.models import (
     User, SupportingDocument, TravelSettlement, SettlementReceipt,
@@ -545,7 +545,12 @@ def get_document_file(
     file_path = receipt_file_path(doc.path)
     if file_path is None:
         raise HTTPException(status_code=404, detail="Receipt file not found")
-    return FileResponse(file_path, headers={"Cache-Control": "private, max-age=300"})
+    headers = {"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"}
+    media_type = receipt_media_type(file_path)
+    if media_type is None:
+        return FileResponse(file_path, media_type="application/octet-stream", filename=file_path.name,
+                            content_disposition_type="attachment", headers=headers)
+    return FileResponse(file_path, media_type=media_type, headers=headers)
 
 
 @router.get("/{document_id}/history")

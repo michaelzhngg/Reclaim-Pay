@@ -3,6 +3,12 @@ import { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+// Only images and PDFs render inline. Anything else (an uploaded .html or .svg) would run as
+// script on this domain when HR opens it, so it is sent as a download instead.
+const INLINE_TYPES = new Set([
+  "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "application/pdf",
+]);
+
 /** Streams a receipt file from the backend, passing the signed-in user's session token. */
 export async function GET(
   _req: NextRequest,
@@ -25,9 +31,12 @@ export async function GET(
     return new Response("Receipt unavailable", { status: upstream.status === 200 ? 502 : upstream.status });
   }
 
+  const upstreamType = (upstream.headers.get("Content-Type") ?? "").split(";")[0].trim().toLowerCase();
+  const inline = INLINE_TYPES.has(upstreamType);
   return new Response(upstream.body, {
     headers: {
-      "Content-Type": upstream.headers.get("Content-Type") ?? "application/octet-stream",
+      "Content-Type": inline ? upstreamType : "application/octet-stream",
+      ...(inline ? {} : { "Content-Disposition": "attachment" }),
       "Cache-Control": "private, max-age=300",
       "X-Content-Type-Options": "nosniff",
     },

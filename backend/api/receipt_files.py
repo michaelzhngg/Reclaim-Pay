@@ -5,6 +5,23 @@ from typing import Optional
 STORAGE_DOCUMENTS_DIR = Path(__file__).parent.parent / "storage" / "documents"
 _STORED_PREFIX = "/storage/documents/"
 
+# Only these are served inline. Anything else (an uploaded .html or .svg, say) would run as
+# script on the app's own domain when HR opens it, so it is sent as a download instead.
+SAFE_RECEIPT_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".heic": "image/heic",
+    ".pdf": "application/pdf",
+}
+
+
+def receipt_media_type(file_path: Path) -> Optional[str]:
+    """The inline media type for a receipt file, or None when it must be downloaded instead."""
+    return SAFE_RECEIPT_TYPES.get(file_path.suffix.lower())
+
 
 def receipt_file_path(stored_path: Optional[str]) -> Optional[Path]:
     """The file for a stored path like "/storage/documents/<user>/<name>", or None if it isn't on disk.
