@@ -341,6 +341,8 @@ export interface BacktestResult {
   by_tier: Partial<Record<AutonomyTier, number>>;
   curve: BacktestPoint[];
   assumptions: string[];
+  /** Replayed claims that are seeded demo data. Missing from older backends. */
+  demo_claims?: number;
 }
 
 export type AgentActionType =

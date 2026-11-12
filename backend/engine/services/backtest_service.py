@@ -55,6 +55,7 @@ class BacktestCase(BaseModel):
     history: EmployeeHistory
     payee: PayeeStatus
     bad: bool
+    demo: bool = False
 
 
 class CurvePoint(BaseModel):
@@ -76,6 +77,7 @@ class BacktestResult(BaseModel):
     by_tier: dict[str, int]
     curve: list[CurvePoint]
     assumptions: list[str]
+    demo_claims: int = 0
 
 
 def _tiers(cases: list[BacktestCase], config: AutonomyConfig, now: datetime) -> list[AutonomyTier]:
@@ -93,8 +95,18 @@ def _rate(tiers: list[AutonomyTier]) -> float:
     return round(sum(1 for t in tiers if t == AutonomyTier.AUTO_PAY) / len(tiers), 3)
 
 
+def demo_assumption(demo: int, total: int) -> str | None:
+    """Seeded claims were decided by decide() with the default config, so tuning on them is circular."""
+    if demo == 0:
+        return None
+    share = f"all {total}" if demo == total else f"{demo} of {total}"
+    return f"{share} claims are demo data, so don't tune limits on these results"
+
+
 def run_backtest(cases: list[BacktestCase], config: AutonomyConfig, now: datetime) -> BacktestResult:
     config = config.model_copy(update={"enabled": True})
+    demo = sum(1 for c in cases if c.demo)
+    warning = demo_assumption(demo, len(cases))
     tiers = _tiers(cases, config, now)
     auto = [c for c, t in zip(cases, tiers) if t == AutonomyTier.AUTO_PAY]
     by_tier = {t.value: 0 for t in AutonomyTier}
@@ -122,7 +134,8 @@ def run_backtest(cases: list[BacktestCase], config: AutonomyConfig, now: datetim
         hr_hours_saved=round(len(auto) * config.review_minutes / 60, 1),
         by_tier=by_tier,
         curve=curve,
-        assumptions=list(ASSUMPTIONS),
+        assumptions=list(ASSUMPTIONS) + ([warning] if warning else []),
+        demo_claims=demo,
     )
 
 
@@ -186,7 +199,8 @@ def _case(r: Reimbursement, rows: list[tuple[datetime, dict]], issues: list[date
         claimant_is_hr=HardStop.HR_SELF_CLAIM.value in stops,
     )
     signals = [RiskSignal.model_validate(s) for s in stored.get("signals") or []]
-    return BacktestCase(claim=claim, signals=signals, history=history, payee=payee, bad=bad)
+    demo = isinstance(r.ai_reasoning, dict) and bool(r.ai_reasoning.get("demo_seed"))
+    return BacktestCase(claim=claim, signals=signals, history=history, payee=payee, bad=bad, demo=demo)
 
 
 def load_backtest_cases(db: Session, now: datetime, days: int = 90) -> list[BacktestCase]:
