@@ -145,7 +145,8 @@ Priorities:
 | [x] | Close the two-person approval bypass; claims that skip `decide()` need two approvers; no PAID without money moved | Must | 2 |
 | [x] | Owner-only claim progress stream; no edit-risk count to employees; only resolved recoveries lower trust | Must | 2 |
 | [x] | HR's explicit MYR 0 on a line stands; approved amounts can't exceed the claim | Must | 2 |
-| [ ] | Deploy these fixes to the live site (commits on `hackathon/reclaim-pay`, not yet on `main`) | Must | 2 |
+| [x] | Deploy these fixes to the live site _(PR #11, deployed 4 Nov)_ | Must | 2 |
+| [x] | Log why a Connect PayPal attempt failed (PayPal error and debug ID, or payer already linked) in the HR agent log | Should | 2 |
 
 ### 4.6 Staging, data, QA, demo — Darrell
 

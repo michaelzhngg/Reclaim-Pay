@@ -1,9 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getLedger } from "@/lib/actions/paypal";
 import type { PayoutLedgerRow, PayoutStatus } from "@/lib/api/reclaim-pay-types";
-import LedgerGrid from "@/components/hr-grid/LedgerGrid";
 import ReconcileBadge from "@/components/hr-grid/ReconcileBadge";
 import { TabEmpty, TabError, TabLoading } from "@/components/hr-grid/TabStates";
 import {
@@ -15,6 +15,11 @@ import {
   type StatusFilter,
 } from "@/components/hr-grid/ledger";
 
+const LedgerGrid = dynamic(() => import("@/components/hr-grid/LedgerGrid"), {
+  ssr: false,
+  loading: () => <TabLoading label="Loading payouts" />,
+});
+
 const POLL_MS = 5000;
 
 const STATUS_OPTIONS = Object.keys(STATUS_META) as PayoutStatus[];
@@ -22,6 +27,7 @@ const STATUS_OPTIONS = Object.keys(STATUS_META) as PayoutStatus[];
 export default function LedgerTab() {
   const [rows, setRows] = useState<PayoutLedgerRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [ledgerLoaded, setLedgerLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusFilter>("ALL");
 
@@ -33,7 +39,10 @@ export default function LedgerTab() {
           setError(null);
         })
         .catch(() => setError("Couldn't load payouts. Check your connection and try again."))
-        .finally(() => setIsLoading(false)),
+        .finally(() => {
+          setIsLoading(false);
+          setLedgerLoaded(true);
+        }),
     [],
   );
 
@@ -60,7 +69,7 @@ export default function LedgerTab() {
 
   return (
     <>
-      <ReconcileBadge />
+      <ReconcileBadge start={ledgerLoaded} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
         <p className="text-sm text-ink-muted" aria-live="polite">
           {isLoading ? (

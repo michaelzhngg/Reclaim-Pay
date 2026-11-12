@@ -225,13 +225,88 @@ def _fmt_date(d: datetime) -> str:
     return f"{d.day} {d:%b %Y}"
 
 
+MAX_TRUST_CHANGES = 3
+# Ties at one instant: an issue explains a change before a paid claim, a paid claim before time passing.
+_CAUSE_ORDER = {"recovery": 0, "correction": 0, "approved_claims": 1, "time_passed": 2}
+_TIER_RANK = {TrustTier.NEW: 0, TrustTier.STANDARD: 1, TrustTier.TRUSTED: 2}
+
+
+def trust_changes(paid_at: list[datetime], issues: list[tuple[datetime, str, UUID]], config: AutonomyConfig,
+                  now: datetime, limit: int = MAX_TRUST_CHANGES) -> list[dict]:
+    """Replays trust_tier() over the employee's paid claims and confirmed issues. Newest change first.
+
+    Limits come from the current config, so an HR limit change is not a trust change.
+    """
+    now = store._utc(now)
+    paid = sorted(store._utc(t) for t in paid_at if store._utc(t) <= now)
+    issue_rows = sorted((store._utc(at), kind, reim_id) for at, kind, reim_id in issues if store._utc(at) <= now)
+
+    # history_from_rows counts an issue while it is at most N days old, so it stops counting just after.
+    events: list[tuple[datetime, str, UUID | None]] = [(t, "approved_claims", None) for t in paid]
+    for at, kind, reim_id in issue_rows:
+        events.append((at, kind, reim_id))
+        for days in (NEW_ISSUE_DAYS, TRUSTED_ISSUE_DAYS):
+            ends = at + timedelta(days=days, microseconds=1)
+            if ends <= now:
+                events.append((ends, "time_passed", None))
+    events.sort(key=lambda e: (e[0], _CAUSE_ORDER[e[1]]))
+
+    changes: list[dict] = []
+    tier = TrustTier.NEW
+    i = 0
+    while i < len(events):
+        at = events[i][0]
+        group = []
+        while i < len(events) and events[i][0] == at:
+            group.append(events[i])
+            i += 1
+        history = EmployeeHistory(
+            paid_claims=sum(1 for t in paid if t <= at),
+            confirmed_issues_90d=sum(1 for d, _, _ in issue_rows if at - timedelta(days=NEW_ISSUE_DAYS) <= d <= at),
+            confirmed_issues_180d=sum(1 for d, _, _ in issue_rows
+                                      if at - timedelta(days=TRUSTED_ISSUE_DAYS) <= d <= at),
+            auto_paid_today=0, auto_paid_month=0,
+        )
+        new_tier = trust_tier(history)
+        if new_tier == tier:
+            continue
+        went_down = _TIER_RANK[new_tier] < _TIER_RANK[tier]
+        cause = next((e for e in group if (e[1] in ("recovery", "correction")) == went_down), group[0])
+        changes.append({
+            "at": at,
+            "from_tier": tier,
+            "to_tier": new_tier,
+            "from_limit": limit_for(config, tier),
+            "to_limit": limit_for(config, new_tier),
+            "cause": cause[1],
+            "reim_id": cause[2],
+        })
+        tier = new_tier
+    return list(reversed(changes))[:limit]
+
+
+def trust_levels(config: AutonomyConfig) -> list[dict]:
+    return [
+        {"tier": TrustTier.NEW, "auto_limit": config.auto_limit_new, "min_paid_claims": 0},
+        {"tier": TrustTier.STANDARD, "auto_limit": config.auto_limit_standard, "min_paid_claims": STANDARD_MIN_PAID},
+        {"tier": TrustTier.TRUSTED, "auto_limit": config.auto_limit_trusted, "min_paid_claims": TRUSTED_MIN_PAID},
+    ]
+
+
 def employee_trust(db: Session, user_id: UUID, config: AutonomyConfig, now: datetime) -> dict:
     """Trust card data for one employee. Holds no signal, score or claim detail."""
     now = store._utc(now)
     history = store.employee_history(db, user_id, now)
     tier = trust_tier(history)
     next_tier, needed = next_tier_info(history)
-    issues = [store._utc(d) for d in store._confirmed_issue_dates(db, user_id)]
+    issue_rows = store.confirmed_issues(db, user_id)
+    issues = [store._utc(d) for d, _, _ in issue_rows]
+    paid_at = [
+        store._claim_row(r)["updated_at"]
+        for r in db.exec(select(Reimbursement).where(
+            Reimbursement.user_id == user_id, Reimbursement.status == ReimbursementStatus.PAID.value
+        )).all()
+    ]
 
     reasons: list[str] = []
     limited_until = None
@@ -257,4 +332,8 @@ def employee_trust(db: Session, user_id: UUID, config: AutonomyConfig, now: date
         "currency": config.currency,
         "next_limit": limit_for(config, next_tier) if next_tier else None,
         "limited_until": limited_until,
+        "changes": trust_changes(paid_at, issue_rows, config, now),
+        "levels": trust_levels(config),
+        "hold_days": NEW_ISSUE_DAYS,
+        "trusted_clean_days": TRUSTED_ISSUE_DAYS,
     }

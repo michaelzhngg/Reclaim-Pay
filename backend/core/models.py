@@ -5,7 +5,7 @@ from datetime import datetime, timezone, date
 from sqlmodel import Field, SQLModel, Column, String, Text, Integer, Boolean, DateTime, Float, Date, Numeric
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, ForeignKey, UniqueConstraint, text
+from sqlalchemy import BigInteger, ForeignKey, Index, UniqueConstraint, text
 
 from core.enums import (
     UserRole,
@@ -399,7 +399,7 @@ class Reimbursement(SQLModel, table=True):
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True))
+        sa_column=Column(DateTime(timezone=True), index=True)
     )
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -686,6 +686,8 @@ class ClaimDraft(SQLModel, table=True):
 
 class Payout(SQLModel, table=True):
     __tablename__ = "payouts"
+    # The claim list picks each claim's latest payout.
+    __table_args__ = (Index("ix_payouts_reim_id_created_at", "reim_id", "created_at"),)
 
     payout_id: UUID = Field(
         default_factory=uuid4,

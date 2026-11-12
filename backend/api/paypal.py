@@ -178,24 +178,31 @@ async def paypal_callback(
         return _settings_redirect("error")
 
     employee = db.get(User, user_id)
-    if not employee or not code:
+    if not employee:
         return _settings_redirect("error")
 
+    def failed(reason: str, **detail):
+        # Only reached with a valid signed state, so anonymous traffic can't write to the action log.
+        record_action(db, AgentActionType.PAYEE_LINK_FAILED, str(user_id), None, {"reason": reason, **detail})
+        return _settings_redirect("error")
+
+    if not code:
+        return failed("no_code")
     client = get_paypal_client()
     try:
         paypal_user = await client.get_userinfo(await client.exchange_auth_code(code))
-    except PayPalError:
+    except PayPalError as err:
         logger.exception("[PAYPAL_LINK] Code exchange or userinfo failed for user=%s", user_id)
-        return _settings_redirect("error")
+        return failed("paypal_error", status=err.status, error=err.name, debug_id=err.debug_id)
     if not paypal_user.payer_id:
-        return _settings_redirect("error")
+        return failed("no_payer_id")
 
     taken = db.exec(
         select(User).where(User.paypal_payer_id == paypal_user.payer_id, User.user_id != user_id)
     ).first()
     if taken:
         logger.warning("[PAYPAL_LINK] Payer already linked to another employee; user=%s", user_id)
-        return _settings_redirect("error")
+        return failed("payer_already_linked")
 
     update = link_update(employee.paypal_payer_id, employee.paypal_linked_at is not None, paypal_user, now)
     for field, value in update.items():

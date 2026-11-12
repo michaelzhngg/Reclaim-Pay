@@ -229,9 +229,10 @@ def trip_breaker(db: Session, reason: str, now: datetime) -> datetime:
     return until
 
 
-def _confirmed_issue_dates(db: Session, user_id: UUID) -> list[datetime]:
+def confirmed_issues(db: Session, user_id: UUID) -> list[tuple[datetime, str, UUID]]:
+    """(date, kind, reim_id) for each issue that counts against trust. kind is "recovery" or "correction"."""
     recoveries = db.exec(
-        select(Recovery.created_at).where(
+        select(Recovery.created_at, Recovery.reim_id).where(
             Recovery.user_id == user_id, Recovery.status.in_(CONFIRMED_RECOVERY_STATUSES)
         )
     ).all()
@@ -242,9 +243,13 @@ def _confirmed_issue_dates(db: Session, user_id: UUID) -> list[datetime]:
             Reimbursement.reviewed_by.is_not(None),
         )
     ).all()
-    dates = [d for d in recoveries if d]
-    dates += [r.reviewed_at or r.updated_at for r in rejected if _has_high_signal(r.autonomy)]
-    return [d for d in dates if d]
+    issues = [(d, "recovery", reim_id) for d, reim_id in recoveries if d]
+    issues += [(r.reviewed_at or r.updated_at, "correction", r.reim_id) for r in rejected if _has_high_signal(r.autonomy)]
+    return [i for i in issues if i[0]]
+
+
+def _confirmed_issue_dates(db: Session, user_id: UUID) -> list[datetime]:
+    return [d for d, _, _ in confirmed_issues(db, user_id)]
 
 
 def employee_history(db: Session, user_id: UUID, now: datetime) -> EmployeeHistory:

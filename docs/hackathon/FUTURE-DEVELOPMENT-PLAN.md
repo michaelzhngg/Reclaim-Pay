@@ -33,7 +33,7 @@
 | F7 | **HR assistant (proposes, never pays)** | HR asks in plain language and the assistant prepares a batch. HR reviews it and clicks approve. The assistant never sends money itself. | "Show approved travel claims under RM100 from last week" → 14 claims, RM812 total → HR clicks "Approve batch". | Manager approval is the slowest step. Only 28.5% of managers approve within a day. Our safety rule stays: a person always presses the button. |
 | F8 | **Policy simulator** | HR changes a rule and sees what it would have cost last quarter before saving. | "Raise the meal cap from RM50 to RM80" → "+RM3,140 last quarter, 41 fewer partial approvals." | Out-of-policy spending costs companies about $85k a year. HR currently guesses the effect of policy changes. |
 | F9 | **Smart buying for equipment** | The employee says what they need, and the agent finds options within policy (Channel3) and the company pays (PayPal). | "I need a 27-inch monitor" → 3 options under the RM900 cap → manager approves → paid and shipped. | Moves Reclaim from paying back to controlling spend. It also fits the agentic-commerce trend that PayPal and Channel3 are both betting on. |
-| F10 | **Camera-first app and wallet** | Open the app and the camera is ready. One screen shows pending, approved and paid claims, and the total for the year. | Snap a receipt at the counter. The claim is drafted before you sit down. | A quarter of travelers lose receipts. Capturing at the moment of purchase fixes this. |
+| F10 | ~~**Camera-first app and wallet**~~ **(dropped 12 Nov, see §6)** | Open the app and the camera is ready. One screen shows pending, approved and paid claims, and the total for the year. | Snap a receipt at the counter. The claim is drafted before you sit down. | A quarter of travelers lose receipts. Capturing at the moment of purchase fixes this. |
 | F11 | **Team budgets with early warnings** | Each team has a live budget, and the agent warns before it's used up. | "Sales has used 85% of November's travel budget with 12 days left." | Finance finds overspending at month end, when it's too late to change anything. |
 | F12 | **Month-end report for finance** | The agent writes the month's summary: spend by category, flags, policy breaches, payouts, recoveries. | "November: RM48,210 reimbursed, 71% auto-paid, 3 fakes caught, RM90 recovered." | Saves finance hours each month, and gives managers something to read instead of a spreadsheet. |
 | F13 | **Malaysian e-invoice readiness** | Keep the data needed for LHDN MyInvois (supplier details, self-billed invoices where required) with each claim. | A claim against a supplier without an e-invoice is tagged "self-billed e-invoice may be needed". | E-invoicing became mandatory for businesses earning RM1m–5m from 1 Jan 2026. Finance teams need expense records that fit it. *Verify which expense types are affected.* |
@@ -55,7 +55,7 @@ Six of the 13 features don't need PayPal at all. The other seven use four PayPal
 | F7 | HR assistant | none | **No PayPal needed** | Read-only on our own data. |
 | F8 | Policy simulator | none | **No PayPal needed** | Uses stored claims. |
 | F9 | Smart buying (Channel3) | Orders or Payouts | **Only simulated** | Channel3 search is real (free tier: 1,000 searches a month). Real shops don't take sandbox money, so the "buy" step can only pay a sandbox merchant we control. The demo works, but the real purchase can't be tested before going live. |
-| F10 | Camera-first app and wallet | none | **No PayPal needed** | Reads our payout data. |
+| F10 | ~~Camera-first app and wallet~~ (dropped) | none | **No PayPal needed** | Reads our payout data. |
 | F11 | Team budgets | none | **No PayPal needed** | Our own data. |
 | F12 | Month-end report | none | **No PayPal needed** | Our own ledger. |
 | F13 | E-invoice readiness | none | **No PayPal needed; LHDN has its own sandbox** | MyInvois has a pre-production environment (`preprod-api.myinvois.hasil.gov.my`) with separate credentials. The harder question is legal: which expense types are in scope. |
@@ -79,7 +79,7 @@ Six of the 13 features don't need PayPal at all. The other seven use four PayPal
 | | | **F6** Claim by chat | 4 | 3 | 1.3 | M per channel | Meta business verification, PDPA review |
 | | | **F5** Contractors and overseas staff | 4 | 4 | 1.0 | L | Non-MYR balance; tax and legal per country |
 | **P3: fillers** | Useful, low risk, lower return | **F11** Team budgets | 3 | 1 | 3.0 | M | Decision engine hard stops |
-| | | **F10** Camera-first app and wallet | 3 | 1 | 3.0 | M | None |
+| | | ~~**F10** Camera-first app and wallet~~ (dropped) | 3 | 1 | 3.0 | M | None |
 | | | **F12** Month-end report | 3 | 1 | 3.0 | S–M | Ledger and action log |
 | | | **F8** Policy simulator | 3 | 2 | 1.5 | M | Back-test endpoint |
 | **P4: park** | Return doesn't yet justify the risk | **F9** Smart buying | 3 | 4 | 0.75 | L | F2; can't test real buying in sandbox |
@@ -404,7 +404,9 @@ Effort uses the same units as the hackathon plan: **S** = 1–2 days for one per
 
 ---
 
-### F10. Camera-first app and employee wallet
+### F10. Camera-first app and employee wallet (dropped)
+
+**Dropped on 12 Nov 2026.** Kept here for the record; see §6.
 
 **Problem.** A quarter of travelers lose receipts, and employees can't see where their money is.
 
@@ -526,7 +528,7 @@ Dates assume the hackathon ends 11 Nov 2026 and the team keeps going part-time.
 | Phase | When | Goal | Contents |
 |---|---|---|---|
 | **0. Hackathon** | Now → 11 Nov 2026 | Win: safe automation, shown end to end | PLAN.md as written |
-| **1. Make it real** | Nov–Dec 2026 | One pilot company using live PayPal | §4.1 go-live, §4.2 calibration, §4.4 cleanup, **F1** ask before you spend (P1), **F7** HR assistant (P1), **F10** wallet (P3) |
+| **1. Make it real** | Nov–Dec 2026 | One pilot company using live PayPal | §4.1 go-live, §4.2 calibration, §4.4 cleanup, **F1** ask before you spend (P1), **F7** HR assistant (P1) |
 | **2. Remove out-of-pocket** | Q1 2027 | Employees stop fronting money for travel | **F4** travel advance (P1), **F2** company-paid bookings (P2), **F3** payment matching (P2), **F12** month-end report (P3) |
 | **3. Meet people where they are** | Q2 2027 | Faster submission, better control | **F6** chat claims, Telegram first then WhatsApp (P2), **F11** team budgets (P3), **F8** policy simulator (P3) |
 | **4. Grow the market** | H2 2027 | Contractors and overseas staff | **F5** contractors and FX (P2), §4.5 multi-company; **F9** and **F13** (P4) only if a pilot customer asks |
@@ -554,6 +556,7 @@ Dates assume the hackathon ends 11 Nov 2026 and the team keeps going part-time.
 | **Read employees' personal PayPal history to match receipts** ("no-upload expenses") | PayPal's Transaction Search only covers the company's own account. Third-party access needs PayPal partner status. It would also mean reading private spending. F3 gets the same benefit for company-made payments without either problem. |
 | **An AI agent that pays by command** ("pay all travel claims under RM100") | Breaks the rule that the AI never starts a payment. F7 gives the same speed with a person pressing the button. |
 | **Replace our database search with Elasticsearch** | No gain over Postgres with pgvector at our size. It was considered only for a judge's company, which had no prize. |
+| **F10 Camera-first app and wallet** (dropped 12 Nov 2026) | Opening straight to the camera gets in the way of employees who open the app to check a claim, asks for camera permission before they've seen anything, and doesn't suit HR users. The wallet part was dropped with it. |
 | **Use the PayPal Server SDK for payouts** | The SDK (v2.4.0) doesn't include Payouts. We use it for Transaction Search only (§4.1, F3). |
 
 ---
