@@ -21,7 +21,8 @@ export type SignalCode =
   | "HUMAN_EDIT_MEDIUM"
   | "PRICE_ABOVE_MARKET"
   | "NEAR_THRESHOLD"
-  | "NO_CAMERA_METADATA";
+  | "NO_CAMERA_METADATA"
+  | "IMAGE_FORENSICS";
 
 export type HardStop =
   | "AUTONOMY_PAUSED"
@@ -61,6 +62,8 @@ export interface AutonomyDecision {
   explanation: string;
   audit_selected: boolean;
   config_version: number;
+  /** Observe-only findings (image forensics): stored beside the decision, never part of it. HR-only. */
+  observations?: RiskSignal[];
 }
 
 /** Step ids in the order the backend runs them. */

@@ -12,6 +12,7 @@ from api.schemas import CreatePayoutRequest
 from core.models import User, Reimbursement, Payout
 from core.enums import ReimbursementStatus, UserRole, PayoutStatus
 from engine.services.approvals import approvals_complete
+from engine.services.funding_service import FundingSummary, alert_hr, funding_summary
 from engine.services.payout_service import initiate_payout_async, payout_plan
 from engine.services.payout_status import FINAL_STATUSES, refresh_payout
 from engine.services.paypal_client import PayPalError
@@ -138,6 +139,21 @@ def reconcile_payouts(
     current_user: User = Depends(deps.get_current_hr_user),
 ):
     return reconcile(db, days)
+
+
+# Also before GET /{reim_id}. Alert only: it never changes a claim or a payout.
+@router.get("/funding", response_model=FundingSummary)
+async def payout_funding(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_hr_user),
+):
+    summary = await funding_summary(db)
+    try:
+        alert_hr(db, summary)
+    except Exception:
+        logger.exception("[FUNDING] Could not send the low-balance alert")
+        db.rollback()
+    return summary
 
 
 @router.post("/", response_model=PayoutOut)

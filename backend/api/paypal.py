@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from api import deps
-from api.rate_limit import limiter
+from api.rate_limit import PAYPAL_CONNECT_LIMIT, limiter
 from core import security
 from core.config import settings
 from core.enums import AgentActionType
@@ -228,7 +228,7 @@ async def paypal_callback(
 
 
 @router.get("/signin/start", response_model=SigninStart)
-@limiter.limit("10/minute")
+@limiter.limit(PAYPAL_CONNECT_LIMIT)
 def signin_start(request: Request):
     binding = secrets.token_urlsafe(32)
     state = make_signin_state(binding, settings.SECRET_KEY, datetime.now(timezone.utc))
@@ -252,7 +252,7 @@ async def _signin_identity(code: str) -> PayPalUser | None:
 
 
 @router.post("/signin/complete", response_model=SigninSession)
-@limiter.limit("10/minute")
+@limiter.limit(PAYPAL_CONNECT_LIMIT)
 async def signin_complete(request: Request, body: SigninComplete, db: Session = Depends(deps.get_db)):
     """Every failure answers the same way, so a caller can't learn which payer IDs or accounts exist."""
     failed = HTTPException(status_code=401, detail=_SIGNIN_FAILED)

@@ -16,7 +16,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from api import deps
-from api.rate_limit import limiter
+from api.rate_limit import ANALYZE_LIMIT, ANALYZE_MESSAGE, limiter
 from api.schemas import (
     ReimbursementResponse,
     StatusUpdateRequest,
@@ -683,7 +683,7 @@ def _notify_claims_for_review(db: Session, user_id: UUID, results: list[dict]) -
 
 
 @router.post("/analyze")
-@limiter.limit("5/minute")
+@limiter.limit(ANALYZE_LIMIT, error_message=ANALYZE_MESSAGE)
 async def analyze_reimbursement(
     request: Request,
     body: AnalyzeReimbursementRequest,

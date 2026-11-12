@@ -3,10 +3,11 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import Session, select, func
 
 from api import deps
+from api.rate_limit import DRAFT_SAVE_LIMIT, DRAFT_SAVE_MESSAGE, limiter
 from api.schemas import (
     ClaimDraftCreate,
     ClaimDraftUpdate,
@@ -100,7 +101,9 @@ def get_draft(
 
 
 @router.post("/", response_model=ClaimDraftFull, status_code=status.HTTP_201_CREATED)
+@limiter.shared_limit(DRAFT_SAVE_LIMIT, scope="draft-saves", error_message=DRAFT_SAVE_MESSAGE)
 def create_draft(
+    request: Request,
     body: ClaimDraftCreate,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
@@ -152,7 +155,9 @@ def create_draft(
 
 
 @router.put("/{draft_id}", response_model=ClaimDraftFull)
+@limiter.shared_limit(DRAFT_SAVE_LIMIT, scope="draft-saves", error_message=DRAFT_SAVE_MESSAGE)
 def update_draft(
+    request: Request,
     draft_id: str,
     body: ClaimDraftUpdate,
     db: Session = Depends(deps.get_db),
