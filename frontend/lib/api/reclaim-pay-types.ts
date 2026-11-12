@@ -412,3 +412,74 @@ export interface PolicyLimits {
   /** Categories whose confirmed limits employees see: the policy is ACTIVE and claims use it for them. */
   employee_visible_categories: string[];
 }
+
+// ─── Check before you spend (F1) ─────────────────────────────────────────────
+
+export type SpendVerdict =
+  | "WITHIN" | "OVER" | "ACTUAL_COST" | "NEEDS_PRE_APPROVAL" | "LIMIT_ONLY" | "NO_LIMIT"
+  | "NEED_DESTINATION" | "PLACE_NOT_LISTED" | "GRADE_NOT_LISTED" | "NOT_COVERED";
+
+/** GET /spend-check/categories. Built from the employee's own grade and CONFIRMED limits only. */
+export interface CategoryOption {
+  category: string;
+  policy_title: string;
+  unit: LimitUnit | null;
+  asks_destination: boolean;
+  asks_overseas: boolean;
+}
+
+/** POST /spend-check/check */
+export interface SpendCheckResult {
+  verdict: SpendVerdict;
+  category: string;
+  quantity: number;
+  zone: string | null;
+  cap: LimitRule | null;
+  pre_approval: LimitRule | null;
+  limit_total: number | null;
+  reimbursable_up_to: number | null;
+  employee_pays: number | null;
+  policy_title: string | null;
+  currency: string;
+}
+
+export interface TripLine {
+  category: string;
+  unit: LimitUnit;
+  rate: number | null;
+  quantity: number;
+  subtotal: number | null;
+  source_section: string | null;
+}
+
+/** POST /spend-check/trip. The most the policy allows, not an approval. */
+export interface TripEstimate {
+  days: number;
+  nights: number;
+  zone: string | null;
+  lines: TripLine[];
+  other_limits: LimitRule[];
+  total_up_to: number;
+  has_actual_cost: boolean;
+  missing: string[];
+  /** Category to the verdict that left it out: NEED_DESTINATION, PLACE_NOT_LISTED or GRADE_NOT_LISTED. */
+  missing_reasons: Record<string, SpendVerdict>;
+  currency: string;
+}
+
+/** POST /spend-check/ask */
+export interface QaAnswer {
+  covered: boolean;
+  answer: string;
+  quote: string | null;
+  policy_title: string | null;
+}
+
+/** GET /spend-check/questions (HR). Never carries who asked, and only the day it was asked. */
+export interface QuestionSummary {
+  days: number;
+  total: number;
+  unanswered: number;
+  top_sections: { policy_title: string; section: string; excerpt: string; count: number }[];
+  recent_unanswered: { asked_on: string; question: string }[];
+}
