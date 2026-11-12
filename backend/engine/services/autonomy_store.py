@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -41,6 +42,9 @@ CONFIRMED_RECOVERY_STATUSES = (
 )
 # Fields on AutonomyConfig the server owns: `enabled` moves only through the kill switch.
 SERVER_OWNED_FIELDS = {"enabled", "version"}
+# Two-key advisory lock namespaces, a separate key space from the action log's single-key lock.
+EMPLOYEE_BUDGET_LOCK = 724243
+COMPANY_BUDGET_LOCK = 724244
 
 
 def _utc(dt: datetime) -> datetime:
@@ -110,6 +114,18 @@ def _claim_row(r: Reimbursement) -> dict:
 
 def _has_high_signal(autonomy: dict | None) -> bool:
     return any((s or {}).get("severity") == "HIGH" for s in (autonomy or {}).get("signals", []))
+
+
+def lock_employee_budget(db: Session, user_id: UUID) -> None:
+    """Serialise auto-pay decisions for one employee until this transaction commits or rolls back."""
+    # A 32-bit slice of the UUID: a collision only makes two employees wait for each other.
+    key = int.from_bytes(user_id.bytes[:4], "big", signed=True)
+    db.exec(text(f"SELECT pg_advisory_xact_lock({EMPLOYEE_BUDGET_LOCK}, {key})"))
+
+
+def lock_company_budget(db: Session) -> None:
+    """Serialise every claim that would spend the company daily budget until this transaction ends."""
+    db.exec(text(f"SELECT pg_advisory_xact_lock({COMPANY_BUDGET_LOCK}, 0)"))
 
 
 def settings_row(db: Session, for_update: bool = False) -> AutonomySettings:
