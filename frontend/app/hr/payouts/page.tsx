@@ -7,10 +7,12 @@ import AgentLogTab from "./_components/AgentLogTab";
 import AuditQueueTab from "./_components/AuditQueueTab";
 import FundingCard from "./_components/FundingCard";
 import LedgerTab from "./_components/LedgerTab";
+import ReconciliationTab from "./_components/ReconciliationTab";
 import RecoveriesTab from "./_components/RecoveriesTab";
 
 const TABS = [
   { id: "ledger", label: "Ledger" },
+  { id: "reconciliation", label: "Reconciliation" },
   { id: "audit", label: "Audit queue" },
   { id: "recoveries", label: "Recoveries" },
   { id: "log", label: "Agent log" },
@@ -73,6 +75,7 @@ function PayoutTabs() {
 
       <section id="payouts-panel" role="tabpanel" aria-labelledby={`payouts-tab-${tab}`}>
         {tab === "ledger" && <LedgerTab onLoaded={onTabLoaded} />}
+        {tab === "reconciliation" && <ReconciliationTab onLoaded={onTabLoaded} />}
         {tab === "audit" && <AuditQueueTab onLoaded={onTabLoaded} />}
         {tab === "recoveries" && <RecoveriesTab onOpenAudit={() => choose("audit")} onLoaded={onTabLoaded} />}
         {tab === "log" && <AgentLogTab onLoaded={onTabLoaded} />}
@@ -89,7 +92,7 @@ export default function HRPayoutsPage() {
           Payouts
         </h1>
         <p className="text-ink-muted text-base font-body mt-2">
-          Every PayPal payout, the auto-paid claims picked for audit, and any overpayments being recovered.
+          Every PayPal payout, the daily check against PayPal, the auto-paid claims picked for audit, and any overpayments being recovered.
         </p>
       </header>
 

@@ -57,3 +57,19 @@ One entry per non-obvious choice. Each names the alternative that was rejected a
 **Rejected:** check-then-insert in application code only.
 
 **Why:** the cron and a manual "Check now" can overlap. The index and lock make the invariant true even if both runs reach the same subject.
+
+## D8: Keep the live badge and add a separate Reconciliation tab
+
+**Chosen:** the badge keeps doing a live check on page load; the new tab reads the stored history.
+
+**Rejected:** replace the badge with the latest stored run.
+
+**Why:** between daily runs the badge would go stale, and it would lose its "Check again" recovery path when PayPal is down. The two surfaces answer different questions: "what does PayPal say right now?" and "what did the daily check find, and what is still open?".
+
+## D9: A successful run older than 36 hours is stale
+
+**Chosen:** warn on the tab after 36 hours without an `ok` or `no_data` run.
+
+**Rejected:** 24 hours (warns on normal cron drift) or 48 hours (a missed day is silent for two days).
+
+**Why:** the schedule is daily. 36 hours allows a late or retried run without hiding a genuinely broken schedule for long.
