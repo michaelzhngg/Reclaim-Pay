@@ -286,6 +286,8 @@ def test_payouts_use_the_company_amount_or_fail_closed(pg_db):
     pg_db.commit()
 
     assert payout_company_amount(pg_db, foreign, Decimal("120")) == Decimal("564.00")
+    # A recovery offset nets the claim currency, then converts at the locked approval quote.
+    assert payout_company_amount(pg_db, foreign, Decimal("60")) == Decimal("282.00")
     assert payout_company_amount(pg_db, unquoted, Decimal("50")) is None
 
 

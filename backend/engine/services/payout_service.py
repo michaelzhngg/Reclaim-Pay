@@ -17,7 +17,7 @@ import logging
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 
 from sqlmodel import Session, select
@@ -128,6 +128,11 @@ def payout_company_amount(db: Session, reim: Reimbursement, net_claim: Decimal) 
     if (reim.approved_company_amount is not None
             and Decimal(str(reim.total_approved_amount or 0)) == net_claim):
         return Decimal(str(reim.approved_company_amount))
+    # A partial payout (recovery offset) still uses the quote locked at approval.
+    if reim.fx_rate_to_company and not fx.is_unquoted(reim):
+        return (net_claim * Decimal(str(reim.fx_rate_to_company))).quantize(
+            Decimal("0.01"), ROUND_HALF_UP
+        )
     quoted = fx.quote_or_none(net_claim, reim.currency, fx.company_currency())
     return quoted.converted if quoted else None
 
