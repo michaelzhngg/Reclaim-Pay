@@ -177,10 +177,21 @@ async def draft_recovery_note(summary: str, reason: str, amount: Decimal, curren
     return note or fallback
 
 
-def _notify(db: Session, user_id: UUID, n_type: str, title: str, message: str, link: str | None = None) -> None:
+def _notify(db: Session, user_id: UUID, n_type: str, title: str, message: str, link: str | None = None,
+            email: bool = False) -> None:
     # Imported here because payout_service imports this module.
     from engine.services.payout_service import notify
-    notify(db, user_id, n_type, title, message, link=link)
+    notify(db, user_id, n_type, title, message, link=link, email=email)
+
+
+def _tier_before(db: Session, user_id: UUID):
+    from engine.services.trust_notices import tier_of
+    return tier_of(db, user_id)
+
+
+def _notify_tier_change(db: Session, rec: Recovery, before) -> None:
+    from engine.services.trust_notices import notify_if_changed
+    notify_if_changed(db, rec.user_id, before, reim_id=rec.reim_id)
 
 
 def _reject_self(rec_user_id: UUID, actor: User) -> None:
@@ -237,7 +248,7 @@ def create_recovery(db: Session, reim: Reimbursement, amount: Decimal, reason: s
     _notify(db, rec.user_id, "warning", "Overpayment notice",
             f"We paid {rec.currency} {format_amount(amount)} more than approved on claim {claim_ref(reim.reim_id)}. "
             f"You can dispute until {format_deadline(rec.dispute_until)}.",
-            link=f"/employee/dashboard?recovery={rec.recovery_id}")
+            link=f"/employee/dashboard?recovery={rec.recovery_id}", email=True)
     return rec
 
 
@@ -322,6 +333,7 @@ async def execute_recovery(db: Session, recovery_id: UUID, hr: User, now: dateti
 
     amount = _money(rec.amount)
     ref = claim_ref(rec.reim_id)
+    tier_before = _tier_before(db, rec.user_id)
     if path == "OFFSET":
         claim, _remaining = target
         rec.offset_reim_id = claim.reim_id
@@ -330,6 +342,7 @@ async def execute_recovery(db: Session, recovery_id: UUID, hr: User, now: dateti
                 f"We'll deduct {rec.currency} {format_amount(amount)} from claim {claim_ref(claim.reim_id)} "
                 f"to settle the overpayment on claim {ref}.",
                 link=f"/employee/dashboard?recovery={rec.recovery_id}")
+        _notify_tier_change(db, rec, tier_before)
         return rec
 
     preview = latest_preview(db, rec)
@@ -356,6 +369,7 @@ async def execute_recovery(db: Session, recovery_id: UUID, hr: User, now: dateti
     _notify(db, rec.user_id, "info", "PayPal invoice sent",
             f"We sent a PayPal invoice for {rec.currency} {format_amount(amount)} for claim {ref}.",
             link=f"/employee/dashboard?recovery={rec.recovery_id}")
+    _notify_tier_change(db, rec, tier_before)
     return rec
 
 
@@ -387,5 +401,7 @@ def mark_recovered(db: Session, paypal_invoice_id: str) -> None:
     if rec is None or RecoveryStatus(rec.status) != RecoveryStatus.INVOICED:
         logger.info("[RECOVERY] Invoice %s paid, nothing to update", paypal_invoice_id)
         return
+    tier_before = _tier_before(db, rec.user_id)
     _set_status(db, rec, RecoveryStatus.RECOVERED, "agent", datetime.now(timezone.utc),
                 source="webhook", invoice_id=paypal_invoice_id)
+    _notify_tier_change(db, rec, tier_before)

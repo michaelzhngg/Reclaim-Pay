@@ -45,11 +45,16 @@ async def lifespan(app: FastAPI):
     # Initialize VAPID keys for push notifications
     from core.push_service import init_vapid_keys
     init_vapid_keys()
+    from engine.services.reminder_service import reminder_loop
+    reminders = asyncio.create_task(reminder_loop())
     maintenance_task = None
     if settings.MAINTENANCE_JOB_ENABLED:
         from engine.jobs.maintenance import maintenance_loop
         maintenance_task = asyncio.create_task(maintenance_loop())
     yield
+    reminders.cancel()
+    with suppress(asyncio.CancelledError):
+        await reminders
     # Clean up on shutdown
     if maintenance_task:
         maintenance_task.cancel()

@@ -350,7 +350,7 @@ def employee_trust(db: Session, user_id: UUID, config: AutonomyConfig, now: date
         older = [d for d in issues if d >= now - timedelta(days=TRUSTED_ISSUE_DAYS)]
         if older:
             ready = max(older) + timedelta(days=TRUSTED_ISSUE_DAYS)
-            reasons.append(f"Trusted needs {TRUSTED_ISSUE_DAYS} days without a correction. "
+            reasons.append(f"Gold needs {TRUSTED_ISSUE_DAYS} days without a correction. "
                            f"That's on {_fmt_date(ready)}.")
 
     return {
