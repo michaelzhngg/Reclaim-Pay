@@ -4,6 +4,7 @@ import { useEffect, useId, useState, type FormEvent } from "react";
 import type { CategoryOption, QaAnswer, SpendCheckResult, TripEstimate } from "@/lib/api/reclaim-pay-types";
 import { askPolicy, checkCost, getSpendCategories, planTrip } from "@/lib/actions/spendCheck";
 import { useAuth } from "@/context/AuthContext";
+import { Select } from "@/components/ui/Select";
 import { parseAmount, quantityLabel } from "@/lib/policy/limits";
 import {
   GUIDANCE_NOTE, ONE_QUESTION_MESSAGE, askHint, hasSeveralQuestions, tripLineText, tripNotes, tripSummary,
@@ -20,7 +21,9 @@ const MODES: { mode: Mode; short: string; long: string; hint: string }[] = [
 
 // Inputs get the focus ring explicitly: the global :focus-visible rule only covers buttons and links.
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary";
-const FIELD = `h-11 w-full px-3 rounded-control bg-surface border border-outline text-sm text-ink ${FOCUS}`;
+// The select supplies its own padding: px-3 here would fight its pr-10 gutter.
+const FIELD = `h-11 w-full rounded-control bg-surface border border-outline text-sm text-ink ${FOCUS}`;
+const INPUT = `${FIELD} px-3`;
 const LABEL = "flex flex-col gap-1 text-xs font-medium text-ink-muted";
 const SUBMIT =
   "inline-flex items-center justify-center min-h-11 px-5 rounded-full bg-accent text-on-accent text-sm font-semibold " +
@@ -154,7 +157,7 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
     <label className={LABEL}>
       Where to
       <input value={destination} onChange={(e) => onChange(e.target.value)} maxLength={120}
-        autoComplete="off" placeholder="City or town" className={`${FIELD} placeholder:text-ink-muted`} />
+        autoComplete="off" placeholder="City or town" className={`${INPUT} placeholder:text-ink-muted`} />
     </label>
   );
   const overseasField = (onChange: (v: boolean) => void) => (
@@ -201,16 +204,16 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
         <form onSubmit={onCost} noValidate className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className={LABEL}>
             What for
-            <select required value={category} onChange={(e) => editCost(setCategory)(e.target.value)} className={FIELD}>
+            <Select required value={category} onChange={(e) => editCost(setCategory)(e.target.value)} className={FIELD}>
               <option value="">Pick a category</option>
               {options.map((o) => <option key={o.category} value={o.category}>{o.category}</option>)}
-            </select>
+            </Select>
           </label>
           <label className={LABEL}>
             Amount (optional)
             <input value={amount} onChange={(e) => editCost(setAmount)(e.target.value)} inputMode="decimal"
               autoComplete="off" aria-invalid={amountBad} aria-describedby={amountBad ? `${ids}-amount-error` : undefined}
-              className={`${FIELD} font-mono tabular-nums`} />
+              className={`${INPUT} font-mono tabular-nums`} />
             {amountBad && (
               <span id={`${ids}-amount-error`} className="text-xs font-normal text-danger">
                 Enter an amount like 120 or 120.50.
@@ -222,7 +225,7 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
               {qtyLabel}
               <input type="number" min={1} max={60} step={1} inputMode="numeric" value={quantity}
                 onChange={(e) => editCost(setQuantity)(e.target.value)} aria-invalid={qtyBad}
-                aria-describedby={qtyBad ? `${ids}-qty-error` : undefined} className={`${FIELD} font-mono tabular-nums`} />
+                aria-describedby={qtyBad ? `${ids}-qty-error` : undefined} className={`${INPUT} font-mono tabular-nums`} />
               {qtyBad && (
                 <span id={`${ids}-qty-error`} className="text-xs font-normal text-danger">
                   Enter a whole number from 1 to 60.
@@ -244,12 +247,12 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
         <form onSubmit={onTrip} noValidate className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className={LABEL}>
             Leaving
-            <input type="date" required value={depart} onChange={(e) => editTrip(setDepart)(e.target.value)} className={FIELD} />
+            <input type="date" required value={depart} onChange={(e) => editTrip(setDepart)(e.target.value)} className={INPUT} />
           </label>
           <label className={LABEL}>
             Back
             <input type="date" required value={ret} min={depart} onChange={(e) => editTrip(setRet)(e.target.value)}
-              aria-invalid={datesBad} aria-describedby={datesBad ? `${ids}-dates-error` : undefined} className={FIELD} />
+              aria-invalid={datesBad} aria-describedby={datesBad ? `${ids}-dates-error` : undefined} className={INPUT} />
             {datesBad && (
               <span id={`${ids}-dates-error`} className="text-xs font-normal text-danger">
                 The return date is before the departure date.
@@ -271,7 +274,7 @@ export default function SpendCheckCard({ className = "" }: { className?: string 
             <textarea value={question} maxLength={MAX_QUESTION} rows={3} aria-describedby={`${ids}-ask-hint`}
               onChange={(e) => { setQuestion(e.target.value); setAnswer(null); setError(null); }}
               placeholder="Can I take a taxi to the airport at 5am?"
-              className={`${FIELD} h-auto py-2 placeholder:text-ink-muted`} />
+              className={`${INPUT} h-auto py-2 placeholder:text-ink-muted`} />
           </label>
           <p id={`${ids}-ask-hint`} className="-mt-1 text-xs text-ink-muted">
             <span className="tabular-nums">{question.length} of {MAX_QUESTION}</span> characters. {askHint(user?.rank)}
