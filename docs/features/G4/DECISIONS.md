@@ -89,3 +89,11 @@ One entry per non-obvious choice. Each names the alternative that was rejected a
 **Rejected:** a 24-hour title window like the funding alert.
 
 **Why:** the daily job runs exactly every 24 hours, so a title window can swallow the next day's alert or block a legitimate new outage. The previous run is the actual outage boundary, and any `ok` or `no_data` run re-arms it.
+
+## D12: A CLI and Render cron, not an in-process scheduler
+
+**Chosen:** `python -m jobs.daily_reconcile`, run by a Render cron service from the same backend image.
+
+**Rejected:** an APScheduler or asyncio loop inside the API process.
+
+**Why:** the API restarts on every deploy and can run more than one instance, so an in-process loop would duplicate or silently skip runs. A PayPal search can take seconds to minutes; it has no place in a web request. The cron approach adds no Python dependency and gives a process exit code the platform can alert on.

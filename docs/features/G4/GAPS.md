@@ -2,10 +2,11 @@
 
 ## The schedule is new infrastructure
 
-Nothing in the repo schedules work today. The cron service must be added to the Render Blueprint,
-and the Blueprint may track `deploy/render` rather than `main`. If the cron does not deploy, the
-Reconciliation tab's 36-hour stale warning is the only signal. Verify the Blueprint branch in the
-dashboard and note the final cron state here.
+`render.yaml` now defines `reclaim-pay-reconcile`, a cron service at 02:00 UTC that runs
+`python -m jobs.daily_reconcile`. Verify that the Blueprint's tracked branch includes this file:
+it may still track `deploy/render` rather than `main`. If the cron does not deploy, the
+Reconciliation tab's 36-hour stale warning is the only signal. Record the deployed cron state here
+after checking the dashboard.
 
 ## Sandbox Transaction Search needs the reporting scope
 
