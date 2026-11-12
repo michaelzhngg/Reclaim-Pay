@@ -103,5 +103,22 @@ plan in `PLAN.md` stays the reference; this file says where the build departs fr
 - **Contractors cannot create vendor bookings.** The booking route now uses the
   non-contractor dependency, matching the nav that hides bookings from them.
 
+## Seams for 05 and 06
+
+- **05 invoices:** `reimbursements.contract_id` already exists. Add the invoice period
+  columns in a migration chained from `f4a8d3e5b6c7`, then create a `Reimbursement` with
+  `contract_id`, the contract `service_category` and the contract currency. `contract_dict`
+  already returns the rate, so the intake can validate quantity times unit price.
+- **06 payout currency:** `engine.services.payout_service.payout_company_amount` is the
+  single place that decides what PayPal receives today. Replace its company-currency
+  conversion with the contract payout currency, add the payout snapshot fields
+  (`payout_amount`, `payout_currency`, `payout_fx_rate`, `payout_fx_at`) in a migration
+  chained after 05's, and run the MYR guard before `create_payout`. `Payout.amount` and
+  `Payout.currency` are already written as the actual amount sent to PayPal.
+- **07 batching:** `payee_for_reim` and `payout_company_amount` are the destination and
+  amount seams. Group by the resolved payout currency before building one PayPal batch,
+  and keep `provider_batch_id` as the only grouping key.
+
+
 
 
