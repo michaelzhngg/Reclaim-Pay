@@ -82,6 +82,7 @@ class Verdict(str, Enum):
     LIMIT_ONLY = "LIMIT_ONLY"            # no amount given: here is the limit
     NO_LIMIT = "NO_LIMIT"                # the policy states no amount for this
     NEED_DESTINATION = "NEED_DESTINATION"
+    PLACE_NOT_LISTED = "PLACE_NOT_LISTED"  # a destination was given but no zone lists it
     GRADE_NOT_LISTED = "GRADE_NOT_LISTED"
 
 
@@ -114,7 +115,7 @@ class TripEstimate(BaseModel):
     other_limits: list[LimitRule]  # per-meal / per-item caps that dates can't turn into a total
     total_up_to: float
     has_actual_cost: bool
-    missing: list[str]             # categories that need a destination or don't list this grade
+    missing: list[str]             # categories that need a destination, a zone for it, or a row for this grade
 
 
 def _norm(s: str) -> str:
@@ -166,11 +167,22 @@ def _specificity(rule: LimitRule) -> int:
     )
 
 
+_GRADE_FLOOR, _GRADE_CEILING = 0, 50
+
+
+def _rank(rule: LimitRule) -> tuple:
+    # Ties go to the narrower grade range (an open bound counts as wide), then to the lower amount.
+    span = (rule.grade_max if rule.grade_max is not None else _GRADE_CEILING) - (
+        rule.grade_min if rule.grade_min is not None else _GRADE_FLOOR)
+    amount = rule.amount if rule.amount is not None else float("inf")
+    return (-_specificity(rule), span, amount)
+
+
 def applicable_rules(rules: list[LimitRule], *, category: str, grade: int | None,
                      scope: TravelScope, zone: str | None) -> list[LimitRule]:
     """Rules that apply to this person and trip, most specific first."""
     hits = [r for r in rules if _applies(r, category, grade, scope, zone)]
-    return sorted(hits, key=_specificity, reverse=True)
+    return sorted(hits, key=_rank)
 
 
 def check_spend(rules: list[LimitRule], places: list[ZonePlace], *, category: str, grade: int | None,
@@ -189,13 +201,16 @@ def check_spend(rules: list[LimitRule], places: list[ZonePlace], *, category: st
         if not any(_grade_ok(r, grade) for r in in_scope):
             return SpendCheck(verdict=Verdict.GRADE_NOT_LISTED, **base)
         if zone is None and any(r.zone is not None for r in in_scope):
-            return SpendCheck(verdict=Verdict.NEED_DESTINATION, **base)
+            typed = bool(destination and destination.strip())
+            return SpendCheck(verdict=Verdict.PLACE_NOT_LISTED if typed else Verdict.NEED_DESTINATION, **base)
         return SpendCheck(verdict=Verdict.NO_LIMIT, **base)
 
     cap = next((r for r in hits if r.kind == LimitKind.CAP), None)
     pre = next((r for r in hits if r.kind == LimitKind.PRE_APPROVAL), None)
     base.update(cap=cap, pre_approval=pre)
     if cap is not None and cap.unit == LimitUnit.ACTUAL:
+        if amount is not None and pre is not None and money(amount) > money(pre.amount * quantity):
+            return SpendCheck(verdict=Verdict.NEEDS_PRE_APPROVAL, **base)
         return SpendCheck(verdict=Verdict.ACTUAL_COST, **base)
 
     limit_total = money(cap.amount * quantity) if cap is not None else None
@@ -234,7 +249,7 @@ def estimate_trip(rules: list[LimitRule], places: list[ZonePlace], *, grade: int
     for category in _categories(rules):
         c = check_spend(rules, places, category=category, grade=grade, overseas=overseas,
                         destination=destination, amount=None)
-        if c.verdict in (Verdict.NEED_DESTINATION, Verdict.GRADE_NOT_LISTED):
+        if c.verdict in (Verdict.NEED_DESTINATION, Verdict.PLACE_NOT_LISTED, Verdict.GRADE_NOT_LISTED):
             missing.append(category)
             continue
         cap = c.cap

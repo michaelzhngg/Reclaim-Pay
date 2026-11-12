@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from engine.policy.limits import (
-    MAX_TRIP_DAYS, LimitKind, LimitRule, LimitUnit, TravelScope, Verdict,
+    MAX_TRIP_DAYS, LimitKind, LimitRule, LimitUnit, TravelScope, Verdict, ZonePlace,
     applicable_rules, check_spend, estimate_trip, same_category, zone_for,
 )
 from engine.policy.samples import DEMO_RULES, DEMO_ZONES, RECLAIM_RULES, RECLAIM_ZONES
@@ -199,3 +199,63 @@ def test_trip_dates_are_validated():
     with pytest.raises(ValueError, match="TRIP_TOO_LONG"):
         estimate_trip(DEMO_RULES, DEMO_ZONES, grade=1, overseas=False, destination=None,
                       depart=date(2026, 1, 1), return_date=date(2026, 1, 1) + timedelta(days=MAX_TRIP_DAYS))
+
+
+# --- review fixes ----------------------------------------------------------------
+
+KL_ONLY = [ZonePlace(zone="1", place="Kuala Lumpur")]
+ZONED_MEAL = [LimitRule(category="Meals", unit=LimitUnit.PER_DAY, amount=50, scope=TravelScope.DOMESTIC, zone="1")]
+
+
+def _zoned(destination):
+    return check_spend(ZONED_MEAL, KL_ONLY, category="Meals", grade=3, overseas=False,
+                       destination=destination, amount=None)
+
+
+def test_a_typed_place_outside_every_zone_is_not_asked_for_again():
+    assert _zoned("Kota Kinabalu").verdict == Verdict.PLACE_NOT_LISTED
+
+
+def test_an_empty_destination_is_still_asked_for():
+    assert _zoned(None).verdict == Verdict.NEED_DESTINATION
+    assert _zoned("  ").verdict == Verdict.NEED_DESTINATION
+
+
+def test_a_place_outside_every_zone_is_missing_from_the_trip_estimate():
+    e = estimate_trip(ZONED_MEAL, KL_ONLY, grade=3, overseas=False, destination="Kota Kinabalu",
+                      depart=date(2026, 11, 12), return_date=date(2026, 11, 13))
+    assert e.missing == ["Meals"]
+
+
+EQUIPMENT_ACTUAL = [
+    LimitRule(category="Equipment", unit=LimitUnit.ACTUAL),
+    LimitRule(category="Equipment", kind=LimitKind.PRE_APPROVAL, unit=LimitUnit.PER_ITEM, amount=300),
+]
+
+
+def _equipment(amount):
+    return check_spend(EQUIPMENT_ACTUAL, [], category="Equipment", grade=3, overseas=False,
+                       destination=None, amount=amount)
+
+
+def test_actual_cost_does_not_hide_a_pre_approval_threshold():
+    assert _equipment(900).verdict == Verdict.NEEDS_PRE_APPROVAL
+    assert _equipment(200).verdict == Verdict.ACTUAL_COST
+    assert _equipment(None).verdict == Verdict.ACTUAL_COST
+
+
+def test_the_narrower_grade_range_wins_a_tie_in_specificity():
+    wide = LimitRule(category="Meals", unit=LimitUnit.PER_MEAL, amount=80, grade_min=1, grade_max=10)
+    narrow = LimitRule(category="Meals", unit=LimitUnit.PER_MEAL, amount=120, grade_min=4, grade_max=5)
+    open_top = LimitRule(category="Meals", unit=LimitUnit.PER_MEAL, amount=60, grade_min=4)
+    for rules in ([wide, narrow, open_top], [open_top, narrow, wide]):
+        hits = applicable_rules(rules, category="Meals", grade=4, scope=TravelScope.DOMESTIC, zone=None)
+        assert [h.amount for h in hits] == [120, 80, 60]
+
+
+def test_the_lower_amount_wins_an_exact_tie():
+    a = LimitRule(category="Meals", unit=LimitUnit.PER_MEAL, amount=90, grade_min=3, grade_max=5)
+    b = a.model_copy(update={"amount": 70.0})
+    for rules in ([a, b], [b, a]):
+        c = check_spend(rules, [], category="Meals", grade=4, overseas=False, destination=None, amount=None)
+        assert c.cap.amount == 70
