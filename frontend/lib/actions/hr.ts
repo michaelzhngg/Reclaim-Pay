@@ -236,7 +236,9 @@ export async function getHRHistory(): Promise<HistoryClaim[]> {
         employeeName: name,
         employeeInitial: name.charAt(0).toUpperCase(),
         department: r.department_name ?? "—",
-        policyName: r.policy_name ?? r.main_category ?? "General",
+        policyName: (r.kind ?? "CLAIM") === "VENDOR_BOOKING"
+          ? `Vendor booking · ${r.vendor_name ?? "Unknown vendor"}`
+          : (r.policy_name ?? r.main_category ?? "General"),
         amount: r.total_claimed_amount ?? 0,
         currency: r.currency ?? "MYR",
         dateSubmitted: formatShortDate(r.created_at),

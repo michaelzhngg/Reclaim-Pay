@@ -416,7 +416,7 @@ def test_vendor_account_change_requires_hr(pg_db):
 
 
 def test_vendor_payment_reduces_the_company_daily_budget(pg_db):
-    from engine.services.autonomy_store import ledger_snapshot
+    from engine.services.autonomy_store import employee_history, ledger_snapshot
 
     user = _user(pg_db)
     _policy(pg_db, user)
@@ -426,9 +426,15 @@ def test_vendor_payment_reduces_the_company_daily_budget(pg_db):
 
     # Approved but unpaid does not reserve budget.
     assert ledger_snapshot(pg_db, NOW).vendor_paid_today == 0
+    before = employee_history(pg_db, user.user_id, NOW)
 
     assert asyncio.run(initiate_payout_async(reim.reim_id, pg_db)) is not None
     assert ledger_snapshot(pg_db, NOW).vendor_paid_today == 40.0
+
+    # A vendor payment is not employee income and must not consume the employee's trust or caps.
+    after = employee_history(pg_db, user.user_id, NOW)
+    assert after.paid_claims == before.paid_claims
+    assert after.auto_paid_today == before.auto_paid_today == 0
 
 
 def test_vendor_payment_budget_forces_a_clean_booking_to_hr(pg_db, monkeypatch):

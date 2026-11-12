@@ -9,6 +9,7 @@ import type { ReimbursementRaw, VendorOption } from "@/lib/api/types";
 import { formatClaimRef, formatMoney } from "@/lib/format";
 
 const NEW_VENDOR = "__new__";
+const DEFAULT_CATEGORIES = ["Accommodations", "Equipment", "Meals", "Transportation", "Other"];
 
 const STATUS_COPY: Record<string, { title: string; body: string; tone: string }> = {
   APPROVED: {
@@ -51,14 +52,14 @@ export default function BookVendorPage() {
     getVendors().then(setVendors);
     getPolicies()
       .then((policies) => {
-        const names = new Set<string>();
+        const names = new Set<string>(DEFAULT_CATEGORIES);
         for (const policy of policies) {
           if (policy.status !== "ACTIVE") continue;
           for (const name of policy.reimbursable_categories ?? []) names.add(name);
         }
         setCategories([...names].sort());
       })
-      .catch(() => setCategories([]));
+      .catch(() => setCategories(DEFAULT_CATEGORIES));
   }, []);
 
   const chosenVendor = useMemo(

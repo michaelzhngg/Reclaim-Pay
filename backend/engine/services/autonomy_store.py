@@ -256,6 +256,7 @@ def confirmed_issues(db: Session, user_id: UUID) -> list[tuple[datetime, str, UU
     rejected = db.exec(
         select(Reimbursement).where(
             Reimbursement.user_id == user_id,
+            Reimbursement.kind == "CLAIM",
             Reimbursement.status == ReimbursementStatus.REJECTED.value,
             Reimbursement.reviewed_by.is_not(None),
         )
@@ -270,7 +271,13 @@ def _confirmed_issue_dates(db: Session, user_id: UUID) -> list[datetime]:
 
 
 def employee_history(db: Session, user_id: UUID, now: datetime) -> EmployeeHistory:
-    claims = db.exec(select(Reimbursement).where(Reimbursement.user_id == user_id)).all()
+    # Vendor bookings are company spend, not money the employee received; keep them out of trust and caps.
+    claims = db.exec(
+        select(Reimbursement).where(
+            Reimbursement.user_id == user_id,
+            Reimbursement.kind == "CLAIM",
+        )
+    ).all()
     return history_from_rows([_claim_row(r) for r in claims], _confirmed_issue_dates(db, user_id), now)
 
 
