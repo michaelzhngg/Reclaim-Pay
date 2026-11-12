@@ -205,6 +205,11 @@ def _build_reimbursement_response(
         "policy_name": policy_name,
         "contract_id": str(r.contract_id) if r.contract_id else None,
         "contract": contract_service.contract_dict(db, contract) if contract else None,
+        # A contractor invoice is still a claim row. These are its only extra fields.
+        "is_invoice": bool(r.contract_id and r.invoice_period_start),
+        "invoice_period_start": (r.invoice_period_start.isoformat()
+                                 if r.invoice_period_start else None),
+        "invoice_period_end": r.invoice_period_end.isoformat() if r.invoice_period_end else None,
         "settlement_id": str(r.settlement_id) if r.settlement_id else None,
         "main_category": r.main_category,
         "currency": r.currency,

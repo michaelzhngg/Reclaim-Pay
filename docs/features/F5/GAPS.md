@@ -44,7 +44,12 @@ Known limits of the contractor slice, beyond the explicit gaps in `PLAN.md`.
   claims sit in the normal HR queue. A blocked receipt claim is `DUAL_REVIEW` and cannot
   enter batch approval; an allowed contractor claim in `HR_QUICK` can. Per-currency
   batching belongs to ticket 07.
-- Contractor invoices are ticket 05. Until then a contractor can only submit expense
-  claims.
+- Contractor invoices are ticket 05 and are live: one line item per invoice, no attachment,
+  no generated PDF or tax-invoice fields, and no draft. The invoice period is not checked
+  against the contract's effective dates, only the contract's active status on submission.
+- An over-rate invoice routes to HR as `NEEDS_INFO`; the contract rate is not a hard cap,
+  so HR can still approve the billed price. The reason is HR-only copy.
+- An invoice submission does not run Receipt Shield or an LLM review, matching the
+  deterministic intake in the plan.
 - The contractor trust card reuses the employee badge design. Only its limit label and
   review sentence are contractor-specific.

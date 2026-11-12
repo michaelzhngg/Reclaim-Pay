@@ -103,18 +103,50 @@ plan in `PLAN.md` stays the reference; this file says where the build departs fr
 - **Contractors cannot create vendor bookings.** The booking route now uses the
   non-contractor dependency, matching the nav that hides bookings from them.
 
-## Seams for 05 and 06
+## 05: Contractor invoices at the contract rate
 
-- **05 invoices:** `reimbursements.contract_id` already exists. Add the invoice period
-  columns in a migration chained from `f4a8d3e5b6c7`, then create a `Reimbursement` with
-  `contract_id`, the contract `service_category` and the contract currency. `contract_dict`
-  already returns the rate, so the intake can validate quantity times unit price.
+- **An invoice is a claim row with a period.** `reimbursements.invoice_period_start` and
+  `invoice_period_end` are the only new columns, and `kind` stays `CLAIM`. The period and
+  the line item carry the form data, so trust history, caps, HR triage and payouts need no
+  invoice branch. Migration `b3e5f7a9c1d2` is chained from `f4a8d3e5b6c7`.
+- **Over-rate is `NEEDS_INFO`, not a new hard stop.** The ticket names only
+  `claimant_is_contractor` and `over_contract_limit` on `ClaimFacts`, so an invoice above
+  the contract rate is saved with `JudgmentResult.NEEDS_INFO`. `decide()` then reports
+  `AI_NOT_APPROVED` and routes it to `HR_REVIEW` even for a trusted contractor. The reason
+  is carried in `ai_reasoning.contract_reason = OVER_CONTRACT_RATE`, the summary and the
+  line item, all of which are HR-only.
+- **The request may echo the contract but never override it.** A submitted currency must
+  match the contract currency (`CURRENCY_MISMATCH`) and a submitted category must match
+  `service_category` (`CATEGORY_OVERRIDE`). Unit price omitted defaults to the contract
+  rate; a supplied price is compared against it. All checks run before the first write, so
+  a refused invoice leaves no rows behind.
+- **The line item stores the requested figure.** `approved_amount` starts at the claimed
+  amount on the line so HR approval has a figure to accept. The claim's status,
+  `total_approved_amount` and company amount still move only through `decide()` or an HR
+  decision; the line item is the request detail HR reviews.
+- **AUTO_PAY invoices use the same payout service.** When `decide()` returns `AUTO_PAY`,
+  the submit route calls `initiate_payout_sync` exactly as an analyzed claim does. A failed
+  payout leaves the invoice approved for HR to resend. There is no invoice-specific payout
+  path. A non-AUTO_PAY invoice stops at `REVIEW`.
+- **Invoice intake is deterministic.** No LLM call, no Shield pass and no settlement. The
+  invoice keeps `contract_id`, the contract policy when set, the company-currency FX
+  snapshot and the service category, so it appears in the existing contractor history and
+  HR triage without new list endpoints.
+
+## Seams for 06
+
+- **05 invoices, landed:** `reimbursements.contract_id` plus the period columns from
+  `b3e5f7a9c1d2`. `engine.services.contractor_invoices.create_invoice` is the intake:
+  contract checks, quantity by unit price, FX snapshot and the one call to `decide()`.
+  `contract_dict` still returns the rate and `POST /contractor-invoices` is the route.
 - **06 payout currency:** `engine.services.payout_service.payout_company_amount` is the
   single place that decides what PayPal receives today. Replace its company-currency
   conversion with the contract payout currency, add the payout snapshot fields
   (`payout_amount`, `payout_currency`, `payout_fx_rate`, `payout_fx_at`) in a migration
-  chained after 05's, and run the MYR guard before `create_payout`. `Payout.amount` and
-  `Payout.currency` are already written as the actual amount sent to PayPal.
+  chained after 05's (`b3e5f7a9c1d2`), and run the MYR guard before `create_payout`.
+  `Payout.amount` and `Payout.currency` are already written as the actual amount sent to
+  PayPal. The invoice route's AUTO_PAY call goes through the same service, so it inherits
+  the change without edits.
 - **07 batching:** `payee_for_reim` and `payout_company_amount` are the destination and
   amount seams. Group by the resolved payout currency before building one PayPal batch,
   and keep `provider_batch_id` as the only grouping key.

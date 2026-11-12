@@ -427,6 +427,15 @@ class Reimbursement(SQLModel, table=True):
         foreign_key="contractor_contracts.contract_id",
         index=True,
     )
+    # Set only on a contractor invoice. An invoice is still a Reimbursement row.
+    invoice_period_start: Optional[date] = Field(
+        default=None,
+        sa_column=Column(Date)
+    )
+    invoice_period_end: Optional[date] = Field(
+        default=None,
+        sa_column=Column(Date)
+    )
     # A vendor booking uses this row as its financial record. Existing rows are claims.
     kind: str = Field(
         default=ReimbursementKind.CLAIM.value,
