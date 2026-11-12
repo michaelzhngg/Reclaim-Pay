@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Empty means OpenRouter.
     VISION_BASE_URL: str = ""
     VISION_API_KEY: str = ""
+    # Gemini API only: models tried in order when the configured one answers 429 (quota or
+    # rate limit), before OpenRouter. Each has its own free-tier quota.
+    GEMINI_QUOTA_FALLBACK_MODELS: str = "gemini-3.5-flash-lite,gemini-3.1-flash-lite"
 
     # PayPal (sandbox by default; mock mode needs no keys)
     PAYPAL_MOCK_MODE: bool = True
@@ -42,6 +45,9 @@ class Settings(BaseSettings):
     PAYPAL_CLIENT_SECRET: str = ""
     PAYPAL_WEBHOOK_ID: str = ""
     PAYPAL_CURRENCY: str = "MYR"
+    # Sandbox-only escape hatch when PayPal omits the verification flags (e.g. consent cached
+    # before the app requested them). Live sign-in still requires PayPal's verified flag.
+    PAYPAL_ALLOW_UNVERIFIED_SANDBOX: bool = False
     # The only identity mock mode's fake PayPal reports at sign-in (the seeded demo employee). Empty turns it off.
     PAYPAL_MOCK_SIGNIN_PAYER_ID: str = "DEMOMOCKS123"
     BACKEND_PUBLIC_URL: str = "http://localhost:8000"

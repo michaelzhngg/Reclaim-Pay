@@ -20,7 +20,7 @@
 
 ## 1. Where things stand
 
-- **Integration branch:** `hackathon/reclaim-pay`, pushed to `origin` (github.com/michaelzhngg/PayPal). Every feature branch so far has been merged into it.
+- **Integration branch:** `hackathon/reclaim-pay`, pushed to `origin` (github.com/michaelzhngg/Reclaim-Pay). Every feature branch so far has been merged into it.
 - **Tests:**
   - Backend: 308 pass, with `TEST_DATABASE_URL` (see §4).
   - Frontend: 127 pass.
@@ -45,7 +45,7 @@ PLAN.md §4 is ticked up to date. Unticked rows are the remaining work.
 
 ## 2. Blockers (do these first)
 
-1. **The LLM keys in the local `.env` are placeholders.** `LLM_API_KEY` (ILMU) returns 401, and `OPENROUTER_API_KEY` returns "User not found". Until they're fixed, no AI step runs locally: receipt OCR, policy upload, compliance judgment.
+1. **The LLM keys in the local `.env` are placeholders.** (Update: ILMU is no longer used. The code now defaults to Gemini 3.6 Flash like the live site, so `LLM_API_KEY` must be a Gemini key.) `LLM_API_KEY` (ILMU) returned 401, and `OPENROUTER_API_KEY` returns "User not found". Until they're fixed, no AI step runs locally: receipt OCR, policy upload, compliance judgment.
    - Get the real keys from **Filbert**. Put them in `.env` yourself and never commit them.
    - Then restart the backend: `docker compose restart backend`.
 2. **`SECRET_KEY` is also the public example value.** Staging must use a real, private one, or logins can be forged. Tell Filbert.
@@ -71,7 +71,7 @@ PayPal sandbox keys **are** already in the local `.env` and verified (token OK, 
      - **S3:** the LLM must not count "Subtotal" as a line item, which would cause a false arithmetic mismatch.
      - **S5:** score 55, with evidence linking to S1.
      - **S6b:** split and near-threshold signals fire, and S6a is `audit_selected`.
-     - **Temperature 0:** check that GLM, the Gemini fallback and the vision model accept it.
+     - **Temperature 0:** check that Gemini 3.6 Flash and the Gemini 3.1 Flash Lite fallback accept it.
      - **Employee stream:** it never contains `warn` or HR text.
 2. **First real sandbox payout:**
    - Set `PAYPAL_MOCK_MODE=false`.

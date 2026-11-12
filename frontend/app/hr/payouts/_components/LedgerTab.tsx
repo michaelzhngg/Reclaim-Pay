@@ -62,35 +62,35 @@ export default function LedgerTab() {
     <>
       <ReconcileBadge />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-        <p className="text-sm text-on-surface-variant" aria-live="polite">
+        <p className="text-sm text-ink-muted" aria-live="polite">
           {isLoading ? (
             "Loading payouts…"
           ) : (
             <>
-              <span className="font-semibold text-on-surface">{counts.total}</span>{" "}
+              <span className="font-mono font-medium text-ink">{counts.total}</span>{" "}
               {counts.total === 1 ? "payout" : "payouts"}
               {counts.inFlight > 0 && (
                 <>
                   {", "}
-                  <span className="font-semibold text-amber-900">{counts.inFlight} processing</span>
+                  <span className="font-semibold text-warning">{counts.inFlight} processing</span>
                 </>
               )}
               {counts.failed > 0 && (
                 <>
                   {", "}
-                  <span className="font-semibold text-red-700">{counts.failed} failed or reversed</span>
+                  <span className="font-semibold text-danger">{counts.failed} failed or reversed</span>
                 </>
               )}
             </>
           )}
         </p>
 
-        <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+        <label className="flex items-center gap-2 text-sm text-ink-muted">
           Status
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as StatusFilter)}
-            className="min-h-[44px] bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-3 text-sm font-medium text-on-surface focus-visible:outline-2 focus-visible:outline-primary cursor-pointer"
+            className="min-h-[44px] bg-surface border border-line rounded-control px-3 text-sm font-medium text-ink focus-visible:outline-2 focus-visible:outline-accent cursor-pointer"
           >
             <option value="ALL">All statuses</option>
             {STATUS_OPTIONS.map((s) => (

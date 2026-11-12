@@ -3,8 +3,9 @@
 // ─── Push Notification Provider ──────────────────────────────────────────────
 // Wraps the app and auto-manages Web Push subscriptions based on auth state.
 // - Subscribes on login when permission == "granted"
-// - Prompts once when permission == "default" via PushPermissionPrompt
-// - Unsubscribes on logout
+// - Offers to turn on once (PushInlinePrompt) when permission == "default"
+// - Settings row (PushSettingToggle) turns it on or off for both roles
+// - Remembers "Not now" and an explicit turn-off in localStorage
 // Compatible with iOS Safari 16.4+ (PWA installed) and Android Chrome.
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,8 @@ import {
 import { savePushSubscription, removePushSubscription } from "@/lib/actions/notifications";
 
 interface PushNotificationContextValue {
+  /** null until checked on the client, then whether this browser exposes Web Push. */
+  isSupported: boolean | null;
   permission: NotificationPermission | null;
   isSubscribed: boolean;
   isLoading: boolean;
@@ -37,6 +40,7 @@ interface PushNotificationContextValue {
 }
 
 const PushNotificationContext = createContext<PushNotificationContextValue>({
+  isSupported: null,
   permission: null,
   isSubscribed: false,
   isLoading: false,
@@ -51,6 +55,26 @@ export function usePushNotifications() {
 }
 
 const PROMPT_DISMISSED_KEY = "reclaim_push_prompt_dismissed";
+// Set when the person turns notifications off in Settings, so a reload does not silently resubscribe.
+const OPTED_OUT_KEY = "reclaim_push_opted_out";
+
+// Storage can throw (private mode, blocked site data); a failed read means "not set".
+function readFlag(key: string): boolean {
+  try {
+    return window.localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeFlag(key: string, on: boolean): void {
+  try {
+    if (on) window.localStorage.setItem(key, "1");
+    else window.localStorage.removeItem(key);
+  } catch {
+    // Not remembered this time; nothing else depends on it.
+  }
+}
 
 export default function PushNotificationProvider({
   children,
@@ -58,6 +82,7 @@ export default function PushNotificationProvider({
   children: React.ReactNode;
 }) {
   const { user } = useAuth();
+  const [isSupported, setIsSupported] = useState<boolean | null>(null);
   const [permission, setPermission] = useState<NotificationPermission | null>(null);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -65,7 +90,9 @@ export default function PushNotificationProvider({
   const hasAutoSubscribed = useRef(false);
 
   const refreshPermission = useCallback(() => {
-    if (!isPushSupported()) return;
+    const supported = isPushSupported();
+    setIsSupported(supported);
+    if (!supported) return;
     setPermission(getPushPermissionState());
   }, []);
 
@@ -78,6 +105,7 @@ export default function PushNotificationProvider({
     if (!user || !permission || hasAutoSubscribed.current) return;
     if (permission === "granted") {
       hasAutoSubscribed.current = true;
+      if (readFlag(OPTED_OUT_KEY)) return;
       setIsLoading(true);
       subscribeToPush()
         .then(async (sub) => {
@@ -95,8 +123,7 @@ export default function PushNotificationProvider({
   useEffect(() => {
     if (!user || !permission) return;
     if (permission === "default") {
-      const dismissed = localStorage.getItem(PROMPT_DISMISSED_KEY) === "1";
-      if (!dismissed) {
+      if (!readFlag(PROMPT_DISMISSED_KEY)) {
         setShowPrompt(true);
       }
     } else {
@@ -114,6 +141,7 @@ export default function PushNotificationProvider({
         if (sub) {
           await savePushSubscription(sub);
           setIsSubscribed(true);
+          writeFlag(OPTED_OUT_KEY, false);
         }
       }
     } catch (err) {
@@ -131,6 +159,7 @@ export default function PushNotificationProvider({
       if (ok) {
         await removePushSubscription();
         setIsSubscribed(false);
+        writeFlag(OPTED_OUT_KEY, true);
       }
     } catch (err) {
       console.error("[Push] Unsubscribe failed:", err);
@@ -141,12 +170,13 @@ export default function PushNotificationProvider({
 
   const dismissPrompt = useCallback(() => {
     setShowPrompt(false);
-    localStorage.setItem(PROMPT_DISMISSED_KEY, "1");
+    writeFlag(PROMPT_DISMISSED_KEY, true);
   }, []);
 
   return (
     <PushNotificationContext.Provider
       value={{
+        isSupported,
         permission,
         isSubscribed,
         isLoading,

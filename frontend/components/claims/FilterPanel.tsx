@@ -34,7 +34,7 @@ export function FilterPanel({
   }
 
   return (
-    <div className="px-6 pt-4 pb-5 bg-surface-container-low/60 border-b border-outline-variant/10
+    <div className="px-6 pt-4 pb-5 bg-surface-muted border-b border-line
                     flex flex-col gap-4">
 
       {/* ── Row 1: Status + Amount Range + Clear ──────────────────────── */}
@@ -42,8 +42,7 @@ export function FilterPanel({
 
         {/* Status chips */}
         <div className="flex-1 min-w-[200px]">
-          <p className="text-[11px] font-semibold font-headline text-on-surface-variant
-                        uppercase tracking-widest mb-2">
+          <p className="text-sm font-medium font-body text-ink mb-2">
             AI Status
           </p>
           <div className="flex flex-wrap gap-2">
@@ -53,12 +52,14 @@ export function FilterPanel({
                 <button
                   key={s}
                   onClick={() => toggleStatus(s)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs
-                              font-semibold font-label border transition-all duration-150
-                              active:scale-95 cursor-pointer ${
+                  type="button"
+                  aria-pressed={active}
+                  className={`inline-flex items-center gap-1.5 px-3 min-h-[44px] rounded-control text-xs
+                              font-semibold font-body border transition-colors
+                              cursor-pointer ${
                                 active
-                                  ? `${STATUS_STYLE[s]} border-current shadow-sm`
-                                  : "bg-surface-container-lowest border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/50"
+                                  ? `${STATUS_STYLE[s]} border-current`
+                                  : "bg-surface border-line text-ink hover:bg-surface-muted"
                               }`}
                 >
                   {active && STATUS_ICON[s]}
@@ -71,70 +72,71 @@ export function FilterPanel({
 
         {/* Amount range */}
         <div className="shrink-0">
-          <p className="text-[11px] font-semibold font-headline text-on-surface-variant
-                        uppercase tracking-widest mb-2">
+          <p className="text-sm font-medium font-body text-ink mb-2">
             Amount Range
           </p>
           <div className="flex items-center gap-2">
-            <div className="flex items-center bg-surface-container-lowest rounded-lg
-                            ring-1 ring-outline-variant/20 focus-within:ring-primary/40
-                            px-3 py-2 w-28 transition-all">
-              <span className="text-xs text-on-surface-variant mr-1">$</span>
+            <div className="flex items-center bg-surface rounded-control
+                            border border-line-strong
+                            px-3 min-h-[44px] w-28">
+              <span className="text-xs text-ink-muted mr-1">MYR</span>
               <input
                 type="number"
                 min={0}
                 placeholder="Min"
                 value={filters.amountMin}
                 onChange={(e) => onChange({ ...filters, amountMin: e.target.value })}
-                className="w-full bg-transparent text-sm text-on-surface outline-none font-body"
+                className="w-full bg-transparent text-sm text-ink outline-none font-body"
               />
             </div>
-            <span className="text-on-surface-variant text-xs shrink-0">–</span>
-            <div className="flex items-center bg-surface-container-lowest rounded-lg
-                            ring-1 ring-outline-variant/20 focus-within:ring-primary/40
-                            px-3 py-2 w-28 transition-all">
-              <span className="text-xs text-on-surface-variant mr-1">$</span>
+            <span className="text-ink-muted text-xs shrink-0">–</span>
+            <div className="flex items-center bg-surface rounded-control
+                            border border-line-strong
+                            px-3 min-h-[44px] w-28">
+              <span className="text-xs text-ink-muted mr-1">MYR</span>
               <input
                 type="number"
                 min={0}
                 placeholder="Max"
                 value={filters.amountMax}
                 onChange={(e) => onChange({ ...filters, amountMax: e.target.value })}
-                className="w-full bg-transparent text-sm text-on-surface outline-none font-body"
+                className="w-full bg-transparent text-sm text-ink outline-none font-body"
               />
             </div>
           </div>
         </div>
 
-        {/* Clear all — top-right of row 1 */}
+        {/* Clear all, top-right of row 1 */}
         <button
           onClick={onClear}
-          className="self-end text-xs font-semibold text-on-surface-variant
-                     hover:text-error transition-colors active:scale-95 shrink-0 pb-2.5"
+          type="button"
+          className="self-end min-h-[44px] px-2 rounded-control text-xs font-semibold text-ink-muted
+                     hover:text-ink hover:bg-surface transition-colors shrink-0"
         >
           Clear all filters
         </button>
       </div>
 
-      {/* ── Row 2: Category — horizontal scroll strip ──────────────────── */}
+      {/* ── Row 2: Category, horizontal scroll strip ──────────────────── */}
       <div>
-        <p className="text-[11px] font-semibold font-headline text-on-surface-variant
-                      uppercase tracking-widest mb-2">
+        <p className="text-sm font-medium font-body text-ink mb-2">
           Category
         </p>
         <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1
-                        scrollbar-thin scrollbar-thumb-outline-variant/30 scrollbar-track-transparent">
+                        ">
           {allCategories.map((cat) => {
             const active = filters.categories.includes(cat);
             return (
               <button
                 key={cat}
                 onClick={() => toggleCategory(cat)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold font-label
-                            border transition-all duration-150 active:scale-95 cursor-pointer ${
+                type="button"
+                aria-pressed={active}
+                className={`shrink-0 px-3 min-h-[44px] rounded-full text-xs font-semibold font-body
+                            border transition-colors cursor-pointer ${
                               active
-                                ? "bg-primary/10 text-primary border-primary/30 shadow-sm"
-                                : "bg-surface-container-lowest border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/50"
+                                ? "bg-ink text-on-accent border-ink"
+                                : "bg-surface border-line text-ink hover:bg-surface-muted"
                             }`}
               >
                 {cat}

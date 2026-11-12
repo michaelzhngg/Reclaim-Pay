@@ -8,7 +8,7 @@ export default function ClaimLink({ reimId }: { reimId: string }) {
   return (
     <Link
       href={`/hr/view/${reimId}`}
-      className="inline-flex items-center min-h-[44px] -my-2 rounded-md font-mono text-xs text-primary underline underline-offset-2 hover:text-primary-dim focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+      className="inline-flex items-center min-h-[44px] -my-2 rounded-md font-mono text-xs text-accent underline underline-offset-2 hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
     >
       {formatClaimRef(reimId)}
     </Link>

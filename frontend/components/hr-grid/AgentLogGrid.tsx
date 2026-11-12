@@ -15,17 +15,17 @@ function PayloadDetails({ action }: { action: AgentAction }) {
   const summary = actionSummary(action);
   return (
     <details className="py-2 leading-snug whitespace-normal">
-      <summary className="cursor-pointer min-h-[28px] rounded-sm focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2">
+      <summary className="cursor-pointer min-h-[44px] flex items-center rounded-sm focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2">
         {summary ?? "Show details"}
       </summary>
-      <pre className="mt-2 p-3 rounded-lg bg-surface-container-low text-xs font-mono whitespace-pre-wrap break-all text-on-surface">
+      <pre className="mt-2 p-3 rounded-lg bg-surface-muted text-xs font-mono whitespace-pre-wrap break-all text-ink">
         {JSON.stringify(action.payload, null, 2)}
       </pre>
-      <p className="mt-2 text-xs text-on-surface-variant break-all">
+      <p className="mt-2 text-xs text-ink-muted break-all">
         Hash <span className="font-mono">{action.hash}</span>
       </p>
       {action.prev_hash && (
-        <p className="mt-1 text-xs text-on-surface-variant break-all">
+        <p className="mt-1 text-xs text-ink-muted break-all">
           Previous <span className="font-mono">{action.prev_hash}</span>
         </p>
       )}
@@ -35,16 +35,16 @@ function PayloadDetails({ action }: { action: AgentAction }) {
 
 function LogCard({ action, actorNames }: { action: AgentAction; actorNames: Record<string, string> }) {
   return (
-    <li className="bg-surface-container-lowest rounded-xl border border-outline-variant/20 p-4">
+    <li className="bg-surface rounded-card shadow-ambient p-4">
       <div className="flex items-start justify-between gap-3">
-        <p className="font-semibold text-sm text-on-surface min-w-0">{actionLabel(action)}</p>
-        <p className="text-xs text-on-surface-variant shrink-0">{formatUpdated(action.created_at)}</p>
+        <p className="font-semibold text-sm text-ink min-w-0">{actionLabel(action)}</p>
+        <p className="text-xs text-ink-muted shrink-0">{formatUpdated(action.created_at)}</p>
       </div>
-      <div className="flex items-center justify-between gap-3 mt-1 text-xs text-on-surface-variant">
+      <div className="flex items-center justify-between gap-3 mt-1 text-xs text-ink-muted">
         <span className="min-w-0 truncate">{actorLabel(action.actor, actorNames)}</span>
         {action.reim_id && <ClaimLink reimId={action.reim_id} />}
       </div>
-      <div className="mt-1 text-sm text-on-surface">
+      <div className="mt-1 text-sm text-ink">
         <PayloadDetails action={action} />
       </div>
     </li>
@@ -78,7 +78,7 @@ export default function AgentLogGrid({ rows, actorNames }: { rows: AgentAction[]
         width: 108,
         suppressKeyboardEvent: tabThroughCell,
         cellRenderer: (p: ICellRendererParams<AgentAction>) =>
-          p.data?.reim_id ? <ClaimLink reimId={p.data.reim_id} /> : <span className="text-on-surface-variant">None</span>,
+          p.data?.reim_id ? <ClaimLink reimId={p.data.reim_id} /> : <span className="text-ink-muted">None</span>,
       },
       {
         colId: "details",

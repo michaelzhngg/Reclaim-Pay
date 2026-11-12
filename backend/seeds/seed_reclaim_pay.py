@@ -436,6 +436,15 @@ def _payer_id(account: Account) -> tuple[str | None, bool]:
     return f"DEMOMOCK{account.code.replace('SWE', 'S').replace('HR', 'H')}".upper()[:13], False
 
 
+def _payer_email(account: Account) -> str | None:
+    """Sandbox login email for the env-linked payer, if configured."""
+    if account.payer_slot:
+        env = os.environ.get(f"DEMO_PAYER_EMAIL_{account.payer_slot}", "").strip()
+        if env:
+            return env
+    return None
+
+
 def _department(db: Session, name: str) -> Department:
     dept = db.exec(select(Department).where(Department.name == name)).first()
     if not dept:
@@ -471,6 +480,10 @@ def upsert_accounts(db: Session, now: datetime) -> dict[str, User]:
             # Keep a real sandbox link made through "Log in with PayPal" unless the env names one.
             if from_env or not user.paypal_payer_id:
                 user.paypal_payer_id = payer_id
+            if from_env:
+                payer_email = _payer_email(account)
+                if payer_email:
+                    user.paypal_email = payer_email
             user.paypal_verified = True
             if user.paypal_linked_at is None or user.paypal_linked_at > now - timedelta(days=30):
                 user.paypal_linked_at = now - timedelta(days=30)

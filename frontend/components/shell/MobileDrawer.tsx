@@ -1,0 +1,207 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import Image from "next/image";
+import { useAuth } from "@/context/AuthContext";
+import { Avatar } from "@/components/ui/Avatar";
+import { LogOut, X } from "lucide-react";
+import { isActivePath, type NavLink } from "./types";
+
+type MobileDrawerProps = {
+  open: boolean;
+  onClose: () => void;
+  portal: string;
+  /** Pages that are not in the bottom tab bar. */
+  links: NavLink[];
+};
+
+export default function MobileDrawer({ open, onClose, portal, links }: MobileDrawerProps) {
+  const { user, logout } = useAuth();
+  const pathname = usePathname();
+  const panelRef = useRef<HTMLElement>(null);
+
+  const [translateX, setTranslateX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const touchStart = useRef<{ x: number; y: number; time: number } | null>(null);
+
+  useEffect(() => {
+    document.body.style.overflow = open ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
+  // Auto-close on route change
+  useEffect(() => {
+    if (open) onClose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  // Escape closes the drawer.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  // Swipe handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY, time: Date.now() };
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStart.current || !open) return;
+    const t = e.touches[0];
+    const dx = t.clientX - touchStart.current.x;
+    const dy = t.clientY - touchStart.current.y;
+
+    // Only handle horizontal swipes (moving right = closing from right-side panel)
+    if (Math.abs(dx) > Math.abs(dy) * 1.5 && dx > 0) {
+      setTranslateX(dx);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStart.current || !open) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStart.current.x;
+    const dy = t.clientY - touchStart.current.y;
+    const dt = Date.now() - touchStart.current.time;
+    const velocity = dx / (dt || 1);
+
+    // Close if swiped right far enough or fast enough
+    const threshold = 80;
+    if ((Math.abs(dx) > Math.abs(dy) * 1.5 && dx > threshold) || velocity > 0.5) {
+      onClose();
+    }
+
+    setTranslateX(0);
+    touchStart.current = null;
+    setIsDragging(false);
+  };
+
+  const panelStyle: React.CSSProperties = {
+    transform: `translate3d(${open ? translateX : 100}%, 0, 0)`,
+    transition: isDragging ? "none" : "transform 300ms cubic-bezier(0.16, 1, 0.3, 1)",
+  };
+
+  return (
+    <div
+      className={`fixed inset-0 z-[60] transition-all duration-300 ${open ? "pointer-events-auto" : "pointer-events-none opacity-0"}`}
+      role="dialog"
+      aria-modal="true"
+      aria-hidden={!open}
+    >
+      {/* Backdrop */}
+      <div
+        className={`absolute inset-0 bg-ink/40 transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0"}`}
+        onClick={onClose}
+      />
+
+      {/* Panel: slides from right */}
+      <nav
+        ref={panelRef}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        className="absolute top-0 right-0 bottom-0 w-[86vw] max-w-[340px] bg-white rounded-l-[28px] shadow-[-24px_0_60px_-20px_rgb(20_20_43/0.35)] flex flex-col h-full px-3 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] overscroll-contain touch-pan-y"
+        style={panelStyle}
+      >
+        {/* Close + Brand */}
+        <div className="flex items-center justify-between px-4 py-3 mb-2">
+          <div className="flex items-center gap-2.5">
+            <Image src="/images/logo.svg" alt="" width={26} height={26} className="h-[26px] w-[26px]" />
+            <span className="font-headline text-[19px] font-semibold tracking-[-0.03em] text-on-surface" translate="no">
+              Reclaim <span className="text-paypal-blue">Pay</span>
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-on-surface/5 transition-colors"
+            type="button"
+            aria-label="Close navigation"
+          >
+            <X className="w-5 h-5 text-on-surface" strokeWidth={2} />
+          </button>
+        </div>
+
+        <p
+          className="font-body text-xs font-medium text-on-surface-variant px-4 mb-6 leading-tight transition-all duration-300"
+          style={{ transitionDelay: open ? "40ms" : "0ms", opacity: open ? 1 : 0, transform: open ? "translateY(0)" : "translateY(8px)" }}
+        >
+          {portal} Portal
+        </p>
+
+        {/* User identity chip */}
+        <div
+          className="flex items-center gap-3 px-3 py-3 mb-4 rounded-2xl bg-marshmallow transition-[opacity,transform] duration-300"
+          style={{ transitionDelay: open ? "80ms" : "0ms", opacity: open ? 1 : 0, transform: open ? "translateY(0)" : "translateY(8px)" }}
+        >
+          <Avatar name={user?.name ?? "User"} size="lg" />
+          <div className="flex-1 min-w-0">
+            <p className="font-body font-semibold text-sm text-on-surface truncate leading-tight">
+              {user?.name ?? "Employee"}
+            </p>
+            <p className="font-body text-[11px] text-on-surface-variant truncate">
+              {user?.department_name ?? "General"}
+            </p>
+          </div>
+        </div>
+
+        {/* Links: only items NOT in the bottom nav */}
+        <div className="flex-1 flex flex-col gap-0.5 overflow-y-auto">
+          {links.map(({ href, label, icon: Icon }, i) => {
+            const active = isActivePath(pathname, href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={onClose}
+                aria-current={active ? "page" : undefined}
+                className={`flex items-center gap-3 px-4 min-h-[48px] rounded-xl font-body text-[15px] transition-[background-color,color,opacity,transform] duration-200 active:scale-[0.98] ${
+                  active
+                    ? "bg-primary/[0.08] font-semibold text-primary"
+                    : "font-medium text-on-surface hover:bg-on-surface/[0.04]"
+                }`}
+                style={{ transitionDelay: open ? `${120 + i * 40}ms` : "0ms", opacity: open ? 1 : 0, transform: open ? "translateY(0)" : "translateY(8px)" }}
+              >
+                <Icon
+                  className={`w-[18px] h-[18px] shrink-0 transition-colors ${active ? "text-primary" : "text-on-surface-variant"}`}
+                  strokeWidth={active ? 2.25 : 1.75}
+                  aria-hidden="true"
+                />
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Bottom: Logout */}
+        <div
+          className="mt-auto pt-4 border-t border-outline-variant/10 transition-all duration-300"
+          style={{ transitionDelay: open ? `${160 + links.length * 40}ms` : "0ms", opacity: open ? 1 : 0, transform: open ? "translateY(0)" : "translateY(8px)" }}
+        >
+          <button
+            id="drawer-logout-btn"
+            type="button"
+            onClick={() => { logout(); onClose(); }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-body text-sm font-medium text-on-surface hover:bg-error/10 hover:text-error group transition-all hover:translate-x-0.5 active:scale-[0.97]"
+          >
+            <LogOut
+              className="w-[18px] h-[18px] text-on-surface-variant group-hover:text-error transition-colors"
+              strokeWidth={1.75}
+            />
+            Logout
+          </button>
+        </div>
+      </nav>
+    </div>
+  );
+}

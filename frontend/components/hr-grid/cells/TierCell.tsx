@@ -4,10 +4,10 @@ import { TIER_LABEL } from "../rows";
 // The tier is the sentence "how much of a person does this claim need", so the
 // pill tone rises with human effort. Text always carries the meaning; tone only supports it.
 const TIER_TONE: Record<AutonomyTier, string> = {
-  AUTO_PAY: "bg-emerald-50 text-emerald-800 border-emerald-200",
-  HR_QUICK: "bg-surface-container text-on-surface border-outline-variant/40",
-  HR_REVIEW: "bg-amber-50 text-amber-900 border-amber-200",
-  DUAL_REVIEW: "bg-red-50 text-red-800 border-red-200",
+  AUTO_PAY: "bg-success-soft text-success border-success/30",
+  HR_QUICK: "bg-surface-muted text-ink border-line",
+  HR_REVIEW: "bg-warning-soft text-warning border-warning/30",
+  DUAL_REVIEW: "bg-danger-soft text-danger border-danger/30",
 };
 
 export function TierPill({ tier }: { tier: AutonomyTier }) {

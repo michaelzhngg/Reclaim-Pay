@@ -230,7 +230,7 @@ All payments in Reclaim Pay use the PayPal sandbox. No real money moves. Merchan
 
 - **Live app:** https://reclaimai.dev
 - **Demo video:** [Video link: coming soon]
-- **Repository:** https://github.com/michaelzhngg/PayPal
+- **Repository:** https://github.com/michaelzhngg/Reclaim-Pay
 - **Postman collection:** [Public Postman link: coming soon]
 
 **Demo logins (the password for all of them is `password`):**
@@ -272,7 +272,7 @@ Do not paste this part. Nothing below has been confirmed. As of 4 Nov 2026, no r
 - [ ] **S2 and S6:** S2 goes to HR review at the RM250 cap. The second S6 meal raises the split signal, and the first is marked for audit. Note that an AI PARTIAL verdict can move S6b to HR review.
 - [ ] **S7 (story, Circuit breaker):** the flood trips the breaker, HR is notified, and a clean claim then goes to quick approval. Run this last.
 - [ ] **Employee privacy (Fair to employees, Challenges):** inspect the live stream and confirm it never contains `warn` or HR text.
-- [ ] GLM, the Gemini fallback and the vision model all accept temperature 0.
+- [ ] Gemini 3.6 Flash (chat and vision) and the Gemini 3.1 Flash Lite fallback both accept temperature 0.
 
 ## Live PayPal sandbox run (needs `PAYPAL_MOCK_MODE=false`)
 

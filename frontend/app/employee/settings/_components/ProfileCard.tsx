@@ -14,9 +14,9 @@ import {
   type ProfileDraft,
 } from "./profileForm";
 
-const LABEL = "font-label text-xs font-bold text-on-surface-variant";
+const LABEL = "font-body text-sm font-medium text-ink";
 const INPUT =
-  "w-full bg-surface-container text-on-surface px-4 py-2.5 rounded-xl border border-transparent focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all aria-invalid:border-error";
+  "w-full min-h-[44px] bg-surface text-ink text-base md:text-sm px-3 rounded-control border border-line-strong transition-colors aria-invalid:border-danger";
 
 /** Name and email save to PUT /auth/me. The department is set by HR. */
 export default function ProfileCard() {
@@ -51,22 +51,22 @@ export default function ProfileCard() {
     <section
       id="profile"
       aria-labelledby="profile-heading"
-      className="scroll-mt-24 bg-surface-container-lowest border border-outline-variant/10 rounded-2xl overflow-hidden shadow-sm"
+      className="scroll-mt-24 bg-surface shadow-ambient rounded-card overflow-hidden"
     >
       <form onSubmit={onSubmit} noValidate>
-        <div className="p-6 border-b border-outline-variant/10">
-          <h2 id="profile-heading" className="font-headline font-bold text-lg text-on-surface mb-1">Profile Information</h2>
-          <p className="font-body text-sm text-on-surface-variant">The name and email HR sees on your claims.</p>
+        <div className="p-5 md:p-6 border-b border-line">
+          <h2 id="profile-heading" className="font-display font-semibold text-lg text-ink mb-1">Profile information</h2>
+          <p className="font-body text-sm text-ink-muted">The name and email HR sees on your claims.</p>
         </div>
-        <div className="p-6 space-y-5">
+        <div className="p-5 md:p-6 space-y-5">
           <div className="flex items-center gap-4">
             <div
               aria-hidden="true"
-              className="w-16 h-16 rounded-full bg-primary-container border-2 border-surface flex items-center justify-center font-headline font-bold text-xl text-on-primary-container"
+              className="w-14 h-14 rounded-full bg-surface-muted border border-line flex items-center justify-center font-body font-semibold text-xl text-ink"
             >
               {(draft.name || user?.name || "E").charAt(0).toUpperCase()}
             </div>
-            <p className="font-body text-sm text-on-surface-variant">Your initial is used as your picture.</p>
+            <p className="font-body text-sm text-ink-muted">Your initial is used as your picture.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div className="space-y-1.5">
@@ -95,7 +95,7 @@ export default function ProfileCard() {
                 aria-describedby={error ? "profile-error" : "profile-email-note"}
                 className={INPUT}
               />
-              <p id="profile-email-note" className="text-xs text-on-surface-variant">You also sign in with this address.</p>
+              <p id="profile-email-note" className="text-xs text-ink-muted">You also sign in with this address.</p>
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <label htmlFor="profile-department" className={LABEL}>Department</label>
@@ -105,25 +105,25 @@ export default function ProfileCard() {
                 value={user?.department_name || "Not assigned"}
                 readOnly
                 aria-describedby="profile-department-note"
-                className="w-full bg-surface-variant/30 text-on-surface-variant px-4 py-2.5 rounded-xl border border-transparent outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                className="w-full min-h-[44px] bg-surface-muted text-ink-muted text-base md:text-sm px-3 rounded-control border border-line"
               />
-              <p id="profile-department-note" className="text-xs text-on-surface-variant">HR sets your department.</p>
+              <p id="profile-department-note" className="text-xs text-ink-muted">HR sets your department.</p>
             </div>
           </div>
           {error && (
-            <p id="profile-error" role="alert" className="text-sm font-semibold text-error">
+            <p id="profile-error" role="alert" className="text-sm font-semibold text-danger">
               {error}
             </p>
           )}
         </div>
-        <div className="p-4 bg-surface-container/30 border-t border-outline-variant/10 flex justify-end">
+        <div className="px-5 py-4 md:px-6 border-t border-line flex justify-end">
           <button
             type="submit"
             disabled={!changed || saving}
-            className="flex min-h-11 items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-primary-dim active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            className="flex min-h-11 items-center gap-2 bg-surface text-ink border border-line-strong px-5 rounded-control font-semibold text-sm hover:bg-surface-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Save className="w-4 h-4" aria-hidden />}
-            {saving ? "Saving..." : "Save profile"}
+            {saving ? <Loader2 className="w-4 h-4 motion-safe:animate-spin" aria-hidden /> : <Save className="w-4 h-4" aria-hidden />}
+            {saving ? "Saving…" : "Save profile"}
           </button>
         </div>
       </form>

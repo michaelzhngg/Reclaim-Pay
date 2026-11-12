@@ -148,6 +148,19 @@ def test_linked_verified_employee_signs_in(client, pg_db, monkeypatch):
     assert [n.title for n in notes] == ["New sign-in with PayPal"]
 
 
+def test_seeded_sandbox_can_sign_in_when_paypal_omits_verification(client, pg_db, monkeypatch):
+    user = _person(pg_db)
+    _use_paypal(monkeypatch, verified=False)
+    monkeypatch.setattr(settings, "PAYPAL_ALLOW_UNVERIFIED_SANDBOX", True)
+    monkeypatch.setattr(settings, "PAYPAL_BASE_URL", "https://api-m.sandbox.paypal.com")
+    res = _complete(client)
+    assert res.status_code == 200
+    [action] = _actions(pg_db)
+    assert action.actor == str(user.user_id)
+    assert action.payload["outcome"] == "signed_in"
+    assert action.payload["verification"] == "seeded_sandbox"
+
+
 def test_unknown_payer_gets_a_plain_failure(client, pg_db, monkeypatch):
     _person(pg_db)
     before = pg_db.exec(select(User)).all()

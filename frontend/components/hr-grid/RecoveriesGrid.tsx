@@ -37,10 +37,10 @@ function NoteCell({ recovery }: { recovery: HRRecovery }) {
   return (
     <div className="flex flex-col gap-1 py-2 leading-snug whitespace-normal">
       {recovery.dispute_note && (
-        <p className="font-medium text-on-surface">Employee replied: {recovery.dispute_note}</p>
+        <p className="font-medium text-ink">Employee replied: {recovery.dispute_note}</p>
       )}
-      <p className={recovery.dispute_note ? "text-on-surface-variant" : "text-on-surface"}>{recovery.reason}</p>
-      {outcome && <p className="text-on-surface-variant break-words">{outcome}</p>}
+      <p className={recovery.dispute_note ? "text-ink-muted" : "text-ink"}>{recovery.reason}</p>
+      {outcome && <p className="text-ink-muted break-words">{outcome}</p>}
     </div>
   );
 }
@@ -50,19 +50,19 @@ function DisputeUntil({ recovery }: { recovery: HRRecovery }) {
   return (
     <div className="flex flex-col py-2 leading-snug">
       <span className="tabular-nums">{formatUpdated(recovery.dispute_until)}</span>
-      {hint && <span className="text-xs text-on-surface-variant">{hint}</span>}
+      {hint && <span className="text-xs text-ink-muted">{hint}</span>}
     </div>
   );
 }
 
 const rowBtn =
-  "inline-flex items-center justify-center min-h-[44px] px-3 rounded-lg text-sm font-semibold focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 cursor-pointer";
+  "inline-flex items-center justify-center min-h-[44px] px-3 rounded-lg text-sm font-semibold focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 cursor-pointer";
 
 function RowActions({ recovery, onPreview, onWaive, wide = false }: { recovery: HRRecovery; wide?: boolean } & RowHandlers) {
   const ref = formatClaimRef(recovery.reim_id);
   const preview = canPreview(recovery.status);
   const waive = canWaive(recovery.status);
-  if (!preview && !waive) return <span className="text-on-surface-variant">No action needed</span>;
+  if (!preview && !waive) return <span className="text-ink-muted">No action needed</span>;
   return (
     <div className={`flex items-center gap-2 py-1 ${wide ? "[&>button]:flex-1" : ""}`}>
       {preview && (
@@ -70,7 +70,7 @@ function RowActions({ recovery, onPreview, onWaive, wide = false }: { recovery: 
           type="button"
           onClick={() => onPreview(recovery)}
           aria-label={`Preview invoice for ${ref}`}
-          className={`${rowBtn} border border-outline-variant text-on-surface bg-surface-container-lowest hover:bg-surface-container whitespace-nowrap`}
+          className={`${rowBtn} border border-line text-ink bg-surface hover:bg-surface-muted whitespace-nowrap`}
         >
           Preview invoice
         </button>
@@ -80,7 +80,7 @@ function RowActions({ recovery, onPreview, onWaive, wide = false }: { recovery: 
           type="button"
           onClick={() => onWaive(recovery)}
           aria-label={`Waive the recovery on ${ref}`}
-          className={`${rowBtn} !px-2 text-on-surface-variant hover:bg-surface-container hover:text-on-surface`}
+          className={`${rowBtn} !px-2 text-ink-muted hover:bg-surface-muted hover:text-ink`}
         >
           Waive
         </button>
@@ -92,17 +92,17 @@ function RowActions({ recovery, onPreview, onWaive, wide = false }: { recovery: 
 function RecoveryCard({ recovery, onPreview, onWaive }: { recovery: HRRecovery } & RowHandlers) {
   const hint = disputeHint(recovery);
   return (
-    <li className="bg-surface-container-lowest rounded-xl border border-outline-variant/20 p-4">
+    <li className="bg-surface rounded-card shadow-ambient p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-semibold text-sm text-on-surface truncate">{recovery.employee_name ?? "Employee"}</p>
+          <p className="font-semibold text-sm text-ink truncate">{recovery.employee_name ?? "Employee"}</p>
           <ClaimLink reimId={recovery.reim_id} />
         </div>
-        <p className="font-headline font-bold text-sm text-on-surface tabular-nums shrink-0">
+        <p className="font-mono font-medium text-sm text-ink shrink-0">
           {formatMoney(recovery.currency, recovery.amount)}
         </p>
       </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2 text-xs text-on-surface-variant">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2 text-xs text-ink-muted">
         <RecoveryStatusPill status={recovery.status} />
         <span>
           Dispute until {formatUpdated(recovery.dispute_until)}
@@ -145,7 +145,7 @@ export default function RecoveriesGrid({ rows, onPreview, onWaive }: { rows: HRR
         headerName: "Amount",
         width: 104,
         type: "rightAligned",
-        cellClass: "tabular-nums font-semibold",
+        cellClass: "font-mono font-medium",
         valueFormatter: (p) => (p.data ? formatMoney(p.data.currency, p.data.amount) : ""),
       },
       {

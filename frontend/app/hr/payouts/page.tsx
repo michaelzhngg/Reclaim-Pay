@@ -39,7 +39,7 @@ function PayoutTabs() {
 
   return (
     <>
-      <div role="tablist" aria-label="Payouts" className="flex gap-1 overflow-x-auto border-b border-outline-variant/30 mb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div role="tablist" aria-label="Payouts" className="flex gap-1 overflow-x-auto border-b border-line mb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
         {TABS.map(({ id, label }, i) => {
           const active = tab === id;
           return (
@@ -56,8 +56,8 @@ function PayoutTabs() {
               tabIndex={active ? 0 : -1}
               onClick={() => choose(id)}
               onKeyDown={(e) => onTabKeyDown(e, i)}
-              className={`shrink-0 min-h-[44px] px-2.5 sm:px-3 -mb-px border-b-2 font-body text-sm whitespace-nowrap focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[-2px] cursor-pointer ${
-                active ? "border-primary font-semibold text-primary" : "border-transparent text-on-surface-variant hover:text-on-surface"
+              className={`shrink-0 min-h-[44px] px-2.5 sm:px-3 -mb-px border-b-2 font-body text-sm whitespace-nowrap focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px] cursor-pointer ${
+                active ? "border-ink font-semibold text-ink" : "border-transparent text-ink-muted hover:text-ink hover:border-line-strong"
               }`}
             >
               {label}
@@ -80,20 +80,20 @@ export default function HRPayoutsPage() {
   return (
     <div className="min-h-full px-4 py-6 sm:px-6 md:px-8 md:py-10">
       <header className="mb-6 max-w-3xl">
-        <h2 className="font-headline font-extrabold text-on-background text-3xl md:text-4xl tracking-tight">
+        <h1 className="font-display font-semibold text-ink text-2xl md:text-3xl">
           Payouts
-        </h2>
-        <p className="text-on-surface-variant text-base font-body mt-2">
+        </h1>
+        <p className="text-ink-muted text-base font-body mt-2">
           Every PayPal payout, the auto-paid claims picked for audit, and any overpayments being recovered.
         </p>
       </header>
 
-      <Suspense fallback={<p className="text-sm text-on-surface-variant">Loading payouts…</p>}>
+      <Suspense fallback={<p className="text-sm text-ink-muted">Loading payouts…</p>}>
         <PayoutTabs />
       </Suspense>
 
       {FIXTURES_ON && (
-        <p className="mt-4 text-xs text-on-surface-variant">Sample data (fixture mode). Actions here don&apos;t reach the backend or PayPal.</p>
+        <p className="mt-4 text-xs text-ink-muted">Sample data (fixture mode). Actions here don&apos;t reach the backend or PayPal.</p>
       )}
     </div>
   );

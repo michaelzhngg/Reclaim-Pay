@@ -9,9 +9,22 @@ from core.enums import JudgmentResult, RecoveryStatus, ReimbursementStatus, User
 from core.models import Payout, Recovery, Reimbursement, User
 from engine.risk.autonomy import trust_tier
 from engine.risk.types import AutonomyDecision, AutonomyTier, Severity, TrustTier
-from seeds.seed_reclaim_pay import SEED_TAG, final_trust, generate_history, seed
+from seeds.seed_reclaim_pay import (
+    DEMO_ACCOUNTS,
+    SEED_TAG,
+    _payer_email,
+    final_trust,
+    generate_history,
+    seed,
+)
 
 NOW = datetime(2026, 11, 3, tzinfo=timezone.utc)
+
+
+def test_payer_email_comes_from_env(monkeypatch):
+    monkeypatch.setenv("DEMO_PAYER_EMAIL_1", "sb-demo@personal.example.com")
+    assert _payer_email(DEMO_ACCOUNTS[0]) == "sb-demo@personal.example.com"
+    assert _payer_email(DEMO_ACCOUNTS[2]) is None  # HR accounts have no payer slot
 
 
 def test_deterministic():

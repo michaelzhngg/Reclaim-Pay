@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import { HistoryClaim, STATUS_BADGE, STATUS_DOT } from "./historyData";
+import { HistoryClaim, STATUS_BADGE } from "./historyData";
 import { formatClaimRef } from "@/lib/format";
 
 interface HistoryListProps {
@@ -9,12 +9,20 @@ interface HistoryListProps {
   onSelectClaim: (claim: HistoryClaim) => void;
 }
 
+function StatusChip({ status }: { status: HistoryClaim["status"] }) {
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_BADGE[status]}`}>
+      {status}
+    </span>
+  );
+}
+
 export default function HistoryList({ claims, onSelectClaim }: HistoryListProps) {
   if (claims.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center bg-surface-container-lowest rounded-2xl border border-outline-variant/10">
-        <p className="font-headline font-bold text-lg text-on-surface mb-2">No claims found.</p>
-        <p className="font-body text-sm text-on-surface-variant">Try adjusting your filters.</p>
+      <div className="p-8 md:p-12 text-center bg-surface rounded-card shadow-ambient">
+        <p className="font-display font-semibold text-lg text-ink mb-1">No claims match these filters</p>
+        <p className="font-body text-sm text-ink-muted">Change the status, date or category filter, or clear the search.</p>
       </div>
     );
   }
@@ -22,16 +30,16 @@ export default function HistoryList({ claims, onSelectClaim }: HistoryListProps)
   return (
     <div className="w-full">
       {/* ── Desktop: Full table ───────────────────────── */}
-      <div className="hidden md:block overflow-x-auto bg-surface-container-lowest rounded-xl border border-outline-variant/10 shadow-sm">
+      <div className="hidden md:block overflow-x-auto bg-surface rounded-card shadow-ambient">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-surface-container-low text-on-surface-variant font-body text-xs uppercase tracking-wider">
-              <th className="p-4 font-semibold rounded-tl-xl w-32">Date</th>
-              <th className="p-4 font-semibold w-40">Main Category</th>
-              <th className="p-4 font-semibold">Sub Category / Merchant</th>
-              <th className="p-4 font-semibold w-32">Amount</th>
-              <th className="p-4 font-semibold w-36">Status</th>
-              <th className="p-4 font-semibold rounded-tr-xl w-10"></th>
+            <tr className="text-ink-muted font-body text-xs border-b border-line">
+              <th scope="col" className="px-4 py-3 font-medium w-32">Date</th>
+              <th scope="col" className="px-4 py-3 font-medium w-40">Main category</th>
+              <th scope="col" className="px-4 py-3 font-medium">Sub category / merchant</th>
+              <th scope="col" className="px-4 py-3 font-medium w-36 text-right">Amount</th>
+              <th scope="col" className="px-4 py-3 font-medium w-40">Status</th>
+              <th scope="col" className="px-2 py-3 w-14"><span className="sr-only">Open</span></th>
             </tr>
           </thead>
           <tbody className="font-body text-sm">
@@ -39,41 +47,34 @@ export default function HistoryList({ claims, onSelectClaim }: HistoryListProps)
               <tr
                 key={claim.id}
                 onClick={() => onSelectClaim(claim)}
-                className="border-t border-outline-variant/5 hover:bg-surface-container-highest/40 transition-colors cursor-pointer group"
+                className="border-t border-line first:border-t-0 hover:bg-surface-muted transition-colors cursor-pointer group"
               >
-                <td className="p-4 text-on-surface-variant whitespace-nowrap">{claim.date}</td>
-                <td className="p-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 bg-surface-variant rounded-lg text-on-surface-variant">
-                      <claim.categoryIcon className="w-4 h-4" strokeWidth={1.75} />
-                    </div>
-                    <span className="text-on-surface font-medium">{claim.category}</span>
-                  </div>
-                </td>
-                <td className="p-4 text-on-surface">
+                <td className="px-4 py-3 text-ink-muted whitespace-nowrap">{claim.date}</td>
+                <td className="px-4 py-3 text-ink font-medium">{claim.category}</td>
+                <td className="px-4 py-3 text-ink">
                   <div className="flex flex-col">
                     <span className="font-semibold">{claim.merchant}</span>
-                    <span className="text-xs text-on-surface-variant">
-                      {claim.subCategory && claim.subCategory !== claim.merchant ? `${claim.subCategory} • ` : ""}
+                    <span className="text-xs text-ink-muted">
+                      {claim.subCategory && claim.subCategory !== claim.merchant ? `${claim.subCategory} · ` : ""}
                       <span className="font-mono">{formatClaimRef(claim.id)}</span>
                     </span>
                   </div>
                 </td>
-                <td className="p-4 font-bold text-on-surface tabular-nums">
+                <td className="px-4 py-3 font-mono font-medium text-ink text-right whitespace-nowrap">
                   {claim.amount}
                 </td>
-                <td className="p-4">
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_BADGE[claim.status]}`}
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[claim.status]}`}
-                    />
-                    {claim.status}
-                  </span>
+                <td className="px-4 py-3">
+                  <StatusChip status={claim.status} />
                 </td>
-                <td className="p-4 text-right">
-                  <ChevronRight className="w-5 h-5 text-on-surface-variant opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                <td className="px-2 py-1 text-right">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onSelectClaim(claim); }}
+                    aria-label={`Open claim ${formatClaimRef(claim.id)}`}
+                    className="inline-flex items-center justify-center w-11 h-11 rounded-control text-ink-muted group-hover:text-ink hover:bg-surface transition-colors"
+                  >
+                    <ChevronRight className="w-5 h-5" aria-hidden="true" />
+                  </button>
                 </td>
               </tr>
             ))}
@@ -81,46 +82,37 @@ export default function HistoryList({ claims, onSelectClaim }: HistoryListProps)
         </table>
       </div>
 
-      {/* ── Mobile: Card list ─────────────────────────── */}
-      <div className="md:hidden flex flex-col gap-3">
+      {/* ── Mobile: list ─────────────────────────── */}
+      <ul className="md:hidden bg-surface rounded-card shadow-ambient divide-y divide-line">
         {claims.map((claim) => (
-          <div
-            key={claim.id}
-            onClick={() => onSelectClaim(claim)}
-            className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/10 flex items-center justify-between hover:bg-surface-container-highest/30 transition-colors active:scale-[0.98] cursor-pointer"
-          >
-            {/* Left: icon + meta */}
-            <div className="flex items-center gap-3 overflow-hidden">
-              <div className="p-3 bg-surface-container rounded-xl text-on-surface-variant shrink-0">
-                <claim.categoryIcon className="w-5 h-5" strokeWidth={1.75} />
-              </div>
-              <div className="min-w-0 pr-2">
-                <h4 className="font-headline font-bold text-sm text-on-surface mb-0.5 truncate">
+          <li key={claim.id}>
+            <button
+              type="button"
+              onClick={() => onSelectClaim(claim)}
+              className="w-full text-left flex items-center justify-between gap-3 px-4 py-3 min-h-[60px] hover:bg-surface-muted transition-colors cursor-pointer"
+            >
+              <div className="min-w-0">
+                <p className="font-body font-semibold text-sm text-ink truncate">
                   {claim.merchant}
-                </h4>
-                <p className="font-body text-xs text-on-surface-variant truncate">
-                  {claim.date.split(",")[0]} • {claim.category}
+                </p>
+                <p className="font-body text-xs text-ink-muted truncate mt-0.5">
+                  {claim.date.split(",")[0]} · {claim.category}
                 </p>
               </div>
-            </div>
 
-            {/* Right: amount + badge */}
-            <div className="flex items-center gap-2 shrink-0">
-               <div className="text-right shrink-0">
-                 <p className="font-headline font-bold text-sm text-on-surface mb-1 tabular-nums">
-                   {claim.amount}
-                 </p>
-                 <span
-                   className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_BADGE[claim.status]}`}
-                 >
-                   {claim.status}
-                 </span>
-               </div>
-               <ChevronRight className="w-4 h-4 text-on-surface-variant opacity-60" />
-            </div>
-          </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="text-right flex flex-col items-end gap-1">
+                  <p className="font-mono font-medium text-sm text-ink whitespace-nowrap">
+                    {claim.amount}
+                  </p>
+                  <StatusChip status={claim.status} />
+                </div>
+                <ChevronRight className="w-4 h-4 text-ink-muted" aria-hidden="true" />
+              </div>
+            </button>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }

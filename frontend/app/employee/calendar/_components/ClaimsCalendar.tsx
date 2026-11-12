@@ -73,18 +73,23 @@ export default function ClaimsCalendar({ events }: { events: ClaimCalendarEvent[
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <ul className="flex flex-wrap gap-x-5 gap-y-1.5 font-body text-xs text-on-surface-variant">
-        {TONES.map((tone) => (
-          <li key={tone} className="flex items-center gap-1.5">
-            <span aria-hidden className={`claim-legend-swatch claim-legend-${tone}`}>
-              <i className={TONE_ICON[tone]} />
-            </span>
-            {TONE_LABEL[tone]}
-          </li>
-        ))}
-      </ul>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <ul aria-label="Legend" className="flex flex-wrap gap-x-5 gap-y-2 font-body text-sm text-ink">
+          {TONES.map((tone) => (
+            <li key={tone} className="flex items-center gap-2">
+              <span aria-hidden className={`claim-legend-swatch claim-legend-${tone}`}>
+                <i className={TONE_ICON[tone]} />
+              </span>
+              {TONE_LABEL[tone]}
+            </li>
+          ))}
+        </ul>
+        <p className="font-body text-xs text-ink-muted">
+          Built on a Bryntum Calendar trial, so it shows a &ldquo;Trial Version&rdquo; watermark.
+        </p>
+      </div>
 
-      <div ref={hostRef} className="claims-calendar h-[calc(100dvh-16rem)] min-h-[40rem] min-w-0 overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-container-lowest">
+      <div ref={hostRef} className="claims-calendar h-[calc(100dvh-16rem)] min-h-[40rem] min-w-0 overflow-hidden rounded-card shadow-ambient bg-surface">
         {width !== null && (
           <BryntumCalendar
             date={openingDate}

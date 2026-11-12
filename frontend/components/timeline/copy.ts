@@ -1,4 +1,4 @@
-import type { AutonomyTier } from "@/lib/api/reclaim-pay-types";
+import type { AutonomyTier, TimelineStepState } from "@/lib/api/reclaim-pay-types";
 
 /**
  * What the employee is told about a decision. Anything other than AUTO_PAY gets
@@ -22,4 +22,12 @@ export function tierLabel(tier: AutonomyTier, audience: "employee" | "hr"): stri
   if (tier === "HR_QUICK") return audience === "hr" ? "One-click approval" : "Quick HR check";
   if (audience === "hr" && tier === "DUAL_REVIEW") return "Two-person review";
   return "HR review";
+}
+
+/**
+ * Timeline rows as the employee may see them. A step that warned keeps its row
+ * and status but loses its detail, since the detail can name the check that fired.
+ */
+export function employeeSafeSteps(steps: TimelineStepState[]): TimelineStepState[] {
+  return steps.map(s => (s.status === "warn" && s.detail ? { ...s, detail: null } : s));
 }

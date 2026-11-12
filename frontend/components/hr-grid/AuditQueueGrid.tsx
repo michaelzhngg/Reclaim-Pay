@@ -11,7 +11,7 @@ import { auditAction, type AuditRow } from "./recoveries";
 import { hrGridTheme } from "./theme";
 
 const recordBtn =
-  "inline-flex items-center justify-center min-h-[44px] px-3 rounded-lg border border-outline-variant text-sm font-semibold text-on-surface bg-surface-container-lowest hover:bg-surface-container focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 cursor-pointer";
+  "inline-flex items-center justify-center min-h-[44px] px-3 rounded-lg border border-line text-sm font-semibold text-ink bg-surface hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 cursor-pointer";
 
 function ActionCell({ row, onRecord }: { row: AuditRow; onRecord: (row: AuditRow) => void }) {
   switch (auditAction(row)) {
@@ -22,9 +22,9 @@ function ActionCell({ row, onRecord }: { row: AuditRow; onRecord: (row: AuditRow
         </button>
       );
     case "fully_in_recovery":
-      return <span className="text-on-surface-variant">Full amount in recovery</span>;
+      return <span className="text-ink-muted">Full amount in recovery</span>;
     case "not_paid":
-      return <span className="text-on-surface-variant">Not paid yet</span>;
+      return <span className="text-ink-muted">Not paid yet</span>;
   }
 }
 
@@ -34,24 +34,24 @@ function inRecoveryText(row: AuditRow): string {
 
 function AuditCard({ row, onRecord }: { row: AuditRow; onRecord: (row: AuditRow) => void }) {
   return (
-    <li className="bg-surface-container-lowest rounded-xl border border-outline-variant/20 p-4">
+    <li className="bg-surface rounded-card shadow-ambient p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-semibold text-sm text-on-surface truncate">{row.employee}</p>
-          <p className="text-xs text-on-surface-variant mt-0.5">
+          <p className="font-semibold text-sm text-ink truncate">{row.employee}</p>
+          <p className="text-xs text-ink-muted mt-0.5">
             {row.category} · {row.statusLabel}
           </p>
         </div>
-        <p className="font-headline font-bold text-sm text-on-surface tabular-nums shrink-0">
+        <p className="font-mono font-medium text-sm text-ink shrink-0">
           {formatMoney(row.currency, row.approved)}
         </p>
       </div>
-      <div className="flex items-center justify-between gap-3 mt-2 text-xs text-on-surface-variant">
+      <div className="flex items-center justify-between gap-3 mt-2 text-xs text-ink-muted">
         <ClaimLink reimId={row.reimId} />
         {row.submittedAt && <span>{formatUpdated(row.submittedAt)}</span>}
       </div>
       {row.inRecovery > 0 && (
-        <p className="text-xs text-on-surface-variant mt-2">In recovery: {inRecoveryText(row)}</p>
+        <p className="text-xs text-ink-muted mt-2">In recovery: {inRecoveryText(row)}</p>
       )}
       <div className="mt-3 text-sm [&>button]:w-full">
         <ActionCell row={row} onRecord={onRecord} />
@@ -77,7 +77,7 @@ export default function AuditQueueGrid({ rows, onRecord }: { rows: AuditRow[]; o
         headerName: "Paid",
         width: 112,
         type: "rightAligned",
-        cellClass: "tabular-nums font-semibold",
+        cellClass: "font-mono font-medium",
         valueFormatter: (p) => (p.data ? formatMoney(p.data.currency, p.data.approved) : ""),
       },
       { field: "statusLabel", headerName: "Status", width: 96 },
@@ -86,7 +86,7 @@ export default function AuditQueueGrid({ rows, onRecord }: { rows: AuditRow[]; o
         headerName: "In recovery",
         width: 112,
         type: "rightAligned",
-        cellClass: "tabular-nums",
+        cellClass: "font-mono",
         valueFormatter: (p) => (p.data ? inRecoveryText(p.data) : ""),
       },
       {

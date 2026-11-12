@@ -10,7 +10,7 @@ export default function EmployeeLayout({
 }) {
   return (
     <EmployeeRoleGuard>
-      <div className="flex min-h-screen lg:h-screen lg:overflow-hidden bg-surface text-on-surface">
+      <div className="flex min-h-screen lg:h-screen lg:overflow-hidden bg-paper text-ink">
 
         {/* ── Desktop Sidebar ──────────────────────── */}
         <SideNav />
@@ -23,13 +23,13 @@ export default function EmployeeLayout({
 
           <main
             id="main-content"
-            className="flex-auto lg:flex-1 lg:overflow-y-auto bg-surface pb-nav-safe"
+            className="flex-auto lg:flex-1 lg:overflow-y-auto bg-paper pb-nav-safe"
           >
             {children}
           </main>
         </div>
 
-        {/* Mobile bottom navigation (fixed — FAB exception) */}
+        {/* Mobile bottom navigation (fixed, FAB exception) */}
         <BottomNav />
 
       </div>

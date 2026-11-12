@@ -27,16 +27,16 @@ function Differences({ summary }: { summary: ReconcileSummary }) {
       <summary className="inline-flex items-center min-h-[44px] font-semibold cursor-pointer focus-visible:outline-2 focus-visible:outline-current">
         Show {count === 1 ? "1 difference" : `${count} differences`}
       </summary>
-      <ul className="flex flex-col gap-2 pb-1 text-on-surface">
+      <ul className="flex flex-col gap-2 pb-1 text-ink">
         {mismatches.map((m) => (
           <li key={m.payout_id} className="break-words">
-            <span className="font-semibold">{m.claim_ref}</span> · {m.employee_name} ·{" "}
+            <span className="font-mono font-medium">{m.claim_ref}</span> · {m.employee_name} ·{" "}
             {formatMoney(m.currency, m.amount)} · sent {formatUpdated(m.created_at)}: not found in PayPal
           </li>
         ))}
         {unknown.map((u) => (
           <li key={u.transaction_id} className="break-words">
-            <span className="font-semibold">{u.transaction_id}</span> · {formatMoney(u.currency, u.amount)} ·{" "}
+            <span className="font-mono font-medium">{u.transaction_id}</span> · {formatMoney(u.currency, u.amount)} ·{" "}
             {formatUpdated(u.occurred_at)}: in PayPal with no matching payout
           </li>
         ))}
@@ -72,7 +72,7 @@ export default function ReconcileBadge() {
 
   if (!summary && !failed) {
     return (
-      <div role="status" className="mb-4 h-[44px] w-56 max-w-full rounded-lg bg-surface-container-low animate-pulse">
+      <div role="status" className="mb-4 h-[44px] w-56 max-w-full rounded-lg bg-surface-muted animate-pulse">
         <span className="sr-only">Checking payouts against PayPal</span>
       </div>
     );

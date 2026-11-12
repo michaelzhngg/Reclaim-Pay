@@ -275,13 +275,22 @@ async def signin_complete(request: Request, body: SigninComplete, db: Session = 
     user = matches[0] if len(matches) == 1 else None
     if user is None:
         reason = "ambiguous_payer" if matches else "unknown_payer"
-    elif not identity.verified:
+    elif not identity.verified and not (
+        settings.PAYPAL_ALLOW_UNVERIFIED_SANDBOX
+        and settings.PAYPAL_BASE_URL.startswith("https://api-m.sandbox")
+        and bool(user.paypal_verified)
+    ):
         reason = "paypal_not_verified"
     else:
         reason = security.paypal_signin_rejection(user, identity.payer_id)
     if reason:
         actor = str(user.user_id) if user else "unknown"
-        record_action(db, AgentActionType.PAYPAL_SIGNIN, actor, None, {"outcome": "rejected", "reason": reason})
+        record_action(db, AgentActionType.PAYPAL_SIGNIN, actor, None, {
+            "outcome": "rejected", "reason": reason,
+            "verified": identity.verified,
+            "verified_account": identity.verified_account,
+            "email_verified": identity.email_verified,
+        })
         raise failed
 
     lifetime = timedelta(hours=PAYEE_COOLDOWN_HOURS)
@@ -294,6 +303,7 @@ async def signin_complete(request: Request, body: SigninComplete, db: Session = 
     record_action(db, AgentActionType.PAYPAL_SIGNIN, str(user.user_id), None, {
         "outcome": "signed_in",
         "link_changes_paused_until": until,
+        "verification": "paypal" if identity.verified else "seeded_sandbox",
     })
     notify(
         db, user.user_id, "warning", "New sign-in with PayPal",

@@ -11,9 +11,9 @@ function CalendarLoading() {
   return (
     <div
       role="status"
-      className="flex h-64 items-center justify-center rounded-2xl border border-outline-variant/30 bg-surface-container-lowest font-body text-sm text-on-surface-variant"
+      className="flex h-64 items-center justify-center rounded-card shadow-ambient bg-surface font-body text-sm text-ink-muted"
     >
-      Loading your claims and payouts...
+      Loading your claims and payouts…
     </div>
   );
 }
@@ -61,19 +61,19 @@ export default function CalendarPage() {
   return (
     <div className="mx-auto flex w-full max-w-screen-xl flex-col gap-4 px-4 pt-6 pb-6 md:px-8 md:pt-8 lg:pt-10">
       <header>
-        <h2 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface md:text-4xl">Calendar</h2>
-        <p className="mt-1 font-body text-base text-on-surface-variant">The days you submitted claims and got paid.</p>
+        <h2 className="font-display text-2xl font-semibold text-ink md:text-3xl">Calendar</h2>
+        <p className="mt-1 font-body text-base text-ink-muted">The days you submitted claims and got paid.</p>
       </header>
 
       {state.kind === "loading" && <CalendarLoading />}
 
       {state.kind === "error" && (
-        <div role="alert" className="flex flex-col items-start gap-3 rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-6">
-          <p className="font-body text-sm text-on-surface">We couldn&apos;t load your claims. Check your connection and try again.</p>
+        <div role="alert" className="flex flex-col items-start gap-3 rounded-card shadow-ambient bg-surface p-6">
+          <p className="font-body text-sm text-ink">We couldn&apos;t load your claims. Check your connection and try again.</p>
           <button
             type="button"
             onClick={retry}
-            className="min-h-11 rounded-xl bg-primary px-4 font-body text-sm font-semibold text-on-primary transition-colors hover:bg-primary-dim"
+            className="min-h-11 rounded-full bg-accent px-4 font-body text-sm font-semibold text-on-accent transition-colors hover:bg-accent-hover"
           >
             Try again
           </button>
@@ -81,11 +81,11 @@ export default function CalendarPage() {
       )}
 
       {state.kind === "ready" && events.length === 0 && (
-        <div className="flex flex-col items-start gap-3 rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-6">
-          <p className="font-body text-sm text-on-surface">No claims yet. Submit a receipt and it shows up here on the day you sent it, then again on the day you&apos;re paid.</p>
+        <div className="flex flex-col items-start gap-3 rounded-card shadow-ambient bg-surface p-6">
+          <p className="font-body text-sm text-ink">No claims yet. Submit a receipt and it shows up here on the day you sent it, then again on the day you&apos;re paid.</p>
           <Link
             href="/employee/claims"
-            className="inline-flex min-h-11 items-center rounded-xl bg-primary px-4 font-body text-sm font-semibold text-on-primary transition-colors hover:bg-primary-dim"
+            className="inline-flex min-h-11 items-center rounded-full bg-accent px-4 font-body text-sm font-semibold text-on-accent transition-colors hover:bg-accent-hover"
           >
             Upload a claim
           </Link>

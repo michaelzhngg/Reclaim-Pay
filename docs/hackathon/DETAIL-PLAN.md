@@ -1695,7 +1695,7 @@ Likelihood and impact: H/M/L.
 | R12 | Merge conflicts in hot files | M | M | Rebase pain | Ownership table; merge windows | Chingiz |
 | R13 | Scope creep | H | H | New ideas after Day 2 18:00 | Darrell says no; ideas go to "What's next" | Darrell |
 | R14 | Devpost rules restrict existing projects | L | H | Rules page | Check Day 0; "What's new" section is explicit | Darrell |
-| R15 | Main LLM provider outage | L | H | Errors in logs | Existing GLM → Gemini fallback | Filbert |
+| R15 | Main LLM provider outage | L | H | Errors in logs | Existing fallback: Gemini 3.6 Flash → Gemini 3.1 Flash Lite on OpenRouter | Filbert |
 | R16 | Render free Postgres expires before judging ends (21 Dec) | M | H | Check the plan on Day 1 | Paid instance, credits, or VM DB | Darrell |
 | R17 | Demo state drifts between takes (breaker, trust, duplicates) | H | M | Unexpected tiers | `--reset-demo` before every take; S7 last | Darrell |
 

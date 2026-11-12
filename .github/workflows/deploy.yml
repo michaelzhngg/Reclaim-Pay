@@ -1,19 +1,13 @@
 name: CI/CD
 
-# PRs: test + build images (not pushed).
-# main: test -> build & push to GHCR -> deploy to the homeserver over Tailscale.
-# Manual run with image_tag: redeploy an existing image (rollback), skipping build.
+# Tests and Docker image builds on every PR and push to main.
+# Production is Render, which builds and deploys main on its own (render.yaml on deploy/render).
 
 on:
   pull_request:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      image_tag:
-        description: "Existing image tag to deploy, e.g. sha-<40 hex>. Leave empty to build and deploy the branch head."
-        required: false
-        default: ""
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -22,13 +16,9 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  IMAGE_TAG: sha-${{ github.sha }}
-
 jobs:
   backend-test:
     name: Backend tests
-    if: ${{ !inputs.image_tag }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -45,7 +35,6 @@ jobs:
 
   frontend-test:
     name: Frontend typecheck + tests
-    if: ${{ !inputs.image_tag }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -67,9 +56,6 @@ jobs:
     needs: [backend-test, frontend-test]
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions:
-      contents: read
-      packages: write
     strategy:
       fail-fast: true
       matrix:
@@ -83,122 +69,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Image name
-        id: image
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/${{ matrix.service }}" >> "$GITHUB_OUTPUT"
-
       - uses: docker/setup-buildx-action@v4
 
-      - uses: docker/login-action@v4
-        if: github.event_name != 'pull_request'
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/metadata-action@v6
-        id: meta
-        with:
-          images: ${{ steps.image.outputs.name }}
-          tags: |
-            type=raw,value=${{ env.IMAGE_TAG }}
-            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
-
-      # The frontend is built with an empty NEXT_PUBLIC_API_URL so the browser uses
-      # relative URLs; the same image then works behind Funnel and Cloudflare.
+      # Build only, to catch Dockerfile breakage before Render does.
       - uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          push: false
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
-
-  deploy:
-    name: Deploy to homeserver
-    needs: [build]
-    # Only from main, and only after a green build (or a manual redeploy of an existing tag).
-    if: >-
-      always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' &&
-      (needs.build.result == 'success' || (inputs.image_tag != '' && needs.build.result == 'skipped'))
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    environment:
-      name: production
-      url: ${{ vars.PUBLIC_URL }}
-    concurrency:
-      group: deploy-production
-      cancel-in-progress: false
-    permissions:
-      contents: read
-      packages: read  # GITHUB_TOKEN is handed to the server for one pull, then discarded
-      id-token: write # Tailscale workload identity federation (no long-lived Tailscale secret)
-    steps:
-      - name: Resolve tag
-        id: tag
-        env:
-          INPUT_TAG: ${{ inputs.image_tag }}
-        run: |
-          tag="${INPUT_TAG:-$IMAGE_TAG}"
-          [[ "$tag" =~ ^sha-[0-9a-f]{40}$ ]] || { echo "::error::bad image tag '$tag'"; exit 1; }
-          echo "value=$tag" >> "$GITHUB_OUTPUT"
-
-      - name: Join tailnet
-        uses: tailscale/github-action@v4
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          audience: ${{ secrets.TS_AUDIENCE }}
-          tags: tag:ci
-
-      - name: Configure SSH
-        env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          cat > ~/.ssh/config <<EOF
-          Host homeserver
-            HostName ${{ secrets.DEPLOY_HOST }}
-            User ${{ secrets.DEPLOY_USER }}
-            IdentityFile ~/.ssh/deploy_key
-            IdentitiesOnly yes
-            StrictHostKeyChecking yes
-            ConnectTimeout 15
-            ServerAliveInterval 30
-          EOF
-
-      - name: Wait for the server to be reachable
-        run: |
-          for i in $(seq 1 12); do
-            ssh homeserver status >/dev/null 2>&1 && exit 0
-            echo "attempt $i: not reachable yet"; sleep 5
-          done
-          ssh -v homeserver status
-
-      - name: Deploy ${{ steps.tag.outputs.value }}
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: printf '%s %s\n' "${{ github.actor }}" "$GHCR_TOKEN" | ssh homeserver "deploy ${{ steps.tag.outputs.value }}"
-
-      # On the tailnet, MagicDNS resolves the Funnel hostname to the server's tailnet
-      # IP, where tag:ci may only use port 22. Leave first so the check goes the way
-      # real visitors do.
-      - name: Leave tailnet
-        run: sudo tailscale down
-
-      - name: Public smoke test
-        if: vars.PUBLIC_URL != ''
-        env:
-          PUBLIC_URL: ${{ vars.PUBLIC_URL }}
-        run: |
-          curl -fsS -o /dev/null --max-time 20 --retry 6 --retry-delay 5 --retry-all-errors "$PUBLIC_URL/"
-          curl -fsS -o /dev/null --max-time 20 --retry 6 --retry-delay 5 --retry-all-errors "$PUBLIC_URL/api/v1/openapi.json"
-          echo "### Live: $PUBLIC_URL (${{ steps.tag.outputs.value }})" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Remove deploy key
-        if: always()
-        run: rm -f ~/.ssh/deploy_key

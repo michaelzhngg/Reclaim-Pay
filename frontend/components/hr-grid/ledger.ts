@@ -18,10 +18,10 @@ export const STATUS_META: Record<PayoutStatus, { label: string; tone: StatusTone
 };
 
 export const TONE_CLASSES: Record<StatusTone, string> = {
-  success: "bg-emerald-50 text-emerald-800 border-emerald-200",
-  progress: "bg-amber-50 text-amber-900 border-amber-200",
-  danger: "bg-red-50 text-red-700 border-red-200",
-  neutral: "bg-surface-container text-on-surface-variant border-outline-variant/30",
+  success: "bg-success-soft text-success border-success/30",
+  progress: "bg-warning-soft text-warning border-warning/30",
+  danger: "bg-danger-soft text-danger border-danger/30",
+  neutral: "bg-surface-muted text-ink-muted border-line",
 };
 
 /** The backend leaves `tier` empty until the autonomy engine records one. */

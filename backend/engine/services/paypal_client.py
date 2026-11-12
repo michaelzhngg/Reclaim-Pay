@@ -47,6 +47,8 @@ class PayPalUser:
     payer_id: str
     email: str | None
     verified: bool
+    verified_account: bool | None = None
+    email_verified: bool | None = None
 
 
 class PayPalError(Exception):
@@ -128,16 +130,25 @@ def _parse_batch(data: dict) -> PayoutBatch:
     return PayoutBatch(header.get("payout_batch_id", ""), header.get("batch_status", ""), items)
 
 
+def _as_bool(value: object) -> bool:
+    return value.lower() == "true" if isinstance(value, str) else bool(value)
+
+
 def _parse_user(data: dict) -> PayPalUser:
     email = data.get("email")
     if not email:
         emails = data.get("emails") or []
         primary = next((e for e in emails if e.get("primary")), emails[0] if emails else None)
         email = primary.get("value") if primary else None
-    verified = data.get("verified_account", False)
-    if isinstance(verified, str):
-        verified = verified.lower() == "true"
-    return PayPalUser(payer_id=data.get("payer_id") or data.get("user_id", ""), email=email, verified=bool(verified))
+    verified_account = data.get("verified_account")
+    email_verified = data.get("email_verified")
+    return PayPalUser(
+        payer_id=data.get("payer_id") or data.get("user_id", ""),
+        email=email,
+        verified=_as_bool(verified_account) or _as_bool(email_verified),
+        verified_account=None if verified_account is None else _as_bool(verified_account),
+        email_verified=None if email_verified is None else _as_bool(email_verified),
+    )
 
 
 class PayPalClient:
@@ -227,15 +238,23 @@ class PayPalClient:
 
     async def get_userinfo(self, user_access_token: str) -> PayPalUser:
         headers = {"Authorization": f"Bearer {user_access_token}", "Accept": "application/json"}
+        endpoint = "paypalv1.1"
         async with self._http() as http:
             resp = await http.get("/v1/identity/oauth2/userinfo", params={"schema": "paypalv1.1"}, headers=headers)
             if resp.status_code == 404:
+                endpoint = "openid"
                 resp = await http.get("/v1/identity/openidconnect/userinfo", params={"schema": "openid"},
                                       headers=headers)
         if resp.status_code >= 400:
             body = _json_or_empty(resp)
             raise PayPalError(resp.status_code, body.get("name") or body.get("error"), body.get("debug_id"))
-        return _parse_user(resp.json())
+        body = resp.json()
+        logger.info(
+            "[PAYPAL_USERINFO] endpoint=%s keys=%s verified_account=%r email_verified=%r payer_id=%s",
+            endpoint, sorted(body.keys()), body.get("verified_account"), body.get("email_verified"),
+            bool(body.get("payer_id") or body.get("user_id")),
+        )
+        return _parse_user(body)
 
 
 class MockPayPalClient:

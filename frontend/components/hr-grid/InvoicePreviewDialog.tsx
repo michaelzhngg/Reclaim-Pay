@@ -12,8 +12,8 @@ import { errorChangesRow, errorNeedsNewPreview, recoveryErrorMessage, type HRRec
 const LOAD_FAILED = "Couldn't draft the invoice. Check your connection and try again.";
 const SEND_FAILED = "Couldn't reach the server, so nothing was confirmed as sent. Refresh the list before trying again.";
 
-const closeBtn = `${btnBase} text-on-surface hover:bg-surface-container focus-visible:outline-primary`;
-const primaryBtn = `${btnBase} bg-primary text-on-primary hover:bg-primary-dim focus-visible:outline-primary`;
+const closeBtn = `${btnBase} text-ink hover:bg-surface-muted focus-visible:outline-accent`;
+const primaryBtn = `${btnBase} bg-accent text-on-accent hover:bg-accent-hover focus-visible:outline-accent`;
 
 function Sent({ recovery, preview }: { recovery: Recovery; preview: RecoveryInvoicePreview }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -22,11 +22,11 @@ function Sent({ recovery, preview }: { recovery: Recovery; preview: RecoveryInvo
   const money = formatMoney(recovery.currency, recovery.amount);
   return (
     <div ref={ref} tabIndex={-1} role="status" className="flex items-start gap-3 outline-none">
-      <CheckCircle2 className="w-5 h-5 mt-0.5 shrink-0 text-emerald-700" aria-hidden="true" />
+      <CheckCircle2 className="w-5 h-5 mt-0.5 shrink-0 text-success" aria-hidden="true" />
       {recovery.status === "OFFSET" ? (
         <div>
           <p className="font-semibold">No invoice was sent.</p>
-          <p className="mt-1 text-on-surface-variant">
+          <p className="mt-1 text-ink-muted">
             {money} will be deducted from{" "}
             {recovery.offset_reim_id ? `claim ${formatClaimRef(recovery.offset_reim_id)}` : "an unpaid claim"}, which this
             employee still has waiting.
@@ -35,7 +35,7 @@ function Sent({ recovery, preview }: { recovery: Recovery; preview: RecoveryInvo
       ) : (
         <div>
           <p className="font-semibold">Invoice sent via PayPal.</p>
-          <p className="mt-1 text-on-surface-variant break-words">
+          <p className="mt-1 text-ink-muted break-words">
             {money} to {preview.recipient_email_masked}
             {recovery.paypal_invoice_id && `, invoice ${recovery.paypal_invoice_id}`}.
           </p>
@@ -117,7 +117,7 @@ function Body({
   };
 
   const footer = (primary?: React.ReactNode, closeLabel = "Close") => (
-    <footer className="flex flex-col-reverse gap-2 px-5 py-4 border-t border-outline-variant/20 sm:flex-row sm:justify-end">
+    <footer className="flex flex-col-reverse gap-2 px-5 py-4 border-t border-line sm:flex-row sm:justify-end">
       <button type="button" onClick={onClose} disabled={sending} className={closeBtn}>
         {closeLabel}
       </button>
@@ -128,7 +128,7 @@ function Body({
   if (loading) {
     return (
       <>
-        <div role="status" className="flex-1 px-5 py-8 flex items-center gap-3 text-sm text-on-surface-variant">
+        <div role="status" className="flex-1 px-5 py-8 flex items-center gap-3 text-sm text-ink-muted">
           <Loader2 className="w-5 h-5 animate-spin shrink-0" aria-hidden="true" />
           Drafting the invoice note. This can take a few seconds.
         </div>
@@ -172,22 +172,22 @@ function Body({
     <>
       <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4 text-sm">
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-          <dt className="text-on-surface-variant">Amount</dt>
-          <dd className="font-headline font-bold tabular-nums">{formatMoney(preview.currency, preview.amount)}</dd>
-          <dt className="text-on-surface-variant">Send to</dt>
+          <dt className="text-ink-muted">Amount</dt>
+          <dd className="font-mono font-medium">{formatMoney(preview.currency, preview.amount)}</dd>
+          <dt className="text-ink-muted">Send to</dt>
           <dd className="font-medium break-all">{preview.recipient_email_masked}</dd>
         </dl>
         <div>
-          <p className="text-on-surface-variant">Note on the invoice, drafted by AI. Read it before you send.</p>
-          <p className="mt-1.5 rounded-lg bg-surface-container-low px-3 py-2.5 whitespace-pre-wrap break-words">{preview.note}</p>
+          <p className="text-ink-muted">Note on the invoice, drafted by AI. Read it before you send.</p>
+          <p className="mt-1.5 rounded-lg bg-surface-muted px-3 py-2.5 whitespace-pre-wrap break-words">{preview.note}</p>
         </div>
         {waiting && (
-          <p className="text-on-surface-variant">
+          <p className="text-ink-muted">
             The employee can dispute until {formatUpdated(recovery.dispute_until)}, so you can send this after that.
           </p>
         )}
         {preview.path === "OFFSET" && (
-          <p className="text-on-surface-variant">
+          <p className="text-ink-muted">
             This employee has an unpaid claim that covers the amount, so it will be deducted from that claim. No invoice goes out.
           </p>
         )}

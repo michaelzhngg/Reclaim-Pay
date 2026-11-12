@@ -32,14 +32,14 @@ interface TriageQueueProps {
 }
 
 const TAB_HINT: Partial<Record<TierTab, string>> = {
-  AUTO_PAY: "Paid by the agent in the last 24 hours. Open one to see why it qualified.",
-  HR_QUICK: "Low-risk claims the agent held back for a hard stop. Check and approve them together.",
+  AUTO_PAY: "Paid automatically in the last 24 hours because every fixed rule passed. Open one to see why it qualified.",
+  HR_QUICK: "Low-risk claims a hard stop held back from auto-pay. Check and approve them together.",
   DUAL_REVIEW: "High-risk claims. Two different HR members must approve each one.",
 };
 
 function emptyCopy(tab: TierTab): string {
   if (tab === "all") return "Nothing needs you right now.";
-  if (tab === "AUTO_PAY") return "The agent hasn't paid any claims in the last 24 hours.";
+  if (tab === "AUTO_PAY") return "No claims were paid automatically in the last 24 hours.";
   return `No claims are waiting for ${TIER_LABEL[tab].toLowerCase()}.`;
 }
 
@@ -47,7 +47,7 @@ function QueueSkeleton() {
   return (
     <div className="flex flex-col gap-2" aria-hidden="true">
       {[...Array(5)].map((_, i) => (
-        <div key={i} className="h-[52px] rounded-lg bg-surface-container-low animate-pulse" />
+        <div key={i} className="h-[52px] rounded-control bg-surface-muted animate-pulse" />
       ))}
     </div>
   );
@@ -129,7 +129,7 @@ export default function TriageQueue({ rows, isLoading, error, selfId, onRetry, o
         Claims by tier
       </h3>
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between border-b border-outline-variant/30 mb-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between border-b border-line mb-4">
         <div role="tablist" aria-label="Claims by tier" className="flex gap-1 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
           {TIER_TABS.map(({ id, label }, i) => {
             const active = tab === id;
@@ -146,16 +146,16 @@ export default function TriageQueue({ rows, isLoading, error, selfId, onRetry, o
                 tabIndex={active ? 0 : -1}
                 onClick={() => chooseTab(id)}
                 onKeyDown={(e) => onTabKeyDown(e, i)}
-                className={`shrink-0 inline-flex items-center gap-2 min-h-[44px] px-3 -mb-px border-b-2 font-body text-sm whitespace-nowrap focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[-2px] cursor-pointer ${
+                className={`shrink-0 inline-flex items-center gap-2 min-h-[44px] px-3 -mb-px border-b-2 font-body text-sm whitespace-nowrap focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px] cursor-pointer ${
                   active
-                    ? "border-primary font-semibold text-primary"
-                    : "border-transparent text-on-surface-variant hover:text-on-surface"
+                    ? "border-ink font-semibold text-ink"
+                    : "border-transparent text-ink-muted hover:text-ink hover:border-line-strong"
                 }`}
               >
                 {label}
                 <span
-                  className={`min-w-[1.5rem] px-1.5 py-0.5 rounded-full text-xs font-semibold tabular-nums ${
-                    active ? "bg-primary/10 text-primary" : "bg-surface-container text-on-surface-variant"
+                  className={`min-w-[1.5rem] px-1.5 py-0.5 rounded-control text-center text-xs font-mono font-medium ${
+                    active ? "bg-ink text-paper" : "bg-surface-muted text-ink-muted"
                   }`}
                 >
                   {isLoading ? "…" : counts[id]}
@@ -171,7 +171,7 @@ export default function TriageQueue({ rows, isLoading, error, selfId, onRetry, o
               type="button"
               onClick={openSheet}
               disabled={selectedRows.length === 0}
-              className="w-full lg:w-auto min-h-[44px] px-4 rounded-lg bg-primary text-on-primary text-sm font-semibold tabular-nums hover:bg-primary-dim disabled:bg-surface-container-high disabled:text-on-surface-variant disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 cursor-pointer"
+              className="w-full lg:w-auto min-h-[44px] px-4 rounded-full bg-accent text-on-accent text-sm font-semibold tabular-nums hover:bg-accent-hover disabled:bg-line disabled:text-ink-muted disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 cursor-pointer"
             >
               {approveButtonLabel(selectedRows)}
             </button>
@@ -180,21 +180,21 @@ export default function TriageQueue({ rows, isLoading, error, selfId, onRetry, o
       </div>
 
       <div id="triage-panel" role="tabpanel" aria-labelledby={`triage-tab-${tab}`}>
-        {TAB_HINT[tab] && !error && <p className="text-sm text-on-surface-variant mb-4">{TAB_HINT[tab]}</p>}
+        {TAB_HINT[tab] && !error && <p className="text-sm text-ink-muted mb-4">{TAB_HINT[tab]}</p>}
 
         {isLoading && <QueueSkeleton />}
 
         {!isLoading && error && (
           <div
             role="alert"
-            className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700"
+            className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-card border border-danger/30 bg-danger-soft px-4 py-4 text-sm text-danger"
           >
             <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
             <span className="flex-1">{error}</span>
             <button
               type="button"
               onClick={onRetry}
-              className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-4 rounded-lg bg-surface-container-lowest border border-red-200 font-semibold hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-red-700 cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-4 rounded-lg bg-surface border border-danger/30 font-semibold hover:bg-danger-soft focus-visible:outline-2 focus-visible:outline-danger cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
               Try again
@@ -203,12 +203,12 @@ export default function TriageQueue({ rows, isLoading, error, selfId, onRetry, o
         )}
 
         {!isLoading && !error && visible.length === 0 && (
-          <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-6 py-14 text-center">
-            <Inbox className="w-8 h-8 mx-auto text-on-surface-variant" aria-hidden="true" />
-            <p className="font-headline font-bold text-lg text-on-surface mt-3">{emptyCopy(tab)}</p>
+          <div className="rounded-card shadow-ambient bg-surface px-6 py-14 text-center">
+            <Inbox className="w-8 h-8 mx-auto text-ink-muted" aria-hidden="true" />
+            <p className="font-display font-semibold text-lg text-ink mt-3">{emptyCopy(tab)}</p>
             {tab === "all" && (
-              <p className="text-sm text-on-surface-variant mt-1">
-                New claims land here when the agent can&apos;t pay them on its own.
+              <p className="text-sm text-ink-muted mt-1">
+                New claims land here when the fixed rules don&apos;t allow auto-pay.
               </p>
             )}
           </div>
@@ -239,7 +239,7 @@ export default function TriageQueue({ rows, isLoading, error, selfId, onRetry, o
       />
 
       {FIXTURES_ON && (
-        <p className="mt-4 text-xs text-on-surface-variant">Sample data (fixture mode). Approvals here don&apos;t reach the backend.</p>
+        <p className="mt-4 text-xs text-ink-muted">Sample data (fixture mode). Approvals here don&apos;t reach the backend.</p>
       )}
     </section>
   );

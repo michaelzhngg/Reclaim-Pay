@@ -24,8 +24,8 @@ const CATEGORY_OPTIONS = [
   { id: "Office", label: "Office" },
 ];
 
-export default function HistoryFilterBar({ 
-  currentStatus, 
+export default function HistoryFilterBar({
+  currentStatus,
   onStatusChange,
   dateRange,
   onDateRangeChange,
@@ -36,13 +36,16 @@ export default function HistoryFilterBar({
   const [categoryOpen, setCategoryOpen] = useState(false);
 
   return (
-    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6 relative">
-      
+    <div
+      className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6 relative"
+      onKeyDown={(e) => { if (e.key === "Escape") { setDateOpen(false); setCategoryOpen(false); } }}
+    >
+
       {/* ── Overlay for Popovers ── */}
       {(dateOpen || categoryOpen) && (
-        <div 
-          className="fixed inset-0 z-40" 
-          onClick={() => { setDateOpen(false); setCategoryOpen(false); }} 
+        <div aria-hidden="true"
+          className="fixed inset-0 z-40"
+          onClick={() => { setDateOpen(false); setCategoryOpen(false); }}
         />
       )}
 
@@ -53,11 +56,13 @@ export default function HistoryFilterBar({
           return (
             <button
               key={status}
+              type="button"
+              aria-pressed={isActive}
               onClick={() => onStatusChange(status)}
-              className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-semibold transition-all cursor-pointer active:scale-95 border snap-start ${
+              className={`whitespace-nowrap px-4 min-h-[44px] rounded-full text-sm font-semibold transition-colors cursor-pointer border snap-start ${
                 isActive
-                  ? "bg-primary text-on-primary border-primary shadow-sm"
-                  : "bg-surface-container-lowest text-on-surface hover:bg-surface-container-low border-outline-variant/20"
+                  ? "bg-ink text-on-accent border-ink"
+                  : "bg-surface text-ink hover:bg-surface-muted border-line"
               }`}
             >
               {status}
@@ -68,31 +73,36 @@ export default function HistoryFilterBar({
 
       {/* ── Secondary Filters (Date / Category) ── */}
       <div className="flex items-center gap-2 w-full md:w-auto relative z-50">
-        
+
         {/* Date Dropdown */}
         <div className="relative flex-1 md:flex-none shrink-0">
-          <button 
+          <button
             type="button"
             onClick={() => { setDateOpen(!dateOpen); setCategoryOpen(false); }}
-            className="w-full flex items-center justify-between md:justify-center gap-2 bg-surface-container-lowest border border-outline-variant/20 text-on-surface pl-10 pr-4 md:pr-4 py-2 md:py-1.5 rounded-xl text-sm font-semibold hover:bg-surface-container-low transition-colors shadow-sm outline-none focus:border-primary/50 h-[38px] md:h-9"
+            aria-haspopup="true"
+            aria-expanded={dateOpen}
+            aria-label={`Date range: ${dateRange}`}
+            className="w-full flex items-center justify-between md:justify-center gap-2 bg-surface border border-line text-ink pl-10 pr-4 rounded-control text-sm font-semibold hover:bg-surface-muted transition-colors min-h-[44px]"
           >
-            <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface pointer-events-none" />
+            <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none" aria-hidden="true" />
             <span className="truncate">{dateRange}</span>
-            <ChevronDown className={`w-3.5 h-3.5 text-on-surface-variant transition-transform ${dateOpen ? "rotate-180" : ""}`} />
+            <ChevronDown className={`w-3.5 h-3.5 text-ink-muted transition-transform ${dateOpen ? "rotate-180" : ""}`} aria-hidden="true" />
           </button>
-          
+
           {dateOpen && (
-            <div className="absolute right-0 md:left-0 top-[calc(100%+8px)] w-48 bg-surface border border-outline-variant/20 rounded-2xl shadow-xl py-1.5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute right-0 md:left-0 top-[calc(100%+8px)] w-48 bg-surface shadow-ambient rounded-card shadow-overlay py-1">
               {DATE_OPTIONS.map((opt) => (
                 <button
                   key={opt}
+                  type="button"
+                  aria-pressed={dateRange === opt}
                   onClick={() => { onDateRangeChange(opt); setDateOpen(false); }}
-                  className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-left hover:bg-surface-container-low transition-colors"
+                  className="w-full flex items-center justify-between px-4 min-h-[44px] text-sm text-left hover:bg-surface-muted transition-colors"
                 >
-                  <span className={dateRange === opt ? "font-bold text-primary" : "text-on-surface font-medium"}>
+                  <span className={dateRange === opt ? "font-semibold text-ink" : "text-ink"}>
                     {opt}
                   </span>
-                  {dateRange === opt && <Check className="w-4 h-4 text-primary" />}
+                  {dateRange === opt && <Check className="w-4 h-4 text-ink" aria-hidden="true" />}
                 </button>
               ))}
             </div>
@@ -100,32 +110,36 @@ export default function HistoryFilterBar({
         </div>
 
         {/* Category Dropdown */}
-        <div className="relative flex-none shrink-0 h-[38px] md:h-9">
-          <button 
+        <div className="relative flex-none shrink-0 h-11">
+          <button
             type="button"
             onClick={() => { setCategoryOpen(!categoryOpen); setDateOpen(false); }}
-            className="w-full h-full px-2.5 flex items-center justify-center bg-surface-container-lowest border border-outline-variant/20 text-on-surface rounded-xl hover:bg-surface-container-low transition-colors shadow-sm outline-none"
-            aria-label="Filter by Category"
-            title="Filter by Category"
+            aria-haspopup="true"
+            aria-expanded={categoryOpen}
+            className="w-11 h-11 flex items-center justify-center bg-surface border border-line text-ink rounded-control hover:bg-surface-muted transition-colors"
+            aria-label={category === "All" ? "Filter by category" : `Filter by category: ${category}`}
+            title="Filter by category"
           >
-            <Filter className={`w-5 h-5 md:w-4 md:h-4 ${category !== "All" ? "text-primary fill-primary/20" : ""}`} />
+            <Filter className="w-4 h-4" aria-hidden="true" />
             {category !== "All" && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full border-2 border-surface-container-lowest" />
+              <span className="absolute top-2 right-2 w-2 h-2 bg-ink rounded-full ring-2 ring-surface" />
             )}
           </button>
 
           {categoryOpen && (
-            <div className="absolute right-0 top-[calc(100%+8px)] w-48 bg-surface border border-outline-variant/20 rounded-2xl shadow-xl py-1.5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute right-0 top-[calc(100%+8px)] w-48 bg-surface shadow-ambient rounded-card shadow-overlay py-1">
               {CATEGORY_OPTIONS.map((opt) => (
                 <button
                   key={opt.id}
+                  type="button"
+                  aria-pressed={category === opt.id}
                   onClick={() => { onCategoryChange(opt.id); setCategoryOpen(false); }}
-                  className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-left hover:bg-surface-container-low transition-colors"
+                  className="w-full flex items-center justify-between px-4 min-h-[44px] text-sm text-left hover:bg-surface-muted transition-colors"
                 >
-                  <span className={category === opt.id ? "font-bold text-primary" : "text-on-surface font-medium"}>
+                  <span className={category === opt.id ? "font-semibold text-ink" : "text-ink"}>
                     {opt.label}
                   </span>
-                  {category === opt.id && <Check className="w-4 h-4 text-primary" />}
+                  {category === opt.id && <Check className="w-4 h-4 text-ink" aria-hidden="true" />}
                 </button>
               ))}
             </div>
@@ -133,7 +147,7 @@ export default function HistoryFilterBar({
         </div>
 
       </div>
-      
+
     </div>
   );
 }

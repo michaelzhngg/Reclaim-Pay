@@ -206,7 +206,8 @@ The demo is shared, so please don't change the kill switch or run the S7 flood t
 | Postman and Newman | API regression collection of 91 requests in [`postman/`](postman/). `[Public Postman link: coming soon]` |
 | Channel3 | Optional market-price check on equipment. Off without a key. |
 | LangGraph | Document, policy and compliance agents |
-| ILMU and OpenRouter | Configurable chat, vision and embedding models |
+| Google Gemini 3.6 Flash (Gemini API), on the live site | Reads receipt images, extracts policy rules, judges claims and writes HR's explanations. The models are set by environment variables; the live settings are in [`deploy/homeserver/.env.example`](deploy/homeserver/.env.example). |
+| OpenRouter | Gemini 3.1 Flash Lite as the automatic fallback, and OpenAI text-embedding-3-small for policy search |
 | FastAPI, SQLModel, Alembic | Backend API, data model and migrations |
 | PostgreSQL with pgvector | Claims, action log and policy search |
 | imagehash, Pillow | Image fingerprints for duplicate detection |
@@ -261,8 +262,8 @@ Status as of 4 Nov 2026. We will update this section after the live run.
 You need Docker with Compose. For tests outside Docker, you also need [uv](https://docs.astral.sh/uv/) and Node.js 20 or later.
 
 ```bash
-git clone https://github.com/michaelzhngg/PayPal.git && cd PayPal
-cp .env.example .env              # add LLM_API_KEY and OPENROUTER_API_KEY for the AI steps
+git clone https://github.com/michaelzhngg/Reclaim-Pay.git && cd Reclaim-Pay
+cp .env.example .env              # add LLM_API_KEY and OPENROUTER_API_KEY for the AI steps (see deploy/homeserver/.env.example for the live Gemini settings)
 docker compose up --build -d      # app on :3000, API docs on :8000/docs
 docker compose exec backend python -m seeds.seed_reclaim_pay    # demo accounts and 120 past claims
 ```
@@ -297,3 +298,9 @@ Research and details are in [`docs/hackathon/FUTURE-DEVELOPMENT-PLAN.md`](docs/h
 | Filbert Ng | AI and risk lead: decision engine, receipt checks, agent wiring, deployment |
 | Chingiz Iskakov | Backend and PayPal lead: payouts, data model, autonomy API, approvals, recovery |
 | Darrell Benedict Setiawan | Delivery lead: demo data, red-team receipts, QA, video, write-up |
+
+## License
+
+Copyright (C) 2026 Team Bogosort: Michael, Christian Rafael Santoso, Filbert Ng, Chingiz Iskakov and Darrell Benedict Setiawan.
+
+Reclaim Pay is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See [LICENSE](LICENSE). You may use, change and share it, including commercially, but if you run a modified version for other people, for example as a website, you must publish your full source code under the same license. Third-party components keep their own licenses. Bryntum Calendar is used under its trial license.

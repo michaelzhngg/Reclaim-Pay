@@ -39,7 +39,7 @@ export default function AuditQueueTab() {
 
   return (
     <>
-      <p className="text-sm text-on-surface-variant mb-4">
+      <p className="text-sm text-ink-muted mb-4">
         Auto-paid claims picked for a second look. Open a claim to check it, and record an overpayment if it was paid too much.
       </p>
 
@@ -47,7 +47,7 @@ export default function AuditQueueTab() {
       {!isLoading && error && <TabError message={error} onRetry={retry} />}
       {!isLoading && !error && data?.length === 0 && (
         <TabEmpty title="No claims picked for audit">
-          Auto-paid claims appear here when the agent samples them or a later claim shows they were part of a split.
+          Auto-paid claims appear here when they are sampled at random or a later claim shows they were part of a split.
         </TabEmpty>
       )}
       {!isLoading && !error && !!data?.length && <AuditQueueGrid rows={data} onRecord={onRecord} />}
