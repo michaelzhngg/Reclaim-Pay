@@ -16,6 +16,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from api import deps
+from api.receipt_files import receipt_file_path, receipt_url
 from api.rate_limit import ANALYZE_LIMIT, ANALYZE_MESSAGE, limiter
 from api.schemas import (
     ReimbursementResponse,
@@ -100,6 +101,7 @@ def _line_item_dict(
     viewer_is_hr: bool,
     claim_currency: Optional[str] = None,
     fx_rate_to_company: Optional[float] = None,
+    receipt_kind: Optional[str] = None,
 ) -> dict:
     company_currency = fx.company_currency()
     rate = float(fx_rate_to_company) if fx_rate_to_company else None
@@ -130,6 +132,7 @@ def _line_item_dict(
         "judgment": _enum_val(li.judgment),
         "rejection_reason": li.rejection_reason if viewer_is_hr else None,
         "policy_section_ref": str(li.policy_section_ref) if li.policy_section_ref else None,
+        "receipt_url": receipt_url(li.document_id, receipt_kind == "pdf") if receipt_kind else None,
     }
 
 
@@ -340,8 +343,18 @@ def _build_reimbursement_response(
                 result["arrival_date"] = settlement.arrival_date.isoformat() if settlement.arrival_date else None
 
     if include_line_items:
+        doc_ids = {li.document_id for li in line_items if li.document_id}
+        docs = db.exec(
+            select(SupportingDocument).where(SupportingDocument.document_id.in_(doc_ids))
+        ).all() if doc_ids else []
+        # Only link receipts whose file is still on disk, so the viewer never opens a broken image.
+        receipt_kinds = {d.document_id: d.type for d in docs if receipt_file_path(d.path)}
         result["line_items"] = [
-            _line_item_dict(li, viewer_is_hr, r.currency, r.fx_rate_to_company) for li in line_items
+            _line_item_dict(
+                li, viewer_is_hr, r.currency, r.fx_rate_to_company,
+                receipt_kind=receipt_kinds.get(li.document_id),
+            )
+            for li in line_items
         ]
 
     # Include payout info if one exists

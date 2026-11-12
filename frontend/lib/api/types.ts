@@ -94,6 +94,8 @@ export interface LineItem {
   rejection_reason?: string | null;
   policy_section_ref?: string | null;
   human_edited?: boolean | null;
+  /** Frontend route that streams the uploaded receipt file; null when the file is missing. */
+  receipt_url?: string | null;
 }
 
 /** Raw shape returned by the FastAPI GET /reimbursements/ and /reimbursements/{id} endpoints. */

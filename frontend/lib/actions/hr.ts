@@ -76,6 +76,7 @@ function mapToBundle(r: TriageSource): ClaimBundle {
       ? [{ tag: "", message: li.rejection_reason }]
       : [],
     human_edited: li.human_edited ?? false,
+    receipt_url: li.receipt_url ?? undefined,
   }));
 
   return {

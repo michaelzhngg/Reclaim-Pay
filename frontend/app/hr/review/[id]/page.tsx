@@ -376,6 +376,11 @@ export default function ReviewPage() {
   const [note, setNote] = useState("");
   const [auditOpen, setAuditOpen] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  // PDFs can't render in the image viewer, so they open in a new tab.
+  const openReceipt = (url: string) => {
+    if (url.endsWith("?kind=pdf")) window.open(url, "_blank", "noopener");
+    else setLightbox(url);
+  };
   const [showFormModal, setShowFormModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [awaitingSecond, setAwaitingSecond] = useState(false);
@@ -739,7 +744,7 @@ export default function ReviewPage() {
                     <tr key={`table-${li.document_id}-${idx}`} className="hover:bg-surface-muted transition-colors align-top">
                       <td className="py-1 px-2 text-ink-muted">
                         {li.receipt_url
-                          ? <button type="button" onClick={() => setLightbox(li.receipt_url!)} aria-label={`View receipt ${idx + 1}`} className="inline-flex items-center gap-1 min-h-[44px] min-w-[44px] px-1 rounded-control text-ink underline underline-offset-2 hover:bg-surface-muted text-xs cursor-pointer"><ZoomIn className="w-3.5 h-3.5" aria-hidden="true" />{idx + 1}</button>
+                          ? <button type="button" onClick={() => openReceipt(li.receipt_url!)} aria-label={`View receipt ${idx + 1}`} className="inline-flex items-center gap-1 min-h-[44px] min-w-[44px] px-1 rounded-control text-ink underline underline-offset-2 hover:bg-surface-muted text-xs cursor-pointer"><ZoomIn className="w-3.5 h-3.5" aria-hidden="true" />{idx + 1}</button>
                           : <span className="inline-flex items-center min-h-[44px] px-1 text-xs">{idx + 1}</span>}
                       </td>
                       <td className="py-3 px-3 text-ink-muted whitespace-nowrap text-xs">{li.date}</td>
@@ -788,7 +793,7 @@ export default function ReviewPage() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       {li.receipt_url ? (
-                        <button type="button" onClick={() => setLightbox(li.receipt_url!)} aria-label={`View receipt ${idx + 1}`} className="inline-flex items-center gap-1 min-h-[44px] min-w-[44px] -ml-1 px-1 rounded-control text-ink underline underline-offset-2 hover:bg-surface-muted text-xs cursor-pointer">
+                        <button type="button" onClick={() => openReceipt(li.receipt_url!)} aria-label={`View receipt ${idx + 1}`} className="inline-flex items-center gap-1 min-h-[44px] min-w-[44px] -ml-1 px-1 rounded-control text-ink underline underline-offset-2 hover:bg-surface-muted text-xs cursor-pointer">
                           <ZoomIn className="w-3.5 h-3.5" aria-hidden="true" />{idx + 1}
                         </button>
                       ) : (

@@ -4,11 +4,11 @@ import json
 import logging
 from pathlib import Path
 from typing import List, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import aiofiles
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from starlette.requests import Request
 from sqlmodel import Session, select
 
@@ -23,6 +23,7 @@ from api.rate_limit import (
     UPLOAD_MESSAGE,
     limiter,
 )
+from api.receipt_files import STORAGE_DOCUMENTS_DIR, receipt_file_path
 from api.schemas import DocumentChangeLogResponse, DocumentFieldEditRequest, SupportingDocumentListItem
 from core.models import (
     User, SupportingDocument, TravelSettlement, SettlementReceipt,
@@ -35,7 +36,6 @@ from engine.tools.generate_reimbursement_template import generate_reimbursement_
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-STORAGE_DOCUMENTS_DIR = Path(__file__).parent.parent / "storage" / "documents"
 _executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 
 
@@ -87,7 +87,8 @@ async def upload_documents(
     file_infos = []
     for file in files:
         fname = Path(file.filename or "unnamed_upload").name or "unnamed_upload"
-        dest = user_dir / fname
+        # A short unique prefix keeps two uploads with the same name from overwriting each other.
+        dest = user_dir / f"{uuid4().hex[:12]}_{fname}"
         if not str(dest.resolve()).startswith(str(user_dir.resolve())):
             raise HTTPException(status_code=400, detail=f"Invalid filename: {file.filename}")
         async with aiofiles.open(dest, "wb") as out:
@@ -521,6 +522,30 @@ def update_document_field(
 ) -> dict:
     """Formal PATCH endpoint for editing document fields."""
     return _apply_receipt_edits(document_id, body.edits, db, current_user)
+
+
+@router.get("/{document_id}/file")
+def get_document_file(
+    document_id: str,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> FileResponse:
+    """The uploaded receipt file. HR can open any receipt; anyone else only their own."""
+    try:
+        doc_uuid = UUID(document_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid document_id: {document_id}")
+
+    doc = db.get(SupportingDocument, doc_uuid)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if current_user.role != UserRole.HR and str(doc.user_id) != str(current_user.user_id):
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    file_path = receipt_file_path(doc.path)
+    if file_path is None:
+        raise HTTPException(status_code=404, detail="Receipt file not found")
+    return FileResponse(file_path, headers={"Cache-Control": "private, max-age=300"})
 
 
 @router.get("/{document_id}/history")
