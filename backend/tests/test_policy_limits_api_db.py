@@ -1,0 +1,163 @@
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import text
+from sqlmodel import select
+
+from core.enums import AgentActionType, LimitStatus, PolicyStatus, UserRole
+from core.models import AgentAction, Policy, PolicyLimit, PolicyReimbursableCategory, PolicyZonePlace, User
+from engine.policy.limits import LimitRule, LimitUnit, ZonePlace
+from engine.services import policy_limits_store as store
+
+NOW = datetime(2026, 11, 12, 9, 0, tzinfo=timezone.utc)
+
+
+def make_user(db, role=UserRole.HR, rank=1):
+    u = User(email=f"u-{uuid4().hex[:8]}@test.local", hashed_password="x", name="Test", role=role, rank=rank)
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    return u
+
+
+def make_policy(db, creator, categories=("Meals", "Accommodations"), status=PolicyStatus.ACTIVE, effective=NOW):
+    p = Policy(alias=f"P-{uuid4().hex[:6]}", title="Test policy", effective_date=effective, overview_summary="",
+               mandatory_conditions="{}", source_file_url="", status=status, created_by=creator.user_id)
+    db.add(p)
+    db.commit()
+    for c in categories:
+        db.add(PolicyReimbursableCategory(policy_id=p.policy_id, category=c))
+    db.commit()
+    db.refresh(p)
+    return p
+
+
+@pytest.fixture
+def only_these_policies(pg_db):
+    """active_limits reads every ACTIVE policy, so park any the scratch DB already has."""
+    pg_db.exec(text("UPDATE policies SET status = 'DRAFT' WHERE status = 'ACTIVE'"))
+    return pg_db
+
+
+MEAL = LimitRule(category="Meals", unit=LimitUnit.PER_MEAL, amount=100)
+HOTEL = LimitRule(category="Accommodations", unit=LimitUnit.PER_NIGHT, amount=250, grade_max=2)
+
+
+def test_confirm_all_replaces_rows_and_logs(pg_db):
+    pg_db.exec(text("DELETE FROM agent_actions"))
+    hr = make_user(pg_db)
+    p = make_policy(pg_db, hr)
+    store.confirm_all(pg_db, p.policy_id, [MEAL, HOTEL], [ZonePlace(zone="1", place="Ipoh")], hr.user_id, NOW)
+    rules, places = store.load_limits(pg_db, p.policy_id)
+    assert {r.category for r in rules} == {"Meals", "Accommodations"} and places[0].place == "Ipoh"
+    rows, _ = store.list_rows(pg_db, p.policy_id)
+    assert all(r.status == LimitStatus.CONFIRMED and r.confirmed_by == hr.user_id for r in rows)
+    action = pg_db.exec(select(AgentAction).where(AgentAction.action_type == AgentActionType.POLICY_LIMITS_CHANGED)).first()
+    assert action is not None and action.payload["limits"] == 2
+
+
+def test_proposed_rows_are_hidden_from_consumers_and_keep_confirmed(pg_db):
+    hr = make_user(pg_db)
+    p = make_policy(pg_db, hr)
+    store.confirm_all(pg_db, p.policy_id, [MEAL], [], hr.user_id, NOW)
+    store.replace_proposed(pg_db, p.policy_id, [HOTEL], [])
+    pg_db.commit()
+    store.replace_proposed(pg_db, p.policy_id, [HOTEL], [])  # a second extraction replaces, not duplicates
+    pg_db.commit()
+    confirmed, _ = store.load_limits(pg_db, p.policy_id)
+    everything, _ = store.load_limits(pg_db, p.policy_id, confirmed_only=False)
+    assert [r.category for r in confirmed] == ["Meals"]
+    assert sorted(r.category for r in everything) == ["Accommodations", "Meals"]
+
+
+def test_suggestions_that_repeat_a_confirmed_row_are_skipped(pg_db):
+    hr = make_user(pg_db)
+    p = make_policy(pg_db, hr)
+    store.confirm_all(pg_db, p.policy_id, [MEAL], [ZonePlace(zone="1", place="Ipoh")], hr.user_id, NOW)
+    reworded = MEAL.model_copy(update={"source_quote": "Meals up to RM100"})
+    written = store.replace_proposed(pg_db, p.policy_id, [reworded, HOTEL, HOTEL],
+                                     [ZonePlace(zone="1", place="Ipoh"), ZonePlace(zone="2", place="*")])
+    pg_db.commit()
+    assert written == 1
+    limits, places = store.list_rows(pg_db, p.policy_id)
+    assert sorted((r.category, r.status) for r in limits) == [("Accommodations", "PROPOSED"), ("Meals", "CONFIRMED")]
+    assert sorted((z.place, z.status) for z in places) == [("*", "PROPOSED"), ("Ipoh", "CONFIRMED")]
+
+
+def test_active_limits_skip_inactive_policies(only_these_policies):
+    db = only_these_policies
+    hr = make_user(db)
+    live = make_policy(db, hr)
+    old = make_policy(db, hr, status=PolicyStatus.DEPRECATED)
+    store.confirm_all(db, live.policy_id, [MEAL], [], hr.user_id, NOW)
+    store.confirm_all(db, old.policy_id, [HOTEL], [], hr.user_id, NOW)
+    rules, _ = store.active_limits(db)
+    assert MEAL in rules and HOTEL not in rules
+
+
+def test_newest_active_policy_wins_a_shared_category_like_claims_do(only_these_policies):
+    db = only_these_policies
+    hr = make_user(db)
+    older = make_policy(db, hr, categories=("Meals", "Accommodations"), effective=NOW - timedelta(days=30))
+    newer = make_policy(db, hr, categories=("Meals",), effective=NOW)
+    store.confirm_all(db, older.policy_id, [MEAL, HOTEL], [], hr.user_id, NOW)
+    cheaper_meal = MEAL.model_copy(update={"amount": 60.0})
+    store.confirm_all(db, newer.policy_id, [cheaper_meal], [], hr.user_id, NOW)
+
+    picked = store.policy_for_category(db)
+    assert picked["Meals"].policy_id == newer.policy_id
+    assert picked["Accommodations"].policy_id == older.policy_id
+    rules, _ = store.active_limits(db)
+    assert sorted((r.category, r.amount) for r in rules) == [("Accommodations", 250.0), ("Meals", 60.0)]
+
+
+def test_limits_for_a_category_the_policy_no_longer_lists_are_ignored(only_these_policies):
+    db = only_these_policies
+    hr = make_user(db)
+    p = make_policy(db, hr, categories=("Meals",))
+    store.confirm_all(db, p.policy_id, [MEAL, HOTEL], [], hr.user_id, NOW)
+    rules, _ = store.active_limits(db)
+    assert rules == [MEAL]
+
+
+def test_delete_for_policy_removes_limits_and_zones(pg_db):
+    hr = make_user(pg_db)
+    p = make_policy(pg_db, hr)
+    store.confirm_all(pg_db, p.policy_id, [MEAL], [ZonePlace(zone="1", place="Ipoh")], hr.user_id, NOW)
+    store.replace_proposed(pg_db, p.policy_id, [HOTEL], [])
+    store.delete_for_policy(pg_db, p.policy_id)
+    pg_db.commit()
+    assert store.list_rows(pg_db, p.policy_id) == ([], [])
+    assert pg_db.exec(select(PolicyZonePlace).where(PolicyZonePlace.policy_id == p.policy_id)).first() is None
+
+
+# --- API -----------------------------------------------------------------------
+
+from fastapi.testclient import TestClient
+
+from api import deps
+
+
+@pytest.fixture
+def hr_api(pg_db):
+    from main import app
+
+    pg_db.exec(text("DELETE FROM agent_actions"))
+    hr = make_user(pg_db)
+    acting = {"user": hr}
+    app.dependency_overrides[deps.get_db] = lambda: pg_db
+    app.dependency_overrides[deps.get_current_user] = lambda: acting["user"]
+    try:
+        yield TestClient(app), pg_db, hr, acting
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_deleting_a_policy_removes_its_limits(hr_api):
+    c, db, hr, _ = hr_api
+    p = make_policy(db, hr)
+    store.confirm_all(db, p.policy_id, [MEAL], [ZonePlace(zone="1", place="Ipoh")], hr.user_id, NOW)
+    res = c.delete(f"/api/v1/policies/{p.policy_id}")
+    assert res.status_code == 200
+    assert store.list_rows(db, p.policy_id) == ([], [])

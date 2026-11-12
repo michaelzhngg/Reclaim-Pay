@@ -14,6 +14,7 @@ from api.schemas import PolicyResponse, PolicyCategoryWithBudget, PolicyCategori
 from core.models import User, Policy, PolicyReimbursableCategory, PolicySection
 from core.enums import PolicyStatus, UserRole
 from engine.agents.policy_agent import run_policy_workflow
+from engine.services import policy_limits_store
 
 router = APIRouter()
 
@@ -172,6 +173,8 @@ def delete_policy(
     ).all()
     for section in sections:
         db.delete(section)
+
+    policy_limits_store.delete_for_policy(db, policy.policy_id)
 
     # Null out policy_id on any reimbursements referencing this policy
     # (FK constraint prevents delete while references exist)

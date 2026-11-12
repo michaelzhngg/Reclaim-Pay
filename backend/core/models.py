@@ -17,6 +17,7 @@ from core.enums import (
     PayoutStatus,
     RecoveryStatus,
     AgentActionType,
+    LimitStatus,
 )
 
 
@@ -219,6 +220,44 @@ class PolicySection(SQLModel, table=True):
         default=None,
         sa_column=Column(Vector(1536), nullable=True)
     )
+
+
+# ---------------------------------------------------------------------------
+# 5b. policy_limits and policy_zone_places (E1: policy limits as data)
+# ---------------------------------------------------------------------------
+
+class PolicyLimit(SQLModel, table=True):
+    __tablename__ = "policy_limits"
+
+    limit_id: UUID = Field(default_factory=uuid4, primary_key=True)
+    policy_id: UUID = Field(foreign_key="policies.policy_id", index=True)
+    category: str = Field(sa_column=Column(String, nullable=False))
+    kind: str = Field(default="CAP", sa_column=Column(String, nullable=False))
+    unit: str = Field(sa_column=Column(String, nullable=False))
+    amount: Optional[float] = Field(default=None, sa_column=Column(Numeric(12, 2), nullable=True))
+    currency: str = Field(default="MYR", sa_column=Column(String, nullable=False))
+    grade_min: Optional[int] = Field(default=None, sa_column=Column(Integer))
+    grade_max: Optional[int] = Field(default=None, sa_column=Column(Integer))
+    scope: str = Field(default="ANY", sa_column=Column(String, nullable=False))
+    zone: Optional[str] = Field(default=None, sa_column=Column(String))
+    source_section: Optional[str] = Field(default=None, sa_column=Column(String))
+    source_quote: Optional[str] = Field(default=None, sa_column=Column(Text))
+    status: LimitStatus = Field(default=LimitStatus.PROPOSED, sa_column=Column(String, nullable=False))
+    confirmed_by: Optional[UUID] = Field(default=None, foreign_key="employees.user_id")
+    confirmed_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), sa_column=Column(DateTime(timezone=True))
+    )
+
+
+class PolicyZonePlace(SQLModel, table=True):
+    __tablename__ = "policy_zone_places"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    policy_id: UUID = Field(foreign_key="policies.policy_id", index=True)
+    zone: str = Field(sa_column=Column(String, nullable=False))
+    place: str = Field(sa_column=Column(String, nullable=False))
+    status: LimitStatus = Field(default=LimitStatus.PROPOSED, sa_column=Column(String, nullable=False))
 
 
 # ---------------------------------------------------------------------------
