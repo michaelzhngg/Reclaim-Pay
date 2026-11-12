@@ -15,6 +15,8 @@ import { approvalErrorMessage, approveBlockedReason } from "@/lib/hr/evidence";
 import { verdictLabel } from "@/components/hr-grid/rows";
 import { FIXTURE_HR_USER_ID } from "@/src/mocks/triageFixtures";
 import { AutonomyPanel } from "./_components/AutonomyPanel";
+import { getSignalReviews } from "@/lib/actions/signalReviews";
+import type { SignalReview } from "@/lib/api/reclaim-pay-types";
 
 
 type Decision = "approve_full" | "approve_adjusted" | "reject" | null;
@@ -344,6 +346,7 @@ export default function ReviewPage() {
   const [payoutError, setPayoutError] = useState<string | null>(null);
   const [payoutInfo, setPayoutInfo] = useState<any>(null);
   const [reviewedStatus, setReviewedStatus] = useState<string | null>(null);
+  const [signalReviews, setSignalReviews] = useState<SignalReview[] | null>(null);
 
   const didInitRef = useRef(false);
 
@@ -356,6 +359,11 @@ export default function ReviewPage() {
       .catch(() => {
         setBundle(fallback ?? null);
       });
+  }, [id]);
+
+  // Loaded alongside the claim; a failure only hides earlier answers, it never blocks the decision.
+  useEffect(() => {
+    getSignalReviews(id).then(setSignalReviews).catch(() => setSignalReviews([]));
   }, [id]);
 
   useEffect(() => {
@@ -653,7 +661,14 @@ export default function ReviewPage() {
         {/* ═══ RIGHT ═══ */}
         <div className="flex flex-col gap-6 lg:sticky lg:top-6 lg:h-fit">
 
-          <AutonomyPanel autonomy={bundle.autonomy} aiSummary={bundle.summary} aiVerdict={verdictLabel(bundle.overall_judgment as ReimbursementRaw["judgment"])} />
+          <AutonomyPanel
+            autonomy={bundle.autonomy}
+            aiSummary={bundle.summary}
+            aiVerdict={verdictLabel(bundle.overall_judgment as ReimbursementRaw["judgment"])}
+            reimId={signalReviews ? bundle.id : undefined}
+            reviews={signalReviews ?? []}
+            viewerId={FIXTURES_ON ? FIXTURE_HR_USER_ID : user?.user_id}
+          />
 
           {/* Financial Totals */}
           <Card title="Financial Summary">

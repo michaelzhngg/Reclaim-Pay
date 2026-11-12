@@ -372,3 +372,29 @@ export interface AgentActionsResult {
 export function formatMoney(currency: string, amount: number): string {
   return `${currency} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+// Signal reviews (R1a): HR's verdict on each Receipt Shield signal. HR only.
+
+export type SignalVerdict = "CONFIRMED" | "FALSE_ALARM";
+
+/** GET/PUT /reimbursements/{id}/signal-reviews. The latest answer wins. */
+export interface SignalReview {
+  signal_code: SignalCode;
+  document_id: string | null;
+  verdict: SignalVerdict;
+  reviewed_by: string;
+  updated_at: string;
+}
+
+/** GET /autonomy/signal-quality */
+export interface SignalQuality {
+  code: SignalCode;
+  fired: number;
+  confirmed: number;
+  false_alarm: number;
+  unreviewed: number;
+  approved_in_full: number;
+  rejected: number;
+  /** null until at least 10 rated cases. */
+  precision: number | null;
+}
