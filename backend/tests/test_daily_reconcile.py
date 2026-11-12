@@ -3,8 +3,6 @@ from contextlib import nullcontext
 from types import SimpleNamespace
 
 import pytest
-from sqlmodel import select
-
 from core.models import ReconciliationRun
 from engine.services.reconcile_history import RecordedRun
 from jobs import daily_reconcile as job
@@ -22,9 +20,8 @@ def test_run_once_records_a_run(pg_db):
     result = job.run_once(pg_db, days=1)
 
     assert result.run.state in ("ok", "no_data")
-    stored = pg_db.exec(select(ReconciliationRun)).one()
-    assert stored.run_id == result.run.run_id
-    assert stored.trigger == "schedule"
+    stored = pg_db.get(ReconciliationRun, result.run.run_id)
+    assert stored is not None and stored.trigger == "schedule"
 
 
 def test_main_returns_zero_and_passes_the_window(monkeypatch, capsys):
