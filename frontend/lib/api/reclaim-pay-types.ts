@@ -212,6 +212,34 @@ export interface TrustInfo {
   next_limit: number | null;
   /** Set while a recent correction keeps the employee at NEW. */
   limited_until: string | null;
+  /** Up to 3 most recent level changes, newest first. Missing from older backends. */
+  changes?: TrustChange[];
+  /** Every level with its current limit, lowest first. */
+  levels?: TrustLevel[];
+  /** Days one correction holds the employee at NEW. */
+  hold_days?: number | null;
+  /** Days without a correction that TRUSTED needs. */
+  trusted_clean_days?: number | null;
+}
+
+/** Why a level changed. Never names the check behind a correction. */
+export type TrustChangeCause = "approved_claims" | "time_passed" | "correction" | "recovery";
+
+export interface TrustChange {
+  at: string;
+  from_tier: TrustTier;
+  to_tier: TrustTier;
+  from_limit: number;
+  to_limit: number;
+  cause: TrustChangeCause;
+  /** The claim a correction or recovery was on; null for the other causes. */
+  reim_id: string | null;
+}
+
+export interface TrustLevel {
+  tier: TrustTier;
+  auto_limit: number;
+  min_paid_claims: number;
 }
 
 export type RecoveryStatus = "NOTICE_SENT" | "DISPUTED" | "OFFSET" | "INVOICED" | "RECOVERED" | "WAIVED";
