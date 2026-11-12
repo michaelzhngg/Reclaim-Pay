@@ -46,8 +46,9 @@ export function SignalReviewButtons({ reimId, code, documentId, initial, viewerI
 
   return (
     <div className="mt-3">
-      <div role="group" aria-labelledby={labelId} className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span id={labelId} className="mr-1 text-sm text-ink-muted">Was this check right?</span>
+      <div role="group" aria-labelledby={labelId} className="flex flex-wrap items-center gap-2">
+        {/* Own line, so the two answers never split across rows in a narrow card. */}
+        <span id={labelId} className="basis-full text-sm text-ink-muted">Was this check right?</span>
         {OPTIONS.map(([v, label]) => {
           const pressed = verdict === v;
           return (
