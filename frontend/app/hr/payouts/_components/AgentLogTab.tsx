@@ -1,11 +1,16 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { ShieldAlert, ShieldCheck } from "lucide-react";
 import { getAgentLog } from "@/lib/actions/autonomy";
 import { useTabData } from "@/lib/hooks/useTabData";
-import AgentLogGrid from "@/components/hr-grid/AgentLogGrid";
 import { TabEmpty, TabError, TabLoading } from "@/components/hr-grid/TabStates";
 import { chainBadgeLabel } from "@/components/hr-grid/agentLog";
+
+const AgentLogGrid = dynamic(() => import("@/components/hr-grid/AgentLogGrid"), {
+  ssr: false,
+  loading: () => <TabLoading label="Loading the agent log" />,
+});
 
 const LIMIT = 200;
 
