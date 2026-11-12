@@ -8,9 +8,13 @@ Usage from an async context (FastAPI route):
 Usage from a sync thread (background task with access to the event loop):
     payout = initiate_payout_sync(reim_id, db, loop)
 
+An HR batch approval commits its approvals first, then pays the whole set through
+`initiate_batch_payout_sync`, which splits it into one PayPal batch per payout currency.
+
 Payouts go to the employee's verified PayPal account (recipient_type PAYPAL_ID).
 `sender_batch_id` is derived from the claim and attempt number, so a retried
-request can never pay twice.
+request can never pay twice. A batch group derives it from its currency, sorted claim
+IDs and attempt, which keeps it inside PayPal's 30-character cap.
 
 The amount and currency PayPal receives come from the claim's locked payout snapshot:
 the contract currency for a contractor, the company currency otherwise. Every payout
@@ -50,9 +54,13 @@ from engine.services.contracts import DEFAULT_ACCOUNT_COUNTRY, DEFAULT_HELD_CURR
 from engine.services.paypal_client import (
     PayPalError,
     PayoutCreated,
+    PayoutItem,
+    PayoutItemRequest,
     get_paypal_client,
+    map_item_status,
     mask_email,
     sender_batch_id_for,
+    sender_batch_id_for_group,
 )
 from engine.services.recovery_service import offset_for_reim
 
@@ -61,6 +69,7 @@ logger = logging.getLogger(__name__)
 MONEY = Decimal("0.01")
 _LIVE_STATUSES = {PayoutStatus.ACCEPTED, PayoutStatus.REQUESTED, PayoutStatus.SUCCEEDED}
 _PAYABLE_STATUSES = {ReimbursementStatus.APPROVED, ReimbursementStatus.DISBURSEMENT_FAILED}
+_FAILED_ITEM_STATUSES = {PayoutStatus.FAILED, PayoutStatus.CANCELLED, PayoutStatus.REVERSED}
 _HR_LINK = "/hr/contractors"
 
 
@@ -71,6 +80,10 @@ class PayoutRefused(Exception):
         self.code = code
         self.message = message or payout_guard.refusal_message(code)
         super().__init__(code)
+
+
+class MixedCurrencyBatch(ValueError):
+    """A PayPal batch carries one currency. Two currencies in one group is a bug, not data."""
 
 
 @dataclass(frozen=True)
@@ -103,6 +116,34 @@ class PayoutPreview:
     as_of: datetime | None
     source: str | None
     company_amount: Decimal | None
+
+
+@dataclass(frozen=True)
+class PlannedPayout:
+    """One claim cleared to pay, before the batch split."""
+    reim_id: UUID
+    destination: PayoutDestination
+    attempt: int
+
+
+@dataclass(frozen=True)
+class PayoutGroup:
+    """One PayPal batch: one currency and one sender batch ID."""
+    currency: str
+    items: tuple[PlannedPayout, ...]
+    sender_batch_id: str
+
+    def requests(self) -> list[PayoutItemRequest]:
+        return [
+            PayoutItemRequest(
+                payer_id=item.destination.payee.payer_id,
+                amount=item.destination.amount,
+                currency=self.currency,
+                note=_claim_ref(item.reim_id),
+                sender_item_id=str(item.reim_id),
+            )
+            for item in self.items
+        ]
 
 
 def payee_for_reim(db: Session, reim: Reimbursement) -> Payee | None:
@@ -499,35 +540,79 @@ def _save_payout(
     attempt: int,
     sender_batch_id: str,
     created: PayoutCreated,
+    batch_size: int = 1,
 ) -> Payout:
     payee = destination.payee
     currency = destination.currency
     amount = destination.amount
+    item = _item_for(created, reim.reim_id)
+    status = _created_status(item)
     payout = Payout(
         reim_id=reim.reim_id,
         user_id=reim.user_id,
         vendor_id=payee.vendor_id,
         amount=amount,
         currency=currency,
-        status=PayoutStatus.ACCEPTED,
+        status=status,
         provider="PAYPAL",
         provider_batch_id=created.batch_id,
+        provider_item_id=item.item_id if item else None,
         attempt=attempt,
         idempotency_key=sender_batch_id,
         reference_id=_claim_ref(reim.reim_id),
         channel_code="PAYPAL",
+        failure_code=item.error if item and status != PayoutStatus.ACCEPTED else None,
     )
+    if status in _FAILED_ITEM_STATUSES:
+        reim.status = ReimbursementStatus.DISBURSEMENT_FAILED
+        reim.updated_at = datetime.now(timezone.utc)
+        db.add(reim)
     db.add(payout)
     db.commit()
     db.refresh(payout)
 
+    _record_payout_sent(db, reim, destination, payout, sender_batch_id, created.batch_id, batch_size)
+    if settings.PAYPAL_MOCK_MODE:
+        _schedule_status_refresh(payout.payout_id)
+    return payout
+
+
+def _item_for(created: PayoutCreated, reim_id: UUID) -> PayoutItem | None:
+    return next((i for i in created.items if i.sender_item_id == str(reim_id)), None)
+
+
+def _created_status(item: PayoutItem | None) -> PayoutStatus:
+    """A create response rarely carries item detail. Only a terminal failure overrides ACCEPTED."""
+    if item is None:
+        return PayoutStatus.ACCEPTED
+    mapped = map_item_status(item.transaction_status)
+    return mapped if mapped in _FAILED_ITEM_STATUSES else PayoutStatus.ACCEPTED
+
+
+def _record_payout_sent(
+    db: Session,
+    reim: Reimbursement,
+    destination: PayoutDestination,
+    payout: Payout,
+    sender_batch_id: str,
+    batch_id: str,
+    batch_size: int = 1,
+) -> None:
+    """Action log and the claimant notification for one claim's share of a PayPal batch."""
+    payee = destination.payee
+    currency = destination.currency
+    amount = destination.amount
     record_action(db, AgentActionType.PAYOUT_CREATED, "agent", reim.reim_id, {
         "amount": f"{amount:.2f}",
         "currency": currency,
         "sender_batch_id": sender_batch_id,
-        "batch_id": created.batch_id,
+        "batch_id": batch_id,
+        "batch_size": batch_size,
         **({"vendor_id": str(payee.vendor_id)} if payee.vendor_id else {}),
+        **({"failure_code": payout.failure_code} if payout.failure_code else {}),
     })
+    if payout.status in _FAILED_ITEM_STATUSES:
+        return
     if payee.kind == "VENDOR_BOOKING":
         notify(
             db, reim.user_id, "info",
@@ -542,12 +627,9 @@ def _save_payout(
             f"Sending {currency} {amount:,.2f} to your PayPal account ({mask_email(payee.email or '')})",
             link=f"/employee/history?id={reim.reim_id}",
         )
-    if settings.PAYPAL_MOCK_MODE:
-        _schedule_status_refresh(payout.payout_id)
 
     logger.info("[AUTO_PAYOUT] Payout initiated: reim=%s payout=%s batch=%s payee=%s currency=%s",
-                reim.reim_id, payout.payout_id, created.batch_id, payee.kind, currency)
-    return payout
+                reim.reim_id, payout.payout_id, batch_id, payee.kind, currency)
 
 
 def _run(coro, loop: asyncio.AbstractEventLoop | None = None, timeout: float = 70):
@@ -572,6 +654,184 @@ def _schedule_status_refresh(payout_id: UUID, delay: float = 9.0):
     timer = threading.Timer(delay, _refresh)
     timer.daemon = True
     timer.start()
+
+
+@dataclass(frozen=True)
+class BatchPayoutOutcome:
+    """What one batch approval paid, what it left alone, and which currencies failed."""
+    payouts: list[Payout]
+    skipped: list[dict]
+    refused: list[dict]
+    failed_currencies: list[str]
+
+
+def _batch_plan(db: Session, reim_ids: Iterable[UUID]) -> tuple[list[PlannedPayout], list[dict]]:
+    """Plan every claim through the same seam a single payout uses, including SKIP_EXISTING."""
+    planned: list[PlannedPayout] = []
+    skipped: list[dict] = []
+    for reim_id in reim_ids:
+        reim, destination, (action, _amount, attempt), existing = _plan(reim_id, db)
+        if action != "CREATE" or destination is None or reim is None:
+            payout = _handle_skip(db, reim, action, existing)
+            entry = {"reim_id": str(reim_id), "reason": action}
+            if payout is not None:
+                entry["payout_id"] = str(payout.payout_id)
+            skipped.append(entry)
+            continue
+        planned.append(PlannedPayout(reim_id=reim_id, destination=destination, attempt=attempt))
+    return planned, skipped
+
+
+def group_planned_payouts(planned: Iterable[PlannedPayout]) -> dict[str, list[PlannedPayout]]:
+    """Split the approved set by the payout currency `resolve_payout` returned."""
+    groups: dict[str, list[PlannedPayout]] = {}
+    for item in planned:
+        groups.setdefault(item.destination.currency, []).append(item)
+    return groups
+
+
+def assemble_batch(currency: str, items: Iterable[PlannedPayout],
+                   attempt: int | None = None) -> PayoutGroup:
+    """Build one batch and its sender ID. A mixed or empty group raises before any PayPal call."""
+    batch_items = tuple(items)
+    if not batch_items:
+        raise MixedCurrencyBatch("A PayPal payout batch needs at least one claim")
+    currencies = {item.destination.currency for item in batch_items}
+    if currencies != {currency}:
+        raise MixedCurrencyBatch(
+            f"A PayPal payout batch is one currency; got {', '.join(sorted(currencies))}"
+        )
+    round_number = max(item.attempt for item in batch_items) if attempt is None else attempt
+    return PayoutGroup(
+        currency=currency,
+        items=batch_items,
+        sender_batch_id=sender_batch_id_for_group(
+            [item.reim_id for item in batch_items], currency, round_number,
+        ),
+    )
+
+
+def _refuse_claim(db: Session, claim: PlannedPayout, code: str, bucket: list[dict]) -> None:
+    """Record one claim's refusal without aborting the rest of its currency group."""
+    reim = db.get(Reimbursement, claim.reim_id)
+    if reim is None:
+        return
+    try:
+        _record_refusal(db, reim, claim.destination, claim.attempt, code)
+    except PayoutRefused:
+        bucket.append({"reim_id": str(claim.reim_id), "reason": code})
+
+
+def _guard_group(
+    db: Session,
+    currency: str,
+    claims: list[PlannedPayout],
+    account_country: str,
+    held: list[str],
+    loop: asyncio.AbstractEventLoop | None,
+) -> tuple[list[PlannedPayout], list[dict]]:
+    """Run the guard per claim, reading the balance once per currency group."""
+    survivors: list[PlannedPayout] = []
+    refused: list[dict] = []
+    for claim in claims:
+        code = payout_guard.funding_refusal(
+            payout_currency=claim.destination.currency,
+            payee_country=claim.destination.payee_country,
+            account_country=account_country,
+            held_currencies=held,
+        )
+        if code:
+            _refuse_claim(db, claim, code, refused)
+        else:
+            survivors.append(claim)
+    if not survivors:
+        return [], refused
+
+    funding = _run(read_funding(currency, held), loop)
+    kept: list[PlannedPayout] = []
+    for claim in survivors:
+        code = _guard_code(db, claim.destination, funding)
+        if code:
+            _refuse_claim(db, claim, code, refused)
+        else:
+            kept.append(claim)
+    return kept, refused
+
+
+def _pay_group(
+    db: Session,
+    group: PayoutGroup,
+    loop: asyncio.AbstractEventLoop | None,
+) -> list[Payout]:
+    """One PayPal batch. A failed call rolls its claims back to APPROVED for retry."""
+    for claim in group.items:
+        reim = db.get(Reimbursement, claim.reim_id)
+        if reim is not None:
+            _mark_disbursing(db, reim)
+
+    try:
+        created = _run(get_paypal_client().create_payout_batch(
+            sender_batch_id=group.sender_batch_id,
+            items=group.requests(),
+        ), loop)
+    except Exception:
+        logger.exception(
+            "[AUTO_PAYOUT] PayPal batch failed for currency=%s; its claims stay approved for retry",
+            group.currency,
+        )
+        db.rollback()
+        return []
+
+    payouts: list[Payout] = []
+    for claim in group.items:
+        reim = db.get(Reimbursement, claim.reim_id)
+        if reim is None:
+            continue
+        payouts.append(_save_payout(
+            db, reim, claim.destination, claim.attempt, group.sender_batch_id, created,
+            batch_size=len(group.items),
+        ))
+    return payouts
+
+
+def initiate_batch_payout_sync(
+    reim_ids: Iterable[UUID],
+    db: Session,
+    loop: asyncio.AbstractEventLoop | None = None,
+) -> BatchPayoutOutcome:
+    """Pay an already-approved set once, split into one PayPal batch per payout currency.
+
+    Refusals and PayPal failures stay inside their claim or currency group, so a later
+    group still pays. Claims in a failed group stay APPROVED for a retry.
+    """
+    planned, skipped = _batch_plan(db, list(reim_ids))
+    account_country, held = payout_settings_values(db)
+    groups = group_planned_payouts(planned)
+    payouts: list[Payout] = []
+    refused: list[dict] = []
+    failed_currencies: list[str] = []
+
+    for currency, claims in groups.items():
+        survivors, group_refused = _guard_group(db, currency, claims, account_country, held, loop)
+        refused.extend(group_refused)
+        if not survivors:
+            continue
+        group = assemble_batch(currency, survivors)
+        group_payouts = _pay_group(db, group, loop)
+        if not group_payouts:
+            failed_currencies.append(currency)
+        payouts.extend(group_payouts)
+
+    logger.info(
+        "[AUTO_PAYOUT] Batch approval paid %s claim(s) in %s group(s); failed currencies=%s",
+        len(payouts), len(groups), failed_currencies,
+    )
+    return BatchPayoutOutcome(
+        payouts=payouts,
+        skipped=skipped,
+        refused=refused,
+        failed_currencies=failed_currencies,
+    )
 
 
 def initiate_payout_sync(

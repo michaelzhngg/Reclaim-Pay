@@ -188,6 +188,52 @@ plan in `PLAN.md` stays the reference; this file says where the build departs fr
   refusal row out of any group (`provider_batch_id` is None), and keep `provider_batch_id`
   as the only grouping key.
 
+## 07: Batch approval pays one PayPal batch per currency
+
+- **Approvals commit first, then the set is paid once.** The batch route keeps the
+  per-claim lock and re-check, commits every approval and its `HR_APPROVAL` action, and
+  only then calls `initiate_batch_payout_sync` with the approved IDs. Single-claim
+  approval still pays immediately through `_after_commit`, and the approval
+  notifications, including their push payloads, are sent after the payout attempt.
+- **The currency is the grouping key, never the claim currency.** `_batch_plan` reuses
+  `resolve_payout`/`payout_plan`, so `SKIP_EXISTING`, the payee check and the payout
+  snapshot behave exactly as a single payout. A group is built by `assemble_batch`, which
+  raises `MixedCurrencyBatch` on an empty or multi-currency set; the PayPal client also
+  raises before the HTTP call if the item list is mixed, so a mixed batch cannot reach
+  PayPal.
+- **The group sender key is 24 characters.** `sender_batch_id_for_group` is
+  `RCB-{CUR}-{sha256(sorted ids | currency | attempt)[:16]}`. Sorting makes it stable for
+  the same set, the attempt keeps a retry from reusing a live PayPal key, and the currency
+  keeps two groups apart. The 37-character per-claim key is unchanged for single payouts
+  and remains a live-mode risk; 07 does not copy it.
+- **The guard runs per claim, the balance read once per group.** Static funding refusals
+  run for every claim first; only the survivors trigger one `read_funding` for the group.
+  A refusal commits its FAILED row with no batch ID and is caught, so the rest of the
+  group still pays. Nothing is marked `DISBURSING` until every guard check has passed.
+- **A group failure rolls its claims back to APPROVED.** The group marks its claims
+  `DISBURSING` in one uncommitted transaction, calls PayPal, and only then saves the
+  payout rows. An exception rolls that transaction back and the loop moves to the next
+  currency; already committed groups are untouched. There is no batch retry action: the
+  claims stay APPROVED for the existing single-payout retry, which uses the per-claim key.
+  A repeated batch call with the same set and attempt would reuse the same group key on
+  purpose, so a transport failure stays idempotent.
+- **Per-item statuses come from the create response.** `PayoutCreated.items` parses the
+  items PayPal returns. A terminal `FAILED`/`DENIED`/`BLOCKED` item makes only that
+  claim's payout FAILED and its claim `DISBURSEMENT_FAILED`; every other row in the batch
+  stays ACCEPTED. Mock mode returns no items, so an ordinary mock batch stays pending and
+  the existing status refresh still runs per payout.
+- **The contract check is a batch skip reason.** `split_batch` reads
+  `ai_reasoning.contract_reason` and returns `CONTRACT_CHECK` for a claim whose category
+  or rate check failed. A contractor claim with no contract reason can be batched at
+  `HR_QUICK`; the row carries a `service category · currency` contract label so HR can
+  deselect it. Self-approval, non-`HR_QUICK`, non-`REVIEW` and vendor bookings are
+  unchanged.
+- **The batch response keeps its old shape.** `approved` and `skipped` are unchanged, so
+  the existing HR sheet and its tests are untouched. Batch ID, payout currency and amount
+  per claim are read from the payouts ledger, which now also returns `claim_currency`,
+  `company_amount` and `company_currency`. Those three are derived on read, not stored,
+  so 07 adds no schema and the migration head stays `a7c1e9d4b2f6`.
+
 
 
 

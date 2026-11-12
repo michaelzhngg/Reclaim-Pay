@@ -161,8 +161,13 @@ export interface PayoutLedgerRow {
   /** The vendor for a booking, the employee for a claim. */
   payee_name: string;
   kind: "CLAIM" | "VENDOR_BOOKING";
+  /** The payout currency and amount PayPal received. */
   amount: number;
   currency: string;
+  /** The currency the claim was filed in, and its company-currency value. */
+  claim_currency: string;
+  company_amount: number;
+  company_currency: string;
   status: PayoutStatus;
   tier: AutonomyTier | null;
   provider_batch_id: string | null;
@@ -198,7 +203,13 @@ export interface ReimbursementAutonomyFields {
   approvals?: Approval[] | null;
 }
 
-export type BatchSkipReason = "NOT_HR_QUICK" | "NOT_IN_REVIEW" | "SELF_APPROVAL" | "NOTHING_TO_PAY" | "VENDOR_BOOKING";
+export type BatchSkipReason =
+  | "NOT_HR_QUICK"
+  | "NOT_IN_REVIEW"
+  | "SELF_APPROVAL"
+  | "NOTHING_TO_PAY"
+  | "VENDOR_BOOKING"
+  | "CONTRACT_CHECK";
 
 /** POST /reimbursements/batch-approve */
 export interface BatchApproveResult {

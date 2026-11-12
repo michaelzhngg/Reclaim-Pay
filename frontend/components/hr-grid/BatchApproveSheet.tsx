@@ -121,6 +121,9 @@ export default function BatchApproveSheet({
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{row.employee}</span>
                       <span className="block font-mono text-xs text-ink-muted">{row.ref}</span>
+                      {row.contractLabel && (
+                        <span className="block truncate text-xs text-ink-muted">{row.contractLabel}</span>
+                      )}
                     </span>
                     <span className="font-mono font-medium shrink-0">{formatMoney(row.currency, row.amount)}</span>
                   </li>

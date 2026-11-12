@@ -43,6 +43,7 @@ from engine.services.payee_link import cooldown_until
 from engine.risk.timeline import make_step
 from engine.services.payout_service import (
     PayoutRefused,
+    initiate_batch_payout_sync,
     initiate_payout_sync,
     lock_payout_snapshot,
     payout_preview,
@@ -771,13 +772,33 @@ def _after_commit(db: Session, r: Reimbursement, pushes: list[tuple[str, str]]) 
         fire_and_forget_push(r.user_id, title, message, link=f"/employee/history?id={r.reim_id}")
 
 
+def _pay_approved_batch(
+    db: Session,
+    approved_ids: list[UUID],
+    pushes: list[tuple[UUID, str, str, str]],
+) -> None:
+    """Pay the committed approved set once, then send the approval pushes.
+
+    The approvals are already committed, so a payout failure leaves every claim approved
+    and retryable. One call splits the set into a PayPal batch per payout currency.
+    """
+    if approved_ids:
+        try:
+            initiate_batch_payout_sync(approved_ids, db, loop=None)
+        except Exception:
+            logger.exception("[HR_APPROVAL] Batch payout failed; claims stay APPROVED for retry")
+            db.rollback()
+    for user_id, title, message, link in pushes:
+        fire_and_forget_push(user_id, title, message, link=link)
+
+
 @router.post("/batch-approve")
 def batch_approve(
     body: BatchApproveRequest,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_hr_user),
 ) -> dict:
-    """Approve HR_QUICK claims in REVIEW. Anything else comes back in `skipped` with a reason."""
+    """Approve HR_QUICK claims in REVIEW, commit the set, then pay it once by currency."""
     requested = list(dict.fromkeys(body.reim_ids))
     parsed: dict[str, UUID] = {}
     for rid in requested:
@@ -794,14 +815,19 @@ def batch_approve(
     def as_row(rid: str, r: Optional[Reimbursement]) -> dict:
         # Unknown IDs have no tier, so they are skipped as NOT_HR_QUICK.
         if r is None:
-            return {"reim_id": rid, "tier": None, "status": None, "user_id": None, "kind": None}
+            return {"reim_id": rid, "tier": None, "status": None, "user_id": None, "kind": None,
+                    "contract_reason": None}
         return {"reim_id": rid, "tier": r.tier, "status": _enum_val(r.status), "user_id": str(r.user_id),
-                "kind": r.kind}
+                "kind": r.kind,
+                # A contract check that failed keeps the claim out of a batch, even at HR_QUICK.
+                "contract_reason": (r.ai_reasoning or {}).get("contract_reason")}
 
     rows = [as_row(rid, by_uuid.get(parsed.get(rid))) for rid in requested]
     eligible, skipped = split_batch(rows, str(current_user.user_id))
 
     approved: list[str] = []
+    approved_ids: list[UUID] = []
+    pushes: list[tuple[UUID, str, str, str]] = []
     for rid in eligible:
         r = _lock_reimbursement(db, parsed[rid])
         # Re-check under the lock: another reviewer may have acted since the first read.
@@ -815,13 +841,18 @@ def batch_approve(
             skipped.append({"reim_id": rid, "reason": "NOTHING_TO_PAY"})
             continue
         complete = _register_hr_approval(r, current_user)
-        pushes = _apply_status(db, r, ReimbursementStatus.APPROVED, current_user) if complete else []
+        claim_pushes = _apply_status(db, r, ReimbursementStatus.APPROVED, current_user) if complete else []
         _log_approval(db, r, current_user, complete=complete, batch=True)
         db.refresh(r)
-        _after_commit(db, r, pushes)
         approved.append(rid)
+        if complete:
+            approved_ids.append(r.reim_id)
+            link = f"/employee/history?id={r.reim_id}"
+            pushes.extend((r.user_id, title, message, link) for title, message in claim_pushes)
 
-    return {"approved": approved, "skipped": skipped}
+    result = {"approved": approved, "skipped": skipped}
+    _pay_approved_batch(db, approved_ids, pushes)
+    return result
 
 
 @router.patch("/{reim_id}/status")

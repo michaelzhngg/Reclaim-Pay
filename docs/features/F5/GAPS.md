@@ -47,10 +47,21 @@ Known limits of the contractor slice, beyond the explicit gaps in `PLAN.md`.
   submission, not one claim per receipt.
 - Contractor claims never take recovery offsets and contractor recoveries are refused.
   A contractor overpayment needs its own cross-currency design.
-- There is no per-contract approval route or contract-specific batch rule yet. Contract
-  claims sit in the normal HR queue. A blocked receipt claim is `DUAL_REVIEW` and cannot
-  enter batch approval; an allowed contractor claim in `HR_QUICK` can. Per-currency
-  batching belongs to ticket 07.
+- There is no per-contract approval route. Contract claims sit in the normal HR queue. A
+  blocked receipt claim is `DUAL_REVIEW` and cannot enter batch approval; an allowed
+  contractor claim in `HR_QUICK` with no contract reason can. Batch approval now pays one
+  PayPal batch per payout currency (ticket 07).
+- A whole currency group that PayPal rejects is rolled back to APPROVED, but nothing
+  retries the group automatically. HR pays the still-approved claims through the existing
+  single-payout action, one claim at a time, using the per-claim sender key.
+- The per-claim `sender_batch_id` is still 37 characters against PayPal's documented
+  30-character cap. Batch groups use the new 24-character key; single payouts and their
+  idempotency keep the old one until a separate change can migrate them safely.
+- Mock PayPal ignores the sender key length and always accepts a batch, so sandbox and
+  live mode must re-check the group key and the legacy per-claim key before a real run.
+- The ledger's company amount comes from the stored company snapshot. A legacy foreign
+  claim without one falls back to its raw claim amount and can overstate the company
+  figure, as it already does elsewhere.
 - Contractor invoices are ticket 05 and are live: one line item per invoice, no attachment,
   no generated PDF or tax-invoice fields, and no draft. The invoice period is not checked
   against the contract's effective dates, only the contract's active status on submission.
