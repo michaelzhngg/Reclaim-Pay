@@ -36,4 +36,9 @@ Bookings use the company payout currency. An employee cannot book in another cur
 
 ## Employee caps for vendor spend
 
-Employee daily and monthly caps still gate each booking's amount, but vendor spend does not accumulate in the employee's caps because the employee receives no money. Company-level vendor spend is covered by the daily budget ticket instead. A dedicated vendor auto-pay threshold is future work.
+Employee daily and monthly caps still gate each booking's amount, but vendor spend does not accumulate in the employee's trust history or caps because the employee receives no money. Company-level vendor spend is covered by the daily budget ticket instead. A dedicated vendor auto-pay threshold is future work.
+
+## Demo notes
+
+- The seeded vendor bookings route to HR when no active policy lists their category, because the policy check fails closed. Load an active policy before using the seed to demo an auto-pay booking.
+- Mock verification derives a payer identity from the attested email, so the same email always maps to the same mock account and a different email counts as an account change.
