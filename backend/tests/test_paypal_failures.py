@@ -146,7 +146,7 @@ async def test_failed_batch_item_marks_payout_failed_and_claim_disbursement_fail
     monkeypatch.setattr(payout_status, "get_paypal_client", lambda: client)
     monkeypatch.setattr(payout_status, "_find_payout", lambda db, item_id, sender_item_id: payout)
     monkeypatch.setattr(payout_status, "record_action", lambda *a, **k: None)
-    monkeypatch.setattr(payout_status, "notify", lambda db, user_id, n_type, title, message, link=None:
+    monkeypatch.setattr(payout_status, "notify", lambda db, user_id, n_type, title, message, link=None, email=False:
                         notes.append((user_id, n_type, message)))
     db = _StatusDB(reim)
 
